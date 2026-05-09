@@ -7,7 +7,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const householdId = await getHouseholdId();
+  await getHouseholdId();
 
   return (
     <div className="flex min-h-screen items-center justify-center">

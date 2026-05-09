@@ -30,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Plaid amount convention:** Positive = debit/expense, negative = credit/income. `normalized_amount` column flips sign for human display.
 - **Ownership enforcement:** Use `scopedQuery(householdId)` wrapper to auto-inject `household_id` filtering on all queries. Never write manual WHERE clauses for tenant isolation.
 - **Encryption:** Plaid access tokens and AI API keys encrypted at app layer (aes-256-gcm, key from `ENCRYPTION_KEY` env var).
-- **Plaid is optional.** CSV/OFX import is a first-class citizen. The app must work fully without Plaid configured.
+- **Plaid is the primary feature.** Bank sync via Plaid is the core experience. CSV/OFX import is available as a supplementary option for accounts not supported by Plaid.
 - **No serverless.** SQLite requires persistent filesystem. Deployment target is Docker on VPS.
 
 ## Commands (New App)
