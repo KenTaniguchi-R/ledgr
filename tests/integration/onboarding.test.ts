@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { provisionHousehold } from "@/lib/auth/provision";
+import { resolveHouseholdId } from "@/lib/auth/session";
 import { DEFAULT_CATEGORIES } from "@/db/seed/categories";
 import {
   households,
@@ -142,6 +143,33 @@ describe("household provisioning", () => {
       .select()
       .from(householdMembers)
       .where(eq(householdMembers.userId, userId));
+    expect(members).toHaveLength(1);
+    expect(members[0].role).toBe("owner");
+  });
+
+  it("resolveHouseholdId returns existing household for provisioned user", async () => {
+    const testDb = setup();
+    const userId = "user-resolve-existing";
+
+    const provisioned = provisionHousehold(userId, testDb);
+    const resolved = resolveHouseholdId(userId, testDb);
+
+    expect(resolved).toBe(provisioned);
+  });
+
+  it("resolveHouseholdId provisions when no household exists", async () => {
+    const testDb = setup();
+    const userId = "user-resolve-new";
+
+    const resolved = resolveHouseholdId(userId, testDb);
+
+    expect(resolved).toBeTruthy();
+
+    const members = testDb
+      .select()
+      .from(householdMembers)
+      .where(eq(householdMembers.userId, userId))
+      .all();
     expect(members).toHaveLength(1);
     expect(members[0].role).toBe("owner");
   });
