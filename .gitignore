@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Build
+dist/
+build/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# Database
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*
+
+# Vercel
+.vercel
+
+# Test reports
+reports/
+playwright-report/
+test-results/
+.stryker-tmp/
