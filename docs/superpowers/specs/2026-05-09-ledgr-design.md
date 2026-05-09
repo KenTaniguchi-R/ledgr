@@ -1,6 +1,8 @@
 # Ledgr — Design Spec
 
-A self-hostable, open-source personal finance app. Track accounts, transactions, budgets, investments, net worth, and goals — all in one place.
+A self-hostable, open-source personal finance app. Own your financial data — no subscriptions, no ads, no data harvesting. Track accounts, transactions, budgets, investments, net worth, and goals — all in one place.
+
+**License:** AGPLv3 (prevents closed-source forks while keeping it fully open-source)
 
 ## Stack
 
@@ -14,7 +16,10 @@ A self-hostable, open-source personal finance app. Track accounts, transactions,
 | Database | SQLite (WAL mode) | — |
 | Auth | Better Auth | latest |
 | Bank Sync | Plaid Node SDK | latest |
+| Data Import | CSV/OFX parser | custom |
 | AI | Vercel AI SDK (BYOK) | v6 |
+| Background Jobs | node-cron | latest |
+| Containerization | Docker + docker-compose | — |
 | Testing | Vitest + Playwright | latest |
 
 ## Architecture
@@ -34,11 +39,16 @@ Browser ──▶ Next.js App Router
 ### Key Architecture Decisions
 
 - **No separate backend.** Next.js handles everything via Server Components (reads), Server Actions (writes), and API routes (webhooks, streaming).
-- **SQLite single file.** Zero-config, portable, easy backup (copy the file). WAL mode enabled with `busy_timeout=5000` for household concurrency.
+- **SQLite single file.** Zero-config, portable, easy backup (copy the file). WAL mode enabled with `busy_timeout=5000` for household concurrency. **Explicitly not serverless** — SQLite requires a persistent filesystem. Supported deployment targets: Docker on VPS, bare metal, or local machine.
+- **All monetary amounts stored as INTEGER (cents).** $12.50 → 1250. Prevents IEEE 754 floating-point rounding errors in financial aggregations. Converted to display format at the UI layer.
 - **Server Components for data-heavy pages.** Transaction lists, reports, net worth charts — zero client JS for read-only views.
 - **Client Components only for interactivity.** Dashboard widgets, chart interactions, forms, drag-and-drop.
-- **Ownership enforcement via middleware.** `assertOwnership(userId, resourceId)` helper on every mutation — SQLite has no RLS. All queries scoped to household.
+- **Ownership enforcement via query wrapper.** A `scopedQuery(householdId)` wrapper auto-injects `household_id` filtering on all queries — not manual `assertOwnership()` calls. This prevents data leaks from a missed WHERE clause. SQLite has no RLS, so this is enforced at the application layer.
 - **Encryption at app layer.** Plaid access tokens and AI API keys encrypted with aes-256-gcm, key from `ENCRYPTION_KEY` env var.
+- **Background jobs via node-cron.** Plaid sync polling, AI batch categorization, daily balance snapshots, and recurring transaction updates run on a schedule. Not reliant on Vercel cron or external schedulers.
+- **Plaid is optional.** CSV/OFX import is a first-class citizen. The app must deliver full value without Plaid — for international users, privacy-focused users, or anyone who doesn't want to share bank credentials.
+- **Demo mode on first boot.** If no accounts exist, offer to load sample data so users can explore the dashboard before configuring anything. Critical for adoption.
+- **Better Auth adapter interface.** Pin Better Auth version and wrap auth calls behind an adapter so the auth provider is swappable if Better Auth stalls.
 
 ## Data Model
 
@@ -111,9 +121,9 @@ accounts
   official_name       TEXT
   type                TEXT CHECK (checking, savings, credit, loan, investment, other)
   subtype             TEXT
-  current_balance     REAL
-  available_balance   REAL
-  credit_limit        REAL
+  current_balance     INTEGER (cents)
+  available_balance   INTEGER (cents)
+  credit_limit        INTEGER (cents)
   currency            TEXT DEFAULT 'USD'
   is_manual           BOOLEAN DEFAULT false
   is_hidden           BOOLEAN DEFAULT false
@@ -128,7 +138,7 @@ balance_history
   id              TEXT PRIMARY KEY
   account_id      TEXT FK → accounts
   date            DATE NOT NULL
-  balance         REAL NOT NULL
+  balance         INTEGER NOT NULL (cents)
   created_at      DATETIME
   UNIQUE(account_id, date)
 
@@ -167,8 +177,8 @@ transactions
   date                    DATE NOT NULL
   original_name           TEXT NOT NULL (raw from Plaid)
   name                    TEXT NOT NULL (display name, cleaned)
-  amount                  REAL NOT NULL (Plaid convention: positive = debit)
-  normalized_amount       REAL NOT NULL (positive = income, negative = expense)
+  amount                  INTEGER NOT NULL (cents, Plaid convention: positive = debit)
+  normalized_amount       INTEGER NOT NULL (cents, positive = income, negative = expense)
   currency                TEXT DEFAULT 'USD'
   pending                 BOOLEAN DEFAULT false
   reviewed                BOOLEAN DEFAULT false
@@ -192,7 +202,7 @@ transaction_splits
   id              TEXT PRIMARY KEY
   transaction_id  TEXT FK → transactions
   category_id     TEXT FK → categories
-  amount          REAL NOT NULL
+  amount          INTEGER NOT NULL (cents)
   notes           TEXT
   created_at      DATETIME
 
@@ -266,7 +276,7 @@ budget_categories
   id              TEXT PRIMARY KEY
   budget_id       TEXT FK → budgets
   category_id     TEXT FK → categories
-  limit_amount    REAL NOT NULL
+  limit_amount    INTEGER NOT NULL (cents)
   rollover        BOOLEAN DEFAULT false
   is_fixed        BOOLEAN DEFAULT false (for flex budgets: fixed vs variable)
   created_at      DATETIME
@@ -285,8 +295,8 @@ recurring_transactions
   name            TEXT NOT NULL
   merchant_id     TEXT FK → merchants
   category_id     TEXT FK → categories
-  average_amount  REAL
-  last_amount     REAL
+  average_amount  INTEGER (cents)
+  last_amount     INTEGER (cents)
   frequency       TEXT CHECK (weekly, biweekly, semimonthly, monthly, yearly)
   last_date       DATE
   next_date       DATE
@@ -306,7 +316,7 @@ goals
   id              TEXT PRIMARY KEY
   household_id    TEXT FK → households
   name            TEXT NOT NULL
-  target_amount   REAL NOT NULL
+  target_amount   INTEGER NOT NULL (cents)
   target_date     DATE
   linked_account_id TEXT FK → accounts
   icon            TEXT
@@ -329,9 +339,9 @@ investment_holdings
   plaid_security_id TEXT
   security_name   TEXT NOT NULL
   ticker          TEXT
-  quantity        REAL
-  cost_basis      REAL
-  current_value   REAL
+  quantity        REAL (fractional shares — keep as REAL)
+  cost_basis      INTEGER (cents)
+  current_value   INTEGER (cents)
   type            TEXT CHECK (stock, etf, mutual_fund, bond, crypto, cash, other)
   currency        TEXT DEFAULT 'USD'
   as_of_date      DATE NOT NULL
@@ -344,14 +354,16 @@ investment_holdings
 holdings_history
   id              TEXT PRIMARY KEY
   account_id      TEXT FK → accounts
-  ticker          TEXT
+  plaid_security_id TEXT (stable identifier, tickers change)
   security_name   TEXT
-  quantity        REAL
-  value           REAL
+  ticker          TEXT
+  quantity        REAL (fractional shares — keep as REAL)
+  value           INTEGER (cents)
   date            DATE NOT NULL
   created_at      DATETIME
 
   INDEX idx_holdingshistory_account_date ON (account_id, date)
+  INDEX idx_holdingshistory_security ON (plaid_security_id, date)
 
 investment_transactions
   id              TEXT PRIMARY KEY
@@ -360,10 +372,10 @@ investment_transactions
   security_name   TEXT
   ticker          TEXT
   type            TEXT CHECK (buy, sell, dividend, transfer, fee, other)
-  quantity        REAL
-  price           REAL
-  amount          REAL NOT NULL
-  fees            REAL DEFAULT 0
+  quantity        REAL (fractional shares — keep as REAL)
+  price           INTEGER (cents)
+  amount          INTEGER NOT NULL (cents)
+  fees            INTEGER DEFAULT 0 (cents)
   date            DATE NOT NULL
   created_at      DATETIME
 
@@ -379,7 +391,7 @@ notification_preferences
   bill_reminders  BOOLEAN DEFAULT true
   over_budget     BOOLEAN DEFAULT true
   large_transactions BOOLEAN DEFAULT true
-  large_txn_threshold REAL DEFAULT 500
+  large_txn_threshold INTEGER DEFAULT 50000 (cents, i.e. $500)
   weekly_summary  BOOLEAN DEFAULT false
   created_at      DATETIME
   updated_at      DATETIME
@@ -411,19 +423,27 @@ saved_filters
 ### Environment Config
 
 ```env
+# Required
+ENCRYPTION_KEY=...              # For encrypting access tokens + AI keys
+AUTH_SECRET=...                 # Better Auth session secret
+DATABASE_PATH=./data/ledgr.db  # SQLite file path
+
+# Plaid (optional — app works without it via CSV import)
 PLAID_CLIENT_ID=...
 PLAID_SECRET=...
 PLAID_ENV=sandbox|development|production
-PLAID_WEBHOOK_URL=https://your-domain.com/api/plaid/webhook
-ENCRYPTION_KEY=... (for encrypting access tokens + AI keys)
+PLAID_SYNC_MODE=poll|webhook   # Default: poll (no public URL needed)
+PLAID_WEBHOOK_URL=...          # Only needed if PLAID_SYNC_MODE=webhook
 ```
 
 ### Amount Convention
 
-- **Stored:** Raw Plaid amount. Positive = money leaving account (debit/expense). Negative = money entering account (credit/income).
-- **`normalized_amount`:** Flipped sign for human display. Positive = income, negative = expense.
+- **All amounts stored as INTEGER in cents.** $12.50 from Plaid → 1250 in the database.
+- **`amount`:** Raw Plaid convention in cents. Positive = money leaving account (debit/expense). Negative = money entering account (credit/income).
+- **`normalized_amount`:** Flipped sign in cents for human display. Positive = income, negative = expense.
 - **All internal queries and aggregations use `amount` (Plaid convention).**
-- **All UI display uses `normalized_amount`.**
+- **All UI display uses `normalized_amount`** converted to dollars via `lib/money.ts` helpers.
+- **CSV imports:** Detect sign convention from the file (some banks use positive for credits). Normalize to Plaid convention on import.
 
 ## Auto-Categorization Pipeline
 
@@ -502,11 +522,125 @@ Order of precedence:
 
 - **Plaid access tokens:** Encrypted at rest (aes-256-gcm) with key from `ENCRYPTION_KEY` env var
 - **AI API keys:** Same encryption
-- **Ownership enforcement:** `assertOwnership()` middleware checks `household_id` on every mutation. All queries join on `household_id`.
+- **Ownership enforcement:** `scopedQuery(householdId)` wrapper auto-injects `household_id` filtering on all queries and mutations. No manual ownership checks — the wrapper makes data leaks from missed WHERE clauses impossible.
 - **Better Auth:** Handles session management, password hashing, OAuth providers
 - **SQLite file:** Should be stored in a non-public directory with restrictive file permissions
 - **Plaid webhooks:** Verify webhook signature using Plaid's verification endpoint
 - **No financial credentials stored:** Plaid is read-only, no ability to move money
+
+## Deployment
+
+### Supported Targets
+
+- **Docker on VPS** (primary target) — DigitalOcean, Hetzner, Fly.io, Railway, any Linux server
+- **Docker on local machine** — for personal use
+- **Bare metal** — Node.js 20+ directly on a server
+
+**Explicitly NOT supported:** Serverless platforms (Vercel, Cloudflare Workers, AWS Lambda). SQLite requires a persistent filesystem that survives redeployments.
+
+### Docker Setup
+
+```
+ledgr/
+├── Dockerfile              # Multi-stage: build Next.js, copy to slim runner
+├── docker-compose.yml      # App + volume for data/
+├── data/                   # Persistent volume mount
+│   ├── ledgr.db            # SQLite database
+│   ├── ledgr.db-wal        # WAL file
+│   └── attachments/        # Receipt photos
+```
+
+`docker-compose.yml`:
+```yaml
+services:
+  ledgr:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ledgr-data:/app/data
+    env_file: .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  ledgr-data:
+```
+
+Goal: `docker compose up` → working app in under 2 minutes.
+
+### Health Check
+
+`GET /api/health` returns `{ status: "ok", version: "1.0.0", db: "connected" }`.
+
+### Backup & Restore
+
+SQLite backup is just copying the file. Document:
+- Stop the app (or use SQLite `.backup` command for hot backup)
+- Copy `data/ledgr.db` to backup location
+- Restore: replace the file, restart
+
+## Data Import
+
+### CSV Import (First-Class)
+
+CSV import is equal to Plaid — the app must deliver full value without Plaid.
+
+- Upload CSV file via UI
+- Column mapping step: user maps CSV columns to Ledgr fields (date, description, amount, category)
+- Preview parsed transactions before import
+- Auto-detect common bank export formats (Chase, Bank of America, Wells Fargo, etc.)
+- Deduplication: match on date + amount + description to prevent re-importing
+- Assign to account (existing or create new manual account)
+
+### OFX/QFX Import
+
+- Parse OFX/QFX files (standard bank export format)
+- Auto-map fields (OFX has a defined schema)
+- Same deduplication and account assignment as CSV
+
+### Export
+
+- CSV export of transactions with all fields
+- Date range and account filters
+- Useful for tax prep, switching apps, or backup
+
+## Background Jobs
+
+Next.js has no built-in job scheduler. Self-hosters can't use Vercel cron. Use `node-cron` running in the same process.
+
+### Scheduled Jobs
+
+| Job | Default Schedule | Description |
+|-----|-----------------|-------------|
+| Plaid transaction sync | Every 4 hours | Poll `transactions/sync` for all active plaid_items |
+| Balance snapshot | Daily at midnight | Record `balance_history` for all accounts |
+| Recurring detection | Daily at 1am | Call Plaid `/transactions/recurring/get` |
+| Holdings snapshot | Daily at 2am | Record `holdings_history` for investment accounts |
+| AI batch categorization | Every 4 hours (after sync) | Categorize uncategorized transactions via LLM |
+
+### Poll-Based Sync (Alternative to Webhooks)
+
+Plaid webhooks require a stable public URL. Self-hosters behind NAT/CGNAT cannot receive webhooks. Offer both modes:
+
+- **Webhook mode:** Configure `PLAID_WEBHOOK_URL` — Plaid pushes sync notifications
+- **Poll mode:** (default) `node-cron` polls `transactions/sync` on schedule. No public URL needed.
+
+## Demo Mode
+
+On first boot, if no accounts exist, offer to load sample data:
+
+- 3 sample accounts (checking, savings, credit card) with 6 months of realistic transactions
+- Pre-populated categories, a sample budget, and a savings goal
+- Dashboard is fully functional with charts and reports
+- Banner: "You're viewing demo data. Connect your bank or import a CSV to get started."
+- One-click to clear demo data and start fresh
+
+Demo data is critical for adoption — users must feel the product before configuring credentials.
 
 ## SQLite Configuration
 
@@ -540,12 +674,15 @@ ledgr/
 │   │       ├── plaid/
 │   │       │   ├── webhook/
 │   │       │   └── link-token/
-│   │       └── ai/
-│   │           └── chat/
+│   │       ├── ai/
+│   │       │   └── chat/
+│   │       ├── import/         # CSV/OFX upload endpoint
+│   │       └── health/         # Health check endpoint
 │   ├── components/
 │   │   ├── ui/                 # shadcn/ui components
 │   │   ├── charts/             # Recharts wrappers
 │   │   ├── dashboard/          # Widget components
+│   │   ├── import/             # CSV column mapper, preview table
 │   │   └── shared/             # Layout, nav, etc.
 │   ├── db/
 │   │   ├── schema/             # Drizzle schema files (one per domain)
@@ -555,25 +692,34 @@ ledgr/
 │   │   │   ├── categories.ts
 │   │   │   ├── investments.ts
 │   │   │   ├── goals.ts
+│   │   │   ├── merchants.ts
 │   │   │   ├── plaid.ts
 │   │   │   ├── households.ts
 │   │   │   └── index.ts
+│   │   ├── seed/               # Default categories + demo data
 │   │   ├── migrations/
-│   │   └── index.ts            # Drizzle client + SQLite connection
+│   │   └── index.ts            # Drizzle client + SQLite connection + PRAGMAs
 │   ├── lib/
 │   │   ├── plaid/              # Plaid client, sync logic, webhook handler
 │   │   ├── ai/                 # AI categorization, chat, insights
-│   │   ├── auth/               # Better Auth config
+│   │   ├── auth/               # Better Auth config + adapter interface
+│   │   ├── import/             # CSV parser, OFX parser, deduplication
+│   │   ├── jobs/               # node-cron scheduler, job definitions
 │   │   ├── encryption.ts       # AES encrypt/decrypt helpers
-│   │   └── ownership.ts        # assertOwnership middleware
+│   │   ├── scoped-query.ts     # Auto-inject household_id on all queries
+│   │   └── money.ts            # Cents ↔ display conversion helpers
 │   ├── actions/                # Server Actions (mutations)
 │   └── queries/                # Server-side data fetching functions
+├── data/                       # Persistent data (Docker volume mount point)
+│   └── .gitkeep
 ├── public/
+├── Dockerfile
+├── docker-compose.yml
 ├── drizzle.config.ts
 ├── next.config.ts
 ├── tailwind.config.ts
 ├── package.json
-└── .env
+└── .env.example
 ```
 
 ## Default Categories
