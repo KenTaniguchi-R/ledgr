@@ -24,4 +24,17 @@ describe("sanitizeCallbackUrl", () => {
   it("returns / for paths not starting with /", () => {
     expect(sanitizeCallbackUrl("dashboard")).toBe("/");
   });
+
+  it("rejects URL-encoded protocol-relative URLs", () => {
+    expect(sanitizeCallbackUrl("/%2F%2Fevil.com")).toBe("/");
+    expect(sanitizeCallbackUrl("/%2fevil.com")).toBe("/");
+  });
+
+  it("allows paths that decode to safe relative URLs", () => {
+    expect(sanitizeCallbackUrl("/%68ome")).toBe("/%68ome");
+  });
+
+  it("returns / for malformed percent-encoding", () => {
+    expect(sanitizeCallbackUrl("/%ZZ")).toBe("/");
+  });
 });

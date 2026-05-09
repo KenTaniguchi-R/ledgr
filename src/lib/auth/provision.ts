@@ -12,10 +12,10 @@ import type * as schema from "@/db/schema";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
-export async function provisionHousehold(
+export function provisionHousehold(
   userId: string,
   db: Db = defaultDb
-): Promise<string> {
+): string {
   const existing = db
     .select({ householdId: householdMembers.householdId })
     .from(householdMembers)

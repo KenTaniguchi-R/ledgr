@@ -26,5 +26,10 @@ export const getHouseholdId = cache(async (): Promise<string> => {
     return member.householdId;
   }
 
-  return provisionHousehold(session.user.id);
+  try {
+    return provisionHousehold(session.user.id);
+  } catch (e) {
+    console.error("Self-heal provisioning failed:", e);
+    throw new Error("Failed to provision household");
+  }
 });

@@ -1,12 +1,6 @@
-import { redirect } from "next/navigation";
-import { getSession, getHouseholdId } from "@/lib/auth/session";
+import { getHouseholdId } from "@/lib/auth/session";
 
 export default async function DashboardPage() {
-  const session = await getSession();
-  if (!session) {
-    redirect("/login");
-  }
-
   await getHouseholdId();
 
   return (

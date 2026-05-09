@@ -14,7 +14,8 @@ export function middleware(request: NextRequest) {
 
   if (!session) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    const callbackUrl = pathname + (request.nextUrl.search || "");
+    loginUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(loginUrl);
   }
 
