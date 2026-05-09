@@ -1,3 +1,4 @@
+export * from "./auth";
 export * from "./households";
 export * from "./plaid";
 export * from "./accounts";
