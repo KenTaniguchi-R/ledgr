@@ -8,6 +8,10 @@
     "src/queries/**/*.ts",
     "!src/queries/**/*.test.ts"
   ],
+  "plugins": [
+    "@stryker-mutator/vitest-runner",
+    "@stryker-mutator/typescript-checker"
+  ],
   "testRunner": "vitest",
   "checkers": ["typescript"],
   "tsconfigFile": "tsconfig.json",
