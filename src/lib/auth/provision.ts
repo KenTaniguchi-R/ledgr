@@ -16,9 +16,11 @@ export async function provisionHousehold(
   userId: string,
   db: Db = defaultDb
 ): Promise<string> {
-  const existing = await db.query.householdMembers.findFirst({
-    where: eq(householdMembers.userId, userId),
-  });
+  const existing = db
+    .select({ householdId: householdMembers.householdId })
+    .from(householdMembers)
+    .where(eq(householdMembers.userId, userId))
+    .get();
 
   if (existing) {
     return existing.householdId;
@@ -26,25 +28,25 @@ export async function provisionHousehold(
 
   const householdId = uuid();
 
-  await db.transaction(async (tx) => {
-    await tx.insert(households).values({
+  db.transaction((tx) => {
+    tx.insert(households).values({
       id: householdId,
       name: "My Finances",
-    });
+    }).run();
 
-    await tx.insert(householdMembers).values({
+    tx.insert(householdMembers).values({
       id: uuid(),
       householdId,
       userId,
       role: "owner",
-    });
+    }).run();
 
-    await tx.insert(userSettings).values({
+    tx.insert(userSettings).values({
       id: uuid(),
       userId,
-    });
+    }).run();
 
-    await seedDefaultCategories(tx, householdId);
+    seedDefaultCategories(tx, householdId);
   });
 
   return householdId;

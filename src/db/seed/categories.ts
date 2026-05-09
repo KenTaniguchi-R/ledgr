@@ -4,7 +4,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type * as schema from "@/db/schema";
 
 type Db = BetterSQLite3Database<typeof schema>;
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0] | Db;
 
 interface CategoryDef {
   name: string;
@@ -101,26 +101,26 @@ export const DEFAULT_CATEGORIES: GroupDef[] = [
   },
 ];
 
-export async function seedDefaultCategories(
+export function seedDefaultCategories(
   tx: Tx,
   householdId: string
-): Promise<void> {
+): void {
   for (let gi = 0; gi < DEFAULT_CATEGORIES.length; gi++) {
     const group = DEFAULT_CATEGORIES[gi];
     const groupId = uuid();
 
-    await tx.insert(categoryGroups).values({
+    tx.insert(categoryGroups).values({
       id: groupId,
       householdId,
       name: group.name,
       icon: group.icon,
       sortOrder: gi,
       isSystem: true,
-    });
+    }).run();
 
     for (let ci = 0; ci < group.categories.length; ci++) {
       const cat = group.categories[ci];
-      await tx.insert(categories).values({
+      tx.insert(categories).values({
         id: uuid(),
         householdId,
         groupId,
@@ -129,7 +129,7 @@ export async function seedDefaultCategories(
         isIncome: cat.isIncome,
         isSystem: true,
         sortOrder: ci,
-      });
+      }).run();
     }
   }
 }
