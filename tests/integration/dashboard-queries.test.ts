@@ -154,7 +154,7 @@ describe("getMonthlySpending", () => {
       normalizedAmount: 2000,
       amount: -2000,
       categoryId,
-      pending: 1,
+      pending: true,
     });
 
     const result = getMonthlySpending(householdId, undefined, db);
