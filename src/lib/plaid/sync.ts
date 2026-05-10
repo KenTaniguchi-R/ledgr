@@ -10,7 +10,14 @@ import {
 import { plaidAmountToCents, normalizeAmount } from "@/lib/money";
 import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "./client";
-import { extractPlaidErrorCode, nowISO, titleCase } from "./utils";
+import {
+  extractPlaidErrorCode,
+  nowISO,
+  titleCase,
+  REAUTH_ERROR_CODES,
+  TRANSIENT_ERROR_CODES,
+  retryWithBackoff,
+} from "./utils";
 import type { LedgrDb } from "@/db";
 import {
   plaidItems,
@@ -68,54 +75,6 @@ export interface MerchantUpsert {
   normalizedName: string;
   rawNames: string[];
   logoUrl: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// Error classification
-// ---------------------------------------------------------------------------
-
-export const REAUTH_ERROR_CODES = new Set([
-  "ITEM_LOGIN_REQUIRED",
-  "INVALID_CREDENTIALS",
-  "INVALID_MFA",
-  "ITEM_LOCKED",
-  "USER_SETUP_REQUIRED",
-  "MFA_NOT_SUPPORTED",
-  "INSUFFICIENT_CREDENTIALS",
-]);
-
-export const TRANSIENT_ERROR_CODES = new Set([
-  "INSTITUTION_DOWN",
-  "INSTITUTION_NOT_RESPONDING",
-  "INSTITUTION_NOT_AVAILABLE",
-  "TRANSACTIONS_LIMIT",
-  "RATE_LIMIT_EXCEEDED",
-  "INTERNAL_SERVER_ERROR",
-]);
-
-// ---------------------------------------------------------------------------
-// Retry helper
-// ---------------------------------------------------------------------------
-
-async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-): Promise<T> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err: unknown) {
-      const errorCode = extractPlaidErrorCode(err);
-      if (errorCode !== "RATE_LIMIT_EXCEEDED" || attempt === maxAttempts) {
-        throw err;
-      }
-      const baseDelay = Math.pow(2, attempt) * 500;
-      const jitter = Math.random() * 500;
-      await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
-    }
-  }
-  // Should be unreachable, but TypeScript needs it
-  throw new Error("retryWithBackoff exhausted");
 }
 
 // ---------------------------------------------------------------------------
