@@ -263,4 +263,23 @@ export const syncEmptyHandler = http.post(
     })
 );
 
-export const allHandlers = [...plaidHandlers];
+export const webhookKeyHandler = http.post(
+  "https://sandbox.plaid.com/webhook_verification_key/get",
+  () =>
+    HttpResponse.json({
+      key: {
+        alg: "ES256",
+        crv: "P-256",
+        kid: "test-key-1",
+        kty: "EC",
+        use: "sig",
+        x: "mock-x-coordinate",
+        y: "mock-y-coordinate",
+        created_at: 1700000000,
+        expired_at: null,
+      },
+      request_id: "req-key-test",
+    })
+);
+
+export const allHandlers = [...plaidHandlers, webhookKeyHandler];
