@@ -3,17 +3,7 @@ import { getBudgetForMonth } from "@/queries/budgets";
 import { BudgetPageHeader } from "@/components/organisms/budget-page-header";
 import { BudgetTable } from "@/components/organisms/budget-table";
 import { BudgetEmptyState } from "@/components/molecules/budget-empty-state";
-
-function getCurrentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function previousMonth(month: string): string {
-  const [year, m] = month.split("-").map(Number);
-  const d = new Date(year, m - 2);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
+import { getCurrentMonth, shiftMonth } from "@/lib/date-utils";
 
 export default async function BudgetsPage({
   searchParams,
@@ -24,7 +14,7 @@ export default async function BudgetsPage({
   const params = await searchParams;
   const monthParam = typeof params.month === "string" ? params.month : "";
   const month = /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : getCurrentMonth();
-  const prevMonth = previousMonth(month);
+  const prevMonth = shiftMonth(month, -1);
 
   const data = getBudgetForMonth(householdId, month);
   const prevData = getBudgetForMonth(householdId, prevMonth);

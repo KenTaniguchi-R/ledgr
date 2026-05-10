@@ -231,34 +231,3 @@ export async function updateBudgetType(
   return { success: true };
 }
 
-export async function toggleFixedCategory(
-  budgetCategoryId: string,
-  db: LedgrDb = defaultDb,
-): Promise<{ success: true; isFixed: boolean } | { error: string }> {
-  const householdId = await getHouseholdId();
-
-  // JOIN budgetCategories → budgets to verify ownership
-  const row = db
-    .select({
-      id: budgetCategories.id,
-      isFixed: budgetCategories.isFixed,
-      budgetHouseholdId: budgets.householdId,
-    })
-    .from(budgetCategories)
-    .innerJoin(budgets, eq(budgetCategories.budgetId, budgets.id))
-    .where(eq(budgetCategories.id, budgetCategoryId))
-    .get();
-
-  if (!row || row.budgetHouseholdId !== householdId) {
-    return { error: "Budget category not found" };
-  }
-
-  const newIsFixed = !row.isFixed;
-  db.update(budgetCategories)
-    .set({ isFixed: newIsFixed })
-    .where(eq(budgetCategories.id, budgetCategoryId))
-    .run();
-
-  revalidatePath("/budgets");
-  return { success: true, isFixed: newIsFixed };
-}

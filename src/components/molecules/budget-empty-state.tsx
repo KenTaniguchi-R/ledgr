@@ -5,17 +5,12 @@ import { Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createBudget, copyBudgetFromMonth } from "@/actions/budgets";
 import { useRouter } from "next/navigation";
+import { formatMonthLong } from "@/lib/date-utils";
 
 interface BudgetEmptyStateProps {
   month: string;
   hasPreviousMonthBudget: boolean;
   previousMonth: string;
-}
-
-function formatMonth(month: string): string {
-  const [year, m] = month.split("-").map(Number);
-  const date = new Date(year, m - 1);
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 export function BudgetEmptyState({
@@ -43,7 +38,7 @@ export function BudgetEmptyState({
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <Wallet className="size-10 text-muted-foreground mb-3" />
-      <h2 className="text-lg font-medium">No budget for {formatMonth(month)}</h2>
+      <h2 className="text-lg font-medium">No budget for {formatMonthLong(month)}</h2>
       <p className="text-sm text-muted-foreground mt-1 mb-4">
         Set spending limits per category to track your budget.
       </p>
@@ -53,7 +48,7 @@ export function BudgetEmptyState({
         </Button>
         {hasPreviousMonthBudget && (
           <Button variant="outline" onClick={handleCopy} disabled={isPending}>
-            Copy from {formatMonth(previousMonth)}
+            Copy from {formatMonthLong(previousMonth)}
           </Button>
         )}
       </div>

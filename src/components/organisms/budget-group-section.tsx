@@ -67,7 +67,6 @@ export function BudgetGroupSection({
                 categoryIcon={cat.categoryIcon}
                 limitAmount={cat.limitAmount}
                 spent={cat.spent}
-                remaining={cat.remaining}
                 onSaved={onSaved}
               />
             ))}

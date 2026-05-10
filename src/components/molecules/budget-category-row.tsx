@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { BudgetProgressBar } from "@/components/atoms/budget-progress-bar";
 import { setBudgetCategory, removeBudgetCategory } from "@/actions/budgets";
-import { centsToDisplay, parseToCents } from "@/lib/money";
+import { centsToDisplay, centsToInputDisplay, parseToCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 interface BudgetCategoryRowProps {
@@ -17,12 +17,7 @@ interface BudgetCategoryRowProps {
   categoryIcon: string | null;
   limitAmount: number;
   spent: number;
-  remaining: number;
   onSaved?: () => void;
-}
-
-function centsToInputDisplay(cents: number): string {
-  return (cents / 100).toFixed(2);
 }
 
 export function BudgetCategoryRow({

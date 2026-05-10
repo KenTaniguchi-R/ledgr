@@ -2,7 +2,7 @@
 
 import { useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { BudgetSummaryBar } from "@/components/molecules/budget-summary-bar";
+import { BudgetSummaryBar } from "@/components/atoms/budget-summary-bar";
 import { BudgetGroupSection } from "@/components/organisms/budget-group-section";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import type { BudgetMonth } from "@/queries/budgets";

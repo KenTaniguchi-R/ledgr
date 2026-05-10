@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ChartViewToggle } from "@/components/atoms/chart-view-toggle";
 import { SpendingCategoryRow } from "@/components/molecules/spending-category-row";
 import { centsToDisplay } from "@/lib/money";
+import { formatMonthLong, shiftMonth } from "@/lib/date-utils";
 import type { MonthlySpendingRow } from "@/queries/dashboard";
 
 const COLORS = [
@@ -22,17 +23,6 @@ interface SpendingByCategoryProps {
   isLoading?: boolean;
 }
 
-function formatMonth(month: string) {
-  const [y, m] = month.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
-
-function navigateMonth(month: string, direction: -1 | 1): string {
-  const d = new Date(month + "-01");
-  d.setMonth(d.getMonth() + direction);
-  return d.toISOString().slice(0, 7);
-}
-
 export function SpendingByCategory({ data, currentMonth, onMonthChange, isLoading }: SpendingByCategoryProps) {
   const [view, setView] = useState<"donut" | "bar">("donut");
 
@@ -46,7 +36,7 @@ export function SpendingByCategory({ data, currentMonth, onMonthChange, isLoadin
   if (data.length === 0 && !isLoading) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No spending data for {formatMonth(currentMonth)}.
+        No spending data for {formatMonthLong(currentMonth)}.
       </div>
     );
   }
@@ -55,11 +45,11 @@ export function SpendingByCategory({ data, currentMonth, onMonthChange, isLoadin
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="size-6" onClick={() => onMonthChange(navigateMonth(currentMonth, -1))}>
+          <Button variant="ghost" size="icon" className="size-6" onClick={() => onMonthChange(shiftMonth(currentMonth, -1))}>
             <ChevronLeft className="size-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[140px] text-center">{formatMonth(currentMonth)}</span>
-          <Button variant="ghost" size="icon" className="size-6" onClick={() => onMonthChange(navigateMonth(currentMonth, 1))}>
+          <span className="text-sm font-medium min-w-[140px] text-center">{formatMonthLong(currentMonth)}</span>
+          <Button variant="ghost" size="icon" className="size-6" onClick={() => onMonthChange(shiftMonth(currentMonth, 1))}>
             <ChevronRight className="size-4" />
           </Button>
         </div>

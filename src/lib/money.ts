@@ -22,6 +22,10 @@ export function plaidAmountToCents(plaidAmount: number | null | undefined): numb
   return Math.round(plaidAmount * 100);
 }
 
+export function centsToInputDisplay(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
 export function parseToCents(input: string): number | null {
   const cleaned = input.replace(/[$,\s]/g, "");
   if (cleaned === "") return null;

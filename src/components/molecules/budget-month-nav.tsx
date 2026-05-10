@@ -3,23 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-function formatMonth(month: string): string {
-  const [year, m] = month.split("-").map(Number);
-  const date = new Date(year, m - 1);
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
-
-function shiftMonth(month: string, delta: number): string {
-  const [year, m] = month.split("-").map(Number);
-  const d = new Date(year, m - 1 + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function getCurrentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+import { formatMonthLong, getCurrentMonth, shiftMonth } from "@/lib/date-utils";
 
 interface BudgetMonthNavProps {
   month?: string;
@@ -48,7 +32,7 @@ export function BudgetMonthNav({ month }: BudgetMonthNavProps) {
         <ChevronLeft className="size-4" />
       </Button>
       <span className="text-lg font-semibold w-48 text-center">
-        {formatMonth(current)}
+        {formatMonthLong(current)}
       </span>
       <Button
         variant="ghost"

@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
+import { shiftMonth } from "@/lib/date-utils";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -49,13 +50,6 @@ export interface BudgetMonth {
   lastSyncedAt: string | null;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function nextMonth(month: string): string {
-  const [year, m] = month.split("-").map(Number);
-  return m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, "0")}`;
-}
-
 // ── Spending query ───────────────────────────────────────────────────
 
 /**
@@ -65,14 +59,14 @@ function nextMonth(month: string): string {
  * Handles split transactions: when a transaction has splits,
  * the parent is excluded and splits are summed per category instead.
  */
-export function getBudgetSpending(
+function getBudgetSpending(
   householdId: string,
   month: string,
   db: LedgrDb = defaultDb,
 ): Map<string, number> {
   const scoped = scopedQuery(householdId, db);
   const startDate = `${month}-01`;
-  const endDate = `${nextMonth(month)}-01`;
+  const endDate = `${shiftMonth(month, 1)}-01`;
 
   // Find transaction IDs that have splits
   const splitParentRows = db
