@@ -31,6 +31,12 @@ export function TransactionSplitRow({
   const handleCategoryChange = useCallback(
     (categoryId: string | null, categoryName: string | null) => {
       if (!categoryId) return;
+
+      if (split.isDraft && amount === 0) {
+        onUpdate({ ...split, categoryId, categoryName });
+        return;
+      }
+
       startTransition(async () => {
         const result = await upsertSplit(
           transactionId,
@@ -54,6 +60,7 @@ export function TransactionSplitRow({
   const handleAmountBlur = useCallback(() => {
     if (amount === savedAmount.current) return;
     if (!split.categoryId) return;
+    if (amount === 0) return;
 
     startTransition(async () => {
       const result = await upsertSplit(

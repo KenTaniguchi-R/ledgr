@@ -123,11 +123,11 @@ export function TransactionDetailPanel({
 
   const handleSplitUpdate = useCallback((updated: SplitRow) => {
     setSplits((prev) =>
-      prev.map((s) =>
-        s.id === updated.id || (s.isDraft && s.id.startsWith("draft-"))
-          ? { ...updated, isDraft: false }
-          : s,
-      ),
+      prev.map((s) => {
+        if (s.id !== updated.id && !(s.isDraft && s.id.startsWith("draft-"))) return s;
+        const stillDraft = updated.id.startsWith("draft-");
+        return { ...updated, isDraft: stillDraft };
+      }),
     );
   }, []);
 
