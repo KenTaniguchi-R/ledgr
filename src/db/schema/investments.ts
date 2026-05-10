@@ -4,6 +4,7 @@ import {
   real,
   sqliteTable,
   text,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { accounts } from "./accounts";
@@ -24,6 +25,7 @@ export const investmentHoldings = sqliteTable(
     type: text("type", {
       enum: ["stock", "etf", "mutual_fund", "bond", "crypto", "cash", "other"],
     }),
+    sector: text("sector"),
     currency: text("currency").default("USD"),
     asOfDate: text("as_of_date").notNull(),
     createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
@@ -32,6 +34,7 @@ export const investmentHoldings = sqliteTable(
   (table) => [
     index("idx_holdings_account").on(table.accountId),
     index("idx_holdings_date").on(table.accountId, table.asOfDate),
+    index("idx_holdings_security").on(table.plaidSecurityId),
   ]
 );
 
@@ -53,6 +56,11 @@ export const holdingsHistory = sqliteTable(
   (table) => [
     index("idx_holdingshistory_account_date").on(table.accountId, table.date),
     index("idx_holdingshistory_security").on(table.plaidSecurityId, table.date),
+    uniqueIndex("uq_holdingshistory_account_security_date").on(
+      table.accountId,
+      table.plaidSecurityId,
+      table.date,
+    ),
   ]
 );
 
@@ -78,5 +86,6 @@ export const investmentTransactions = sqliteTable(
   },
   (table) => [
     index("idx_invtxn_account_date").on(table.accountId, table.date),
+    uniqueIndex("uq_invtxn_plaid_id").on(table.plaidInvestmentTransactionId),
   ]
 );
