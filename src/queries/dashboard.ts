@@ -10,7 +10,7 @@ import {
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
-import { todayDateString } from "@/lib/date-utils";
+import { todayDateString, rangeToDateBounds } from "@/lib/date-utils";
 import { baseTransactionQuery, type TransactionRow } from "./transactions";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -24,28 +24,6 @@ function currentMonthBounds(): { dateFrom: string; dateTo: string } {
   const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
   const dateTo = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
   return { dateFrom, dateTo };
-}
-
-function rangeToDateFrom(range: string): string | null {
-  const now = new Date();
-  switch (range) {
-    case "1M":
-      now.setMonth(now.getMonth() - 1);
-      return now.toISOString().slice(0, 10);
-    case "3M":
-      now.setMonth(now.getMonth() - 3);
-      return now.toISOString().slice(0, 10);
-    case "6M":
-      now.setMonth(now.getMonth() - 6);
-      return now.toISOString().slice(0, 10);
-    case "1Y":
-      now.setFullYear(now.getFullYear() - 1);
-      return now.toISOString().slice(0, 10);
-    case "all":
-      return null;
-    default:
-      return null;
-  }
 }
 
 // ─── getDashboardSummary ────────────────────────────────────────────────────
@@ -133,7 +111,7 @@ export function getNetWorthHistory(
   db: LedgrDb = defaultDb
 ): NetWorthPoint[] {
   const scoped = scopedQuery(householdId, db);
-  const dateFrom = rangeToDateFrom(range);
+  const { from: dateFrom } = rangeToDateBounds(range);
 
   // Get accounts for classification
   const allAccounts = db

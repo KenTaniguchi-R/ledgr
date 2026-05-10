@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useState, useRef } from "react";
 import { Search, X } from "lucide-react";
+import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -28,25 +28,10 @@ interface TransactionFiltersProps {
 }
 
 export function TransactionFilters({ accounts, categories }: TransactionFiltersProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { updateFilter, clearFilters, hasFilters, searchParams } = useSearchParamFilters();
 
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  const updateFilter = useCallback(
-    (key: string, value: string | null) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (value === null || value === "" || value === "all") {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
-      router.push(`${pathname}?${params.toString()}`);
-    },
-    [router, pathname, searchParams],
-  );
 
   function handleSearchChange(value: string) {
     setSearchValue(value);
@@ -56,9 +41,9 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
     }, 300);
   }
 
-  function clearFilters() {
+  function handleClearFilters() {
     setSearchValue("");
-    router.push(pathname);
+    clearFilters();
   }
 
   const selectedAccountId = searchParams.get("account");
@@ -76,14 +61,6 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
     }
     return "All categories";
   })();
-
-  const hasFilters =
-    searchParams.has("q") ||
-    searchParams.has("account") ||
-    searchParams.has("category") ||
-    searchParams.has("from") ||
-    searchParams.has("to") ||
-    searchParams.has("reviewed");
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -152,7 +129,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
       </div>
 
       {hasFilters && (
-        <Button variant="ghost" size="xs" onClick={clearFilters} className="text-xs">
+        <Button variant="ghost" size="xs" onClick={handleClearFilters} className="text-xs">
           <X className="h-3 w-3 mr-1" /> Clear
         </Button>
       )}
