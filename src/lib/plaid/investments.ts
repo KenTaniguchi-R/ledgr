@@ -1,6 +1,8 @@
 import { v4 as uuid } from "uuid";
+import type { PlaidApi } from "plaid";
 import type { PlaidHolding, PlaidSecurity, PlaidInvestmentTxn } from "./schemas";
-import { mapSecurityType } from "./schemas";
+import { mapSecurityType, PlaidHoldingsResponseSchema, PlaidInvestmentTxnsResponseSchema } from "./schemas";
+import { retryWithBackoff } from "./utils";
 import { todayDateString } from "@/lib/date-utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -40,6 +42,54 @@ export interface InvestmentSyncResult {
   holdingsUpserted?: number;
   txnsInserted?: number;
   error?: string;
+}
+
+const MAX_INV_TXN_PAGES = 50;
+
+// ─── Stage 1: Fetch ─────────────────────────────────────────────────────────
+
+export async function fetchHoldings(
+  client: PlaidApi,
+  accessToken: string,
+): Promise<{ holdings: PlaidHolding[]; securities: PlaidSecurity[] }> {
+  const response = await retryWithBackoff(() =>
+    client.investmentsHoldingsGet({ access_token: accessToken })
+  );
+  const parsed = PlaidHoldingsResponseSchema.parse(response.data);
+  return { holdings: parsed.holdings, securities: parsed.securities };
+}
+
+export async function fetchAllInvestmentTransactionPages(
+  client: PlaidApi,
+  accessToken: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ transactions: PlaidInvestmentTxn[]; securities: PlaidSecurity[] }> {
+  const allTxns: PlaidInvestmentTxn[] = [];
+  const allSecurities = new Map<string, PlaidSecurity>();
+  let offset = 0;
+
+  for (let page = 0; page < MAX_INV_TXN_PAGES; page++) {
+    const response = await retryWithBackoff(() =>
+      client.investmentsTransactionsGet({
+        access_token: accessToken,
+        start_date: startDate,
+        end_date: endDate,
+        options: { offset },
+      })
+    );
+    const parsed = PlaidInvestmentTxnsResponseSchema.parse(response.data);
+
+    allTxns.push(...parsed.investment_transactions);
+    for (const sec of parsed.securities) {
+      allSecurities.set(sec.security_id, sec);
+    }
+
+    offset += parsed.investment_transactions.length;
+    if (offset >= parsed.total_investment_transactions) break;
+  }
+
+  return { transactions: allTxns, securities: Array.from(allSecurities.values()) };
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
