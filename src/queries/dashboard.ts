@@ -9,7 +9,7 @@ import {
   categoryGroups,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, notIncome } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 import { todayDateString, rangeToDateBounds, monthBounds, getCurrentMonth } from "@/lib/date-utils";
 import { baseTransactionQuery, type TransactionRow } from "./transactions";
@@ -223,7 +223,8 @@ export function getMonthlySpending(
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
         eq(transactions.pending, false),
-        gt(transactions.normalizedAmount, 0)
+        gt(transactions.normalizedAmount, 0),
+        notIncome(db)
       )
     )
     .all();
