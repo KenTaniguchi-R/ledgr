@@ -22,6 +22,13 @@
       "when": 1778379763803,
       "tag": "0002_boring_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1778383692444,
+      "tag": "0003_heavy_wildside",
+      "breakpoints": true
     }
   ]
 }
