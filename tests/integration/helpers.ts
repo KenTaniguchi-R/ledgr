@@ -4,10 +4,13 @@ import {
   households,
   accounts,
   transactions,
+  transactionSplits,
   merchants,
   categoryGroups,
   categories,
   categoryRules,
+  budgets,
+  budgetCategories,
 } from "../../src/db/schema";
 
 export function insertHousehold(db: LedgrDb, name = "Test Household") {
@@ -135,4 +138,63 @@ export function insertCategoryRule(
     })
     .run();
   return { ruleId: id };
+}
+
+export function insertBudget(
+  db: LedgrDb,
+  householdId: string,
+  overrides: Partial<typeof budgets.$inferInsert> = {},
+) {
+  const id = uuid();
+  const now = new Date().toISOString();
+  db.insert(budgets)
+    .values({
+      id,
+      householdId,
+      month: "2026-05",
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    })
+    .run();
+  return { budgetId: id };
+}
+
+export function insertBudgetCategory(
+  db: LedgrDb,
+  budgetId: string,
+  categoryId: string,
+  overrides: Partial<typeof budgetCategories.$inferInsert> = {},
+) {
+  const id = uuid();
+  db.insert(budgetCategories)
+    .values({
+      id,
+      budgetId,
+      categoryId,
+      limitAmount: 10000,
+      ...overrides,
+    })
+    .run();
+  return { budgetCategoryId: id };
+}
+
+export function insertTransactionSplit(
+  db: LedgrDb,
+  transactionId: string,
+  categoryId: string,
+  amount: number,
+  overrides: Partial<typeof transactionSplits.$inferInsert> = {},
+) {
+  const id = uuid();
+  db.insert(transactionSplits)
+    .values({
+      id,
+      transactionId,
+      categoryId,
+      amount,
+      ...overrides,
+    })
+    .run();
+  return { splitId: id };
 }
