@@ -8,7 +8,7 @@ import { Products, CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
 import { encrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
-import { mapPlaidAccountType, todayISO } from "@/lib/plaid/utils";
+import { mapPlaidAccountType, todayISO, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
@@ -34,9 +34,8 @@ export async function createLinkToken() {
     });
     return { linkToken: response.data.link_token };
   } catch (e: unknown) {
-    const plaidErr = e as { response?: { data?: { error_code?: string; error_message?: string } } };
-    console.error("Failed to create link token:", plaidErr?.response?.data ?? e);
-    return { error: plaidErr?.response?.data?.error_message ?? "Failed to initialize bank connection" };
+    console.error("Failed to create link token:", e);
+    return { error: extractPlaidErrorMessage(e) ?? "Failed to initialize bank connection" };
   }
 }
 
@@ -148,8 +147,7 @@ export async function exchangeAndStoreAccounts(
     return { success: true, accountCount: plaidAccounts.length };
   } catch (e: unknown) {
     console.error("Exchange failed:", e);
-    const plaidError = e as { response?: { data?: { error_code?: string } } };
-    const errorCode = plaidError?.response?.data?.error_code;
+    const errorCode = extractPlaidErrorCode(e);
     if (
       errorCode === "INSTITUTION_DOWN" ||
       errorCode === "INSTITUTION_NOT_RESPONDING"

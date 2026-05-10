@@ -1,11 +1,13 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
+import { extractPlaidErrorMessage, nowISO } from "@/lib/plaid/utils";
 import { decrypt } from "@/lib/encryption";
 import { getHouseholdId } from "@/lib/auth/session";
+import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { syncInstitution } from "@/lib/plaid/sync";
@@ -15,10 +17,11 @@ export async function createUpdateLinkTokenDirect(
   householdId: string,
   db: LedgrDb = defaultDb,
 ) {
+  const scoped = scopedQuery(householdId, db);
   const item = db
-    .select()
+    .select({ accessToken: plaidItems.accessToken, status: plaidItems.status })
     .from(plaidItems)
-    .where(and(eq(plaidItems.id, plaidItemId), eq(plaidItems.householdId, householdId)))
+    .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
     .get();
 
   if (!item) {
@@ -40,9 +43,8 @@ export async function createUpdateLinkTokenDirect(
     });
     return { linkToken: response.data.link_token };
   } catch (e: unknown) {
-    const plaidErr = e as { response?: { data?: { error_message?: string } } };
-    console.error("Failed to create update link token:", plaidErr?.response?.data ?? e);
-    return { error: plaidErr?.response?.data?.error_message ?? "Failed to initialize re-authentication" };
+    console.error("Failed to create update link token:", e);
+    return { error: extractPlaidErrorMessage(e) ?? "Failed to initialize re-authentication" };
   }
 }
 
@@ -56,10 +58,11 @@ export async function completeReAuthDirect(
   householdId: string,
   db: LedgrDb = defaultDb,
 ) {
+  const scoped = scopedQuery(householdId, db);
   const item = db
-    .select()
+    .select({ accessToken: plaidItems.accessToken, status: plaidItems.status })
     .from(plaidItems)
-    .where(and(eq(plaidItems.id, plaidItemId), eq(plaidItems.householdId, householdId)))
+    .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
     .get();
 
   if (!item) {
@@ -79,8 +82,8 @@ export async function completeReAuthDirect(
     }
 
     db.update(plaidItems)
-      .set({ status: "active", errorCode: null, updatedAt: new Date().toISOString() })
-      .where(and(eq(plaidItems.id, plaidItemId), eq(plaidItems.householdId, householdId)))
+      .set({ status: "active", errorCode: null, updatedAt: nowISO() })
+      .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
       .run();
 
     await syncInstitution(plaidItemId, householdId, db);

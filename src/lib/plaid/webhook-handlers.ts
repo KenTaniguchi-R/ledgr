@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
-import { plaidItems } from "@/db/schema";
+import { plaidItems, type PlaidItemStatus } from "@/db/schema";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { syncInstitution } from "./sync";
-import { REAUTH_ERROR_CODES, TRANSIENT_ERROR_CODES } from "./sync";
+import { syncInstitution, REAUTH_ERROR_CODES } from "./sync";
+import { nowISO } from "./utils";
 import type { WebhookPayload } from "./schemas";
 
 type WebhookContext = { db: LedgrDb; payload: WebhookPayload };
@@ -16,11 +16,9 @@ function findItemByPlaidId(db: LedgrDb, plaidItemIdValue: string) {
     .get();
 }
 
-type PlaidItemStatus = "active" | "error" | "reauth_required" | "revoked";
-
 function updateItemStatus(db: LedgrDb, itemId: string, status: PlaidItemStatus, errorCode: string | null) {
   db.update(plaidItems)
-    .set({ status, errorCode, updatedAt: new Date().toISOString() })
+    .set({ status, errorCode, updatedAt: nowISO() })
     .where(eq(plaidItems.id, itemId))
     .run();
 }
@@ -49,8 +47,6 @@ async function handleItemError({ db, payload }: WebhookContext): Promise<void> {
   const code = payload.error.error_code;
   if (REAUTH_ERROR_CODES.has(code)) {
     updateItemStatus(db, item.id, "reauth_required", code);
-  } else if (TRANSIENT_ERROR_CODES.has(code)) {
-    updateItemStatus(db, item.id, "error", code);
   } else {
     updateItemStatus(db, item.id, "error", code);
   }

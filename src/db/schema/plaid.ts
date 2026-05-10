@@ -2,6 +2,8 @@ import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
 import { sql } from "drizzle-orm";
 import { households } from "./households";
 
+export type PlaidItemStatus = "active" | "error" | "reauth_required" | "revoked";
+
 export const plaidItems = sqliteTable("plaid_items", {
   id: text("id").primaryKey(),
   householdId: text("household_id")

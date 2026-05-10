@@ -1,8 +1,9 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getHouseholdId } from "@/lib/auth/session";
+import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { syncInstitution, type SyncResult } from "@/lib/plaid/sync";
@@ -12,17 +13,12 @@ export async function triggerSync(
   db: LedgrDb = defaultDb
 ): Promise<SyncResult> {
   const householdId = await getHouseholdId();
+  const scoped = scopedQuery(householdId, db);
 
-  // Verify ownership
   const item = db
     .select({ id: plaidItems.id })
     .from(plaidItems)
-    .where(
-      and(
-        eq(plaidItems.id, plaidItemId),
-        eq(plaidItems.householdId, householdId)
-      )
-    )
+    .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
     .get();
 
   if (!item) {

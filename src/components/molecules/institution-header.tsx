@@ -1,22 +1,20 @@
-"use client";
-
+import { type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/atoms/status-badge";
 import { SyncStatusBadge, type SyncStatus } from "@/components/atoms/sync-status-badge";
-import { PlaidLinkFlow } from "@/components/organisms/plaid-link-flow";
+import type { PlaidItemStatus } from "@/db/schema";
 
 interface InstitutionHeaderProps {
   institutionName: string;
-  status: "active" | "error" | "reauth_required" | "revoked" | null;
+  status: PlaidItemStatus | null;
   accountCount: number;
   plaidItemId: string | null;
   lastSyncedAt: string | null;
   syncStatus: SyncStatus;
   syncError?: string;
   onSync: () => void;
-  onReAuthSuccess?: () => void;
-  onReAuthError?: (error: string) => void;
+  reconnectButton?: ReactNode;
   reAuthError?: string | null;
 }
 
@@ -40,8 +38,7 @@ export function InstitutionHeader({
   syncStatus,
   syncError,
   onSync,
-  onReAuthSuccess,
-  onReAuthError,
+  reconnectButton,
   reAuthError,
 }: InstitutionHeaderProps) {
   return (
@@ -68,15 +65,7 @@ export function InstitutionHeader({
         <div className="flex items-center gap-2">
           <SyncStatusBadge status={syncStatus} errorMessage={syncError} />
           {status && syncStatus === "idle" && <StatusBadge status={status} />}
-          {status === "reauth_required" && plaidItemId ? (
-            <PlaidLinkFlow
-              mode="update"
-              variant="reconnect-inline"
-              plaidItemId={plaidItemId}
-              onReAuthSuccess={onReAuthSuccess}
-              onError={onReAuthError}
-            />
-          ) : plaidItemId ? (
+          {reconnectButton ?? (plaidItemId ? (
             <Button
               variant="ghost"
               size="sm"
@@ -87,7 +76,7 @@ export function InstitutionHeader({
               <RefreshCw className="size-3.5" />
               <span className="sr-only">Sync Now</span>
             </Button>
-          ) : null}
+          ) : null)}
         </div>
       </div>
       {reAuthError && (

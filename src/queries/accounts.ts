@@ -1,5 +1,5 @@
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { accounts, plaidItems, ACCOUNT_TYPES } from "@/db/schema";
+import { accounts, plaidItems, ACCOUNT_TYPES, type PlaidItemStatus } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 
@@ -23,7 +23,7 @@ export type AccountRow = ReturnType<typeof getAccounts>[number];
 export interface InstitutionGroup {
   institutionName: string;
   plaidItemId: string | null;
-  status: "active" | "error" | "reauth_required" | "revoked" | null;
+  status: PlaidItemStatus | null;
   lastSyncedAt: string | null;
   accounts: AccountRow[];
 }

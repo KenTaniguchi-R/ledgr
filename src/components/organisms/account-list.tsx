@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AccountCard } from "@/components/molecules/account-card";
 import { InstitutionHeader } from "@/components/molecules/institution-header";
+import { PlaidLinkFlow } from "./plaid-link-flow";
 import { EditAccountDialog } from "./edit-account-dialog";
 import { triggerSync } from "@/actions/sync";
 import type { InstitutionGroup, AccountRow } from "@/queries/accounts";
@@ -116,8 +117,17 @@ export function AccountList({ groups }: AccountListProps) {
                 syncStatus={state.status}
                 syncError={state.error}
                 onSync={() => group.plaidItemId && handleSync(group.plaidItemId)}
-                onReAuthSuccess={handleReAuthSuccess}
-                onReAuthError={group.plaidItemId ? (err) => handleReAuthError(group.plaidItemId!, err) : undefined}
+                reconnectButton={
+                  group.status === "reauth_required" && group.plaidItemId ? (
+                    <PlaidLinkFlow
+                      mode="update"
+                      variant="reconnect-inline"
+                      plaidItemId={group.plaidItemId}
+                      onReAuthSuccess={handleReAuthSuccess}
+                      onError={(err) => handleReAuthError(group.plaidItemId!, err)}
+                    />
+                  ) : undefined
+                }
                 reAuthError={group.plaidItemId === reAuthingItemId ? reAuthError : null}
               />
               <Separator />

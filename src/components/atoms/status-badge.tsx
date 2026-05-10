@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils";
+import type { PlaidItemStatus } from "@/db/schema";
 
 interface StatusBadgeProps {
-  status: "active" | "error" | "reauth_required" | "revoked";
+  status: PlaidItemStatus;
 }
 
 const config = {

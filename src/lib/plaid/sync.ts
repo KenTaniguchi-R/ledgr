@@ -10,6 +10,7 @@ import {
 import { plaidAmountToCents, normalizeAmount } from "@/lib/money";
 import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "./client";
+import { extractPlaidErrorCode, nowISO } from "./utils";
 import type { LedgrDb } from "@/db";
 import {
   plaidItems,
@@ -115,20 +116,6 @@ async function retryWithBackoff<T>(
   }
   // Should be unreachable, but TypeScript needs it
   throw new Error("retryWithBackoff exhausted");
-}
-
-function extractPlaidErrorCode(err: unknown): string | null {
-  if (
-    err &&
-    typeof err === "object" &&
-    "response" in err &&
-    (err as { response?: { data?: { error_code?: string } } }).response?.data
-      ?.error_code
-  ) {
-    return (err as { response: { data: { error_code: string } } }).response.data
-      .error_code;
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +284,7 @@ export async function applyToDb(
   newCursor: string,
   accountBalances: AccountBalanceInfo[] = [],
 ): Promise<{ addedCount: number; modifiedCount: number; removedCount: number }> {
-  const now = new Date().toISOString();
+  const now = nowISO();
 
   return db.transaction((tx) => {
     // --- Build account lookup: plaid_account_id → internal account id ---
@@ -591,7 +578,7 @@ async function doSync(
   householdId: string,
   db: LedgrDb,
 ): Promise<SyncResult> {
-  const now = new Date().toISOString();
+  const now = nowISO();
 
   try {
     // Read plaid_items row

@@ -152,7 +152,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ## Phase 5 — Webhooks + Re-auth
 
-**Status:** Not started
+**Status:** In progress
 **Why:** Production reliability. Poll mode works initially, but webhooks make the app responsive. Re-auth prevents silent sync failures.
 
 **Deliverables:**
@@ -177,21 +177,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 7 — Demo Mode
-
-**Status:** Not started
-**Why:** Critical for adoption — users must experience the product before configuring credentials.
-
-**Deliverables:**
-- `src/db/seed/demo-data.ts` — 3 accounts, 6 months of transactions, sample budget, savings goal
-- `pnpm db:seed` command
-- First-boot detection + "Load Demo Data" button
-- Demo mode banner
-- "Clear Demo Data" action
-
----
-
-## Phase 8 — Budgets
+## Phase 7 — Budgets
 
 **Status:** Not started
 
@@ -203,7 +189,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 9 — Reports + CSV Export
+## Phase 8 — Reports + CSV Export
 
 **Status:** Not started
 
@@ -215,7 +201,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 10 — Recurring Transactions + Bills
+## Phase 9 — Recurring Transactions + Bills
 
 **Status:** Not started
 
@@ -226,7 +212,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 11 — Investments
+## Phase 10 — Investments
 
 **Status:** Not started
 
@@ -237,7 +223,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 12 — AI Assistant + CSV/OFX Import
+## Phase 11 — AI Assistant + CSV/OFX Import
 
 **Status:** Not started
 
@@ -250,7 +236,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 13 — Household Sharing + Goals
+## Phase 12 — Household Sharing + Goals
 
 **Status:** Not started
 
