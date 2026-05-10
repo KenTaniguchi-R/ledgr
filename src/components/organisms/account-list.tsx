@@ -40,16 +40,28 @@ export function AccountList({ groups }: AccountListProps) {
 
     const result = await triggerSync(itemId);
 
+    const newStatus: SyncStatus = result.success ? "success" : "error";
+
     setSyncStates((prev) => {
       const next = new Map(prev);
       next.set(itemId, {
-        status: result.success ? "success" : "error",
+        status: newStatus,
         error: result.success ? undefined : result.error,
       });
       return next;
     });
 
     router.refresh();
+
+    if (newStatus === "success") {
+      setTimeout(() => {
+        setSyncStates((prev) => {
+          const next = new Map(prev);
+          next.delete(itemId);
+          return next;
+        });
+      }, 3000);
+    }
   }, [router]);
 
   const handleSyncAll = useCallback(async () => {

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Loader2, Check, AlertCircle } from "lucide-react";
 import {
   Tooltip,
@@ -14,39 +13,19 @@ export type SyncStatus = "idle" | "syncing" | "success" | "error";
 interface SyncStatusBadgeProps {
   status: SyncStatus;
   errorMessage?: string;
-  onClearSuccess?: () => void;
 }
 
 export function SyncStatusBadge({
   status,
   errorMessage,
-  onClearSuccess,
 }: SyncStatusBadgeProps) {
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    if (status !== "success") {
-      setVisible(true);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setVisible(false);
-      onClearSuccess?.();
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [status, onClearSuccess]);
-
   if (status === "idle") return null;
 
   return (
     <span
       role="status"
       aria-live="polite"
-      className={`inline-flex items-center gap-1 text-xs transition-opacity duration-300 ${
-        !visible ? "opacity-0" : "opacity-100"
-      }`}
+      className="inline-flex items-center gap-1 text-xs"
     >
       {status === "syncing" && (
         <>

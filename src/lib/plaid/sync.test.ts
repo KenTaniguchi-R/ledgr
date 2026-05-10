@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { processBatch } from "./sync";
-import type { PlaidTransaction, PlaidRemovedTransaction } from "./schemas";
+import type { PlaidTransaction } from "./schemas";
 
 // Helper to create test transactions
 function makeTxn(overrides: Partial<PlaidTransaction> = {}): PlaidTransaction {

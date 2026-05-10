@@ -15,7 +15,7 @@ import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 
 export async function createLinkToken() {
-  const householdId = await getHouseholdId();
+  await getHouseholdId();
   const session = await getSession();
 
   try {

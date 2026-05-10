@@ -1,12 +1,10 @@
 import { describe, it, expect, afterEach, beforeAll, afterAll, vi, beforeEach } from "vitest";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { http, HttpResponse } from "msw";
 import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
 import {
-  syncPageOneHandler,
-  syncPageTwoHandler,
   syncWithModifiedHandler,
   syncWithRemovedHandler,
   syncEmptyHandler,

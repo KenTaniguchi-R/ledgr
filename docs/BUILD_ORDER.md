@@ -53,38 +53,61 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 2 — Plaid Link + Token Exchange
+## Phase 2 — Plaid Link + Token Exchange ✅
 
-**Status:** Not started
-**Why second:** Plaid is the main feature. Everything downstream requires a `plaid_items` row with a valid encrypted access token. This is the entry point to all bank data.
+**Status:** Complete
+**Implementation notes:**
+- Plaid API client singleton with environment validation (`src/lib/plaid/client.ts`).
+- Plaid Link flow implemented as a `PlaidLinkFlow` organism using `react-plaid-link`, with lazy token fetch.
+- Token exchange via server actions (not API routes) — exchanges public token, encrypts access token with AES-256-GCM, fetches initial accounts.
+- Account queries with scoped access and soft-delete filtering.
+- Accounts page with loading skeleton, error boundary, and OAuth return route.
+- Atomic/molecular/organism component hierarchy: BalanceDisplay, StatusBadge, AccountTypeIcon → AccountCard, InstitutionHeader, SummaryCard → AccountList, PlaidLinkFlow, AddManualAccountDialog.
+- SidebarNav integrated into dashboard layout.
+- Integration tests for exchange + account actions with MSW mocks; E2E tests for accounts page.
 
-**Deliverables:**
+**Deliverables (completed):**
 - `src/lib/plaid/client.ts` — Plaid API client singleton
-- `/app/api/plaid/link-token/route.ts` — creates Plaid Link token
-- Plaid Link UI component — loads Link JS, handles `onSuccess`
-- `/app/api/plaid/exchange/route.ts` — exchanges public token, encrypts access token, fetches initial accounts
-- Minimal accounts list page showing connected institutions + balances
+- PlaidLinkFlow organism — loads Link JS, handles `onSuccess`
+- Server actions for token exchange + account management
+- `src/queries/accounts.ts` — scoped account queries
+- `/app/(dashboard)/accounts/page.tsx` — accounts list with connected institutions + balances
+- Plaid OAuth return route
+- SidebarNav with navigation links
 - Integration tests: token exchange with MSW, encryption verification, household scoping
+- E2E tests for accounts page
 
 ---
 
-## Phase 3 — Transaction Sync Engine
+## Phase 3 — Transaction Sync Engine ✅
 
-**Status:** Not started
+**Status:** Complete
 **Why third:** The core value — without transactions, there's no data to display, categorize, or budget against.
 
-**Deliverables:**
-- `src/lib/plaid/sync.ts` — cursor-based `transactions/sync` loop
-  - Process added/modified/removed transactions
-  - Handle pending → posted transitions via `pending_transaction_id`
-  - Convert Plaid floats to cents, compute `normalized_amount`
-  - Update account balances
-  - Write `sync_log` entry
-  - Atomic cursor update in single DB transaction
-- Server action: `triggerSync(plaidItemId)` — manual sync button
-- `src/lib/jobs/scheduler.ts` — node-cron, every-4-hours Plaid sync
-- "Sync Now" button on accounts page
-- Integration tests: sync with MSW mocks, cursor atomicity, pending→posted, removed soft-delete
+**Implementation notes:**
+- Pipeline architecture: `fetchAllPages` (Plaid I/O with retry+backoff) → `processBatch` (pure transform) → `applyToDb` (single atomic SQLite transaction).
+- Per-item in-process lock (`Map<string, Promise>`) prevents concurrent sync of same institution from cron + manual trigger racing.
+- Account-type-aware amount normalization: depository accounts flip sign, credit/investment/loan preserve Plaid sign convention.
+- Merchant normalization: trim + title-case, raw_names JSON array tracking, deduplication by normalized name.
+- Pending → posted transitions detected via `pending_transaction_id`; pending row soft-deleted, posted row inserted.
+- Plaid error classification: `ITEM_LOGIN_REQUIRED` etc → `reauth_required`; `INSTITUTION_DOWN` etc → `error` status.
+- Zod runtime validation of every Plaid sync response page.
+- UI: SyncStatusBadge atom, InstitutionHeader with hover-reveal "Sync Now" + relative time display, Sync All via `Promise.allSettled` client-side orchestration.
+- Schema: UNIQUE index on `plaid_transaction_id`, composite index on merchants `(household_id, name)`, indexes on `plaid_items` and `sync_log`.
+- 89 tests total: 8 `processBatch` unit tests, 8 integration tests (pagination, soft-delete, upsert, pending→posted, cursor atomicity, household isolation).
+
+**Deliverables (completed):**
+- `src/lib/plaid/sync.ts` — core sync engine (fetchAllPages, processBatch, applyToDb, syncInstitution)
+- `src/lib/plaid/schemas.ts` — Zod schemas for Plaid sync response validation
+- `src/lib/plaid/sync.test.ts` — colocated unit tests for processBatch
+- `src/actions/sync.ts` — triggerSync server action with ownership verification
+- `src/lib/jobs/scheduler.ts` — node-cron scheduler (every 4 hours)
+- `src/components/atoms/sync-status-badge.tsx` — sync status visual indicator
+- `src/components/molecules/institution-header.tsx` — updated with Sync Now button + last synced
+- `src/components/organisms/account-list.tsx` — updated with sync state management + Sync All
+- `src/queries/accounts.ts` — added lastSyncedAt to InstitutionGroup
+- `tests/integration/transaction-sync.test.ts` — 8 integration tests
+- Schema migration: UNIQUE + performance indexes
 
 ---
 
