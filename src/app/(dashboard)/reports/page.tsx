@@ -7,15 +7,17 @@ import {
   getIncomeExpenseByCategory,
   getCategoryTrends,
   getReportNetWorthHistory,
+  getCashFlowSankey,
+  getSafeToSpend,
   type ReportFilters,
 } from "@/queries/reports";
-import { rangeToDateBounds, shiftDateRange, comparisonLabel } from "@/lib/date-utils";
+import { rangeToDateBounds, shiftDateRange, comparisonLabel, getCurrentMonth } from "@/lib/date-utils";
 import { ReportFilterBar } from "@/components/molecules/report-filter-bar";
 import { ReportTabs } from "@/components/organisms/report-tabs";
 import { SavedReportPicker } from "@/components/organisms/saved-report-picker";
 import { getSavedReportsByHousehold } from "@/queries/saved-reports";
 
-const VALID_TABS = new Set(["spending", "income-expense", "trends", "net-worth"]);
+const VALID_TABS = new Set(["spending", "income-expense", "cash-flow", "trends", "net-worth"]);
 
 export default async function ReportsPage({
   searchParams,
@@ -63,6 +65,9 @@ export default async function ReportsPage({
   let incomeExpenseCategoryData;
   let trendsData;
   let netWorthData;
+  let sankeyData;
+  let safeToSpendData;
+  let cashFlowBarData;
 
   switch (tab) {
     case "spending":
@@ -72,6 +77,12 @@ export default async function ReportsPage({
       incomeExpenseData = getIncomeVsExpense(householdId, filters);
       incomeExpenseCategoryData = getIncomeExpenseByCategory(householdId, filters);
       break;
+    case "cash-flow": {
+      sankeyData = getCashFlowSankey(householdId, filters);
+      safeToSpendData = getSafeToSpend(householdId);
+      cashFlowBarData = getIncomeVsExpense(householdId, filters);
+      break;
+    }
     case "trends":
       trendsData = getCategoryTrends(householdId, filters);
       break;
@@ -79,6 +90,9 @@ export default async function ReportsPage({
       netWorthData = getReportNetWorthHistory(householdId, filters);
       break;
   }
+
+  const currentMonth = getCurrentMonth();
+  const isCurrentMonth = dateFrom <= `${currentMonth}-01` && dateTo >= `${currentMonth}-01`;
 
   const allCategories = getCategories(householdId);
   const allAccounts = getAccounts(householdId);
@@ -101,6 +115,11 @@ export default async function ReportsPage({
         incomeExpenseCategoryData={incomeExpenseCategoryData}
         trendsData={trendsData}
         netWorthData={netWorthData}
+        sankeyNodes={sankeyData?.nodes}
+        sankeyLinks={sankeyData?.links}
+        cashFlowBarData={cashFlowBarData}
+        safeToSpendData={safeToSpendData}
+        isCurrentMonth={isCurrentMonth}
         comparisonLabel={compLabel}
       />
     </div>
