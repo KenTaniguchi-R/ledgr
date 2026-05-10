@@ -13,6 +13,9 @@ import {
   budgetCategories,
   plaidItems,
   recurringTransactions,
+  investmentHoldings,
+  holdingsHistory,
+  investmentTransactions,
 } from "../../src/db/schema";
 import { encrypt } from "../../src/lib/encryption";
 
@@ -246,4 +249,70 @@ export function insertRecurringTransaction(
     })
     .run();
   return { recurringId: id };
+}
+
+export function insertInvestmentHolding(
+  db: LedgrDb,
+  accountId: string,
+  overrides: Partial<typeof investmentHoldings.$inferInsert> = {},
+) {
+  const id = uuid();
+  const now = new Date().toISOString();
+  db.insert(investmentHoldings)
+    .values({
+      id,
+      accountId,
+      securityName: "Test Stock",
+      ticker: "TST",
+      quantity: 10,
+      currentValue: 150000,
+      costBasis: 120000,
+      type: "stock",
+      asOfDate: "2026-05-10",
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    })
+    .run();
+  return { holdingId: id };
+}
+
+export function insertHoldingsSnapshot(
+  db: LedgrDb,
+  accountId: string,
+  date: string,
+  overrides: Partial<typeof holdingsHistory.$inferInsert> = {},
+) {
+  const id = uuid();
+  db.insert(holdingsHistory)
+    .values({
+      id,
+      accountId,
+      date,
+      value: 150000,
+      ...overrides,
+    })
+    .run();
+  return { snapshotId: id };
+}
+
+export function insertInvestmentTransaction(
+  db: LedgrDb,
+  accountId: string,
+  overrides: Partial<typeof investmentTransactions.$inferInsert> = {},
+) {
+  const id = uuid();
+  const now = new Date().toISOString();
+  db.insert(investmentTransactions)
+    .values({
+      id,
+      accountId,
+      type: "buy",
+      amount: 75000,
+      date: "2026-05-01",
+      createdAt: now,
+      ...overrides,
+    })
+    .run();
+  return { investmentTxnId: id };
 }
