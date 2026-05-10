@@ -27,7 +27,7 @@ describe("categorizeSyncedTransactions — PFC tier integration", () => {
       .values({
         id: "item-1",
         householdId: "hh-1",
-        institutionId: "ins_1",
+        plaidInstitutionId: "ins_1",
         institutionName: "Test Bank",
         accessToken: "encrypted-token",
         status: "active",
@@ -124,7 +124,7 @@ describe("categorizeSyncedTransactions — PFC tier integration", () => {
       .values({
         id: "item-2",
         householdId: "hh-2",
-        institutionId: "ins_2",
+        plaidInstitutionId: "ins_2",
         institutionName: "Test Bank 2",
         accessToken: "encrypted-token-2",
         status: "active",
