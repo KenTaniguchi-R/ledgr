@@ -166,7 +166,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ## Phase 6 — Dashboard + Net Worth
 
-**Status:** Not started
+**Status:** Complete
 **Why:** First emotionally compelling moment — transforms raw numbers into a financial picture.
 
 **Deliverables:**
@@ -174,6 +174,17 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 - `/app/(dashboard)/page.tsx` — dashboard with widgets (net worth, cash flow, category donut, recent transactions, account balances)
 - Daily balance snapshot job (midnight cron)
 - Net worth history chart from `balance_history`
+
+**Implementation notes:**
+- Widget registry + composition pattern with react-grid-layout (drag-and-drop)
+- 6 active widgets: net worth chart, spending by category, cash flow, recent transactions, account balances, summary cards
+- 3 placeholder widgets: budgets (Phase 8), bills (Phase 10), goals (Phase 13)
+- Per-user layout persistence via user_settings.dashboardLayout JSON
+- Shared utilities extracted: `lib/date-utils.ts`, `lib/account-utils.ts`
+- `baseTransactionQuery` extracted from transactions.ts for reuse
+- Backfill historical balances from transactions (`lib/jobs/backfill-balances.ts`)
+- API routes for widget data refresh: `/api/dashboard/net-worth`, `/api/dashboard/spending`
+- Dynamic import with `ssr: false` for react-grid-layout SSR compatibility
 
 ---
 

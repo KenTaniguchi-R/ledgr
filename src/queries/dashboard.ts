@@ -1,4 +1,4 @@
-import { eq, gt, lt, gte, lte, sql, desc, and, isNull } from "drizzle-orm";
+import { eq, gt, gte, lte, desc } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   accounts,
@@ -150,11 +150,6 @@ export function getNetWorthHistory(
   let historyRows: BalanceRow[] = [];
 
   if (accountIds.length > 0) {
-    const conditions = dateFrom
-      ? [gte(balanceHistory.date, dateFrom)]
-      : [];
-
-    // Filter by household accounts via a subquery approach using JS filtering
     const allHistory = db
       .select({
         accountId: balanceHistory.accountId,

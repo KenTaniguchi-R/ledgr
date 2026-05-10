@@ -51,7 +51,7 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
   const [spendLoading, startSpendTransition] = useTransition();
 
   const handleLayoutChange = useCallback(
-    (_: any, allLayouts: any) => {
+    (_: unknown, allLayouts: Record<string, GridItem[]>) => {
       const newLayout = {
         desktop: allLayouts.lg ?? layouts.lg,
         tablet: allLayouts.md ?? layouts.md,

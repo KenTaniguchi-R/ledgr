@@ -37,7 +37,7 @@ describe("getDashboardSummary", () => {
       type: "checking",
       currentBalance: 100000, // $1000
     });
-    const { accountId: creditId } = insertAccount(db, householdId, {
+    insertAccount(db, householdId, {
       type: "credit",
       currentBalance: 50000, // $500
     });

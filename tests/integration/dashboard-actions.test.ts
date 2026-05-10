@@ -6,7 +6,7 @@ import { userSettings } from "../../src/db/schema";
 import { saveLayout, getLayout, type DashboardLayout } from "../../src/actions/dashboard";
 
 describe("dashboard actions", () => {
-  const { db, close } = createTestDb();
+  const { db } = createTestDb();
 
   afterEach(() => {
     // Clean up user_settings after each test

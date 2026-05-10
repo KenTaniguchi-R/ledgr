@@ -25,12 +25,18 @@ function formatDate(date: string) {
   return new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+interface TooltipEntry {
+  name: string;
+  value: number;
+  color: string;
+}
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="font-medium">{formatDate(label)}</p>
-      {payload.map((entry: any) => (
+      <p className="font-medium">{formatDate(label ?? "")}</p>
+      {payload.map((entry: TooltipEntry) => (
         <p key={entry.name} style={{ color: entry.color }}>
           {entry.name}: {centsToDisplay(entry.value)}
         </p>
