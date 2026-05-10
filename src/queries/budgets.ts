@@ -1,4 +1,4 @@
-import { eq, and, gt, gte, lt, isNull, sql, inArray, notInArray, desc } from "drizzle-orm";
+import { eq, gt, gte, lt, sql, inArray, notInArray, desc } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   budgets,
@@ -179,7 +179,7 @@ export function getBudgetForMonth(
 
   // No budget: all spending is unbudgeted
   if (!budgetRow) {
-    const unbudgetedCategories = buildUnbudgetedCategories(spending, new Set(), db, householdId);
+    const unbudgetedCategories = buildUnbudgetedCategories(spending, new Set(), db);
     const totalSpent = [...spending.values()].reduce((a, b) => a + b, 0);
     return {
       budget: null,
@@ -248,7 +248,7 @@ export function getBudgetForMonth(
   const groups = [...groupMap.values()];
 
   // Unbudgeted categories
-  const unbudgetedCategories = buildUnbudgetedCategories(spending, budgetedCategoryIds, db, householdId);
+  const unbudgetedCategories = buildUnbudgetedCategories(spending, budgetedCategoryIds, db);
   const unbudgetedSpent = unbudgetedCategories.reduce((a, c) => a + c.spent, 0);
 
   // Summary
@@ -275,7 +275,6 @@ function buildUnbudgetedCategories(
   spending: Map<string, number>,
   budgetedCategoryIds: Set<string>,
   db: LedgrDb,
-  householdId: string,
 ): UnbudgetedCategory[] {
   const result: UnbudgetedCategory[] = [];
 

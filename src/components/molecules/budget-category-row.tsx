@@ -33,7 +33,6 @@ export function BudgetCategoryRow({
   categoryIcon,
   limitAmount,
   spent,
-  remaining,
   onSaved,
 }: BudgetCategoryRowProps) {
   const savedValue = useRef(limitAmount);

@@ -13,10 +13,8 @@ import {
   setBudgetCategory,
   removeBudgetCategory,
   copyBudgetFromMonth,
-  updateBudgetType,
-  toggleFixedCategory,
 } from "../../src/actions/budgets";
-import { budgets, budgetCategories } from "../../src/db/schema";
+import { budgetCategories } from "../../src/db/schema";
 import type { LedgrDb } from "../../src/db";
 
 // Mock auth + revalidation
