@@ -4,7 +4,6 @@ interface BudgetSummaryBarProps {
   totalBudgeted: number;
   totalSpent: number;
   totalRemaining: number;
-  budgetType: "category" | "flex";
   lastSyncedAt: string | null;
 }
 
@@ -23,18 +22,10 @@ export function BudgetSummaryBar({
   totalBudgeted,
   totalSpent,
   totalRemaining,
-  budgetType,
   lastSyncedAt,
 }: BudgetSummaryBarProps) {
-  const labels =
-    budgetType === "flex"
-      ? ["Fixed Expenses", "Variable Budgeted", "Left to Spend"]
-      : ["Total Budgeted", "Total Spent", "Remaining"];
-
-  const values =
-    budgetType === "flex"
-      ? [totalBudgeted, totalSpent, totalRemaining]
-      : [totalBudgeted, totalSpent, totalRemaining];
+  const labels = ["Total Budgeted", "Total Spent", "Remaining"];
+  const values = [totalBudgeted, totalSpent, totalRemaining];
 
   return (
     <div className="flex items-center justify-between rounded-lg border bg-card p-4">

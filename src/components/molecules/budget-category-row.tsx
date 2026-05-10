@@ -132,14 +132,20 @@ export function BudgetCategoryRow({
         <AmountDisplay amount={spent} className="text-xs" />
       </td>
       <td className="py-2 px-3">
-        <span
-          className={cn(
-            "text-xs tabular-nums font-medium",
-            optimisticRemaining < 0 && "text-destructive",
-          )}
-        >
-          {centsToDisplay(optimisticRemaining)}
-        </span>
+        {error ? (
+          <span role="alert" aria-live="polite" className="text-xs text-destructive">
+            {error}
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "text-xs tabular-nums font-medium",
+              optimisticRemaining < 0 && "text-destructive",
+            )}
+          >
+            {centsToDisplay(optimisticRemaining)}
+          </span>
+        )}
       </td>
       <td className="py-2 px-3 w-32">
         <BudgetProgressBar spent={spent} limit={optimisticLimit} />
@@ -148,8 +154,20 @@ export function BudgetCategoryRow({
         {budgetCategoryId && (
           <button
             onClick={() => {
+              setError(null);
               setInputValue("");
-              handleSave();
+              setOptimisticLimit(0);
+              startTransition(async () => {
+                const result = await removeBudgetCategory(budgetId, categoryId);
+                if ("error" in result) {
+                  setOptimisticLimit(savedValue.current);
+                  setInputValue(centsToInputDisplay(savedValue.current));
+                  setError(result.error);
+                } else {
+                  savedValue.current = 0;
+                  onSaved?.();
+                }
+              });
             }}
             className="text-muted-foreground hover:text-foreground p-0.5"
             aria-label={`Remove budget for ${categoryName}`}
@@ -158,13 +176,6 @@ export function BudgetCategoryRow({
           </button>
         )}
       </td>
-      {error && (
-        <td>
-          <span role="alert" aria-live="polite" className="text-xs text-destructive">
-            {error}
-          </span>
-        </td>
-      )}
     </tr>
   );
 }

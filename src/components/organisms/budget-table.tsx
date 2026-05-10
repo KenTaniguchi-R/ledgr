@@ -22,8 +22,6 @@ export function BudgetTable({ data }: BudgetTableProps) {
     }, 1000);
   }, [router]);
 
-  const budgetType = data.budget?.type ?? "category";
-
   const fixedGroups = data.groups.filter((g) =>
     g.categories.some((c) => c.isFixed),
   );
@@ -37,7 +35,6 @@ export function BudgetTable({ data }: BudgetTableProps) {
         totalBudgeted={data.summary.totalBudgeted}
         totalSpent={data.summary.totalSpent}
         totalRemaining={data.summary.totalRemaining}
-        budgetType={budgetType}
         lastSyncedAt={data.lastSyncedAt}
       />
 
