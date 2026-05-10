@@ -35,6 +35,10 @@ export interface TransactionRow {
   pfcPrimary: string | null;
   notes: string | null;
   hasSplits: boolean;
+  isTransfer: boolean;
+  transferPairId: string | null;
+  categorySource: string | null;
+  plaidTransactionId: string | null;
 }
 
 export interface TransactionPage {
@@ -63,6 +67,10 @@ export const transactionSelectFields = {
   categoryIcon: categories.icon,
   pfcPrimary: transactions.pfcPrimary,
   notes: transactions.notes,
+  isTransfer: transactions.isTransfer,
+  transferPairId: transactions.transferPairId,
+  categorySource: transactions.categorySource,
+  plaidTransactionId: transactions.plaidTransactionId,
 };
 
 export function baseTransactionQuery(db: LedgrDb, householdId: string) {
@@ -171,6 +179,10 @@ export function getTransactions(
     pending: Boolean(row.pending),
     reviewed: Boolean(row.reviewed),
     hasSplits: splitSet.has(row.id),
+    isTransfer: Boolean(row.isTransfer),
+    transferPairId: row.transferPairId ?? null,
+    categorySource: row.categorySource ?? null,
+    plaidTransactionId: row.plaidTransactionId ?? null,
   }));
 
   const nextCursor = hasMore

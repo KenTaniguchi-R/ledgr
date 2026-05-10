@@ -59,13 +59,13 @@ describe("transaction actions", () => {
       expect(row!.reviewed).toBe(true);
     });
 
-    it("clearing category (null) preserves reviewed status", async () => {
+    it("clearing category (null) sets reviewed to false", async () => {
       const result = await updateTransactionCategory(txnId, null, db);
       expect(result).toEqual({ success: true });
 
       const row = db.select().from(transactions).where(eq(transactions.id, txnId)).get();
       expect(row!.categoryId).toBeNull();
-      expect(row!.reviewed).toBe(true);
+      expect(row!.reviewed).toBe(false);
     });
   });
 

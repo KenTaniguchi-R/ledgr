@@ -45,6 +45,8 @@ export async function updateTransactionCategory(
   };
   if (parsedCatId.data !== null) {
     updates.reviewed = true;
+  } else {
+    updates.reviewed = false;
   }
 
   db.update(transactions)
@@ -52,6 +54,7 @@ export async function updateTransactionCategory(
     .where(eq(transactions.id, existing.id))
     .run();
 
+  revalidatePath("/transactions");
   return { success: true };
 }
 
@@ -78,6 +81,7 @@ export async function toggleReviewed(
     .where(eq(transactions.id, existing.id))
     .run();
 
+  revalidatePath("/transactions");
   return { success: true, reviewed: newReviewed };
 }
 
