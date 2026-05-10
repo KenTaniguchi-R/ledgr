@@ -69,6 +69,7 @@ interface TransactionRow {
   pendingTransactionId: string | null;
   merchantName: string | null;
   logoUrl: string | null;
+  pfcPrimary: string | null;
 }
 
 export interface MerchantUpsert {
@@ -173,6 +174,7 @@ export function processBatch(
       pendingTransactionId: txn.pending_transaction_id ?? null,
       merchantName: txn.merchant_name ? titleCase(txn.merchant_name) : null,
       logoUrl: txn.logo_url ?? null,
+      pfcPrimary: txn.personal_finance_category?.primary ?? null,
     };
   }
 
@@ -327,6 +329,7 @@ export async function applyToDb(
           normalizedAmount: row.normalizedAmount,
           currency: row.currency,
           pending: row.pending,
+          pfcPrimary: row.pfcPrimary,
           createdAt: now,
           updatedAt: now,
         })
@@ -367,6 +370,7 @@ export async function applyToDb(
             currency: row.currency,
             pending: row.pending,
             pendingTransactionId: row.pendingTransactionId,
+            pfcPrimary: row.pfcPrimary,
             updatedAt: now,
             // Preserve user's manual categorization and reviewed status
           })
@@ -388,6 +392,7 @@ export async function applyToDb(
             normalizedAmount: row.normalizedAmount,
             currency: row.currency,
             pending: row.pending,
+            pfcPrimary: row.pfcPrimary,
             createdAt: now,
             updatedAt: now,
           })
