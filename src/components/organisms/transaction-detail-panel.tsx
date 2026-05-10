@@ -46,9 +46,11 @@ export function TransactionDetailPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [txn, setTxn] = useState<TxnRow | null>(initialData);
   const [splits, setSplits] = useState<(SplitRow & { isDraft?: boolean })[]>([]);
-  const [detailLoaded, setDetailLoaded] = useState(false);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(initialData?.reviewed ?? false);
   const [reviewPending, startReviewTransition] = useTransition();
+
+  const detailLoaded = loadedId === transactionId;
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -64,7 +66,6 @@ export function TransactionDetailPanel({
 
   useEffect(() => {
     let cancelled = false;
-    setDetailLoaded(false);
 
     fetchTransactionDetail(transactionId).then((result) => {
       if (cancelled) return;
@@ -76,7 +77,7 @@ export function TransactionDetailPanel({
       setTxn(detail);
       setSplits(detail.splits);
       setReviewed(detail.reviewed);
-      setDetailLoaded(true);
+      setLoadedId(transactionId);
     });
 
     return () => { cancelled = true; };
