@@ -4,6 +4,7 @@ import {
   centsToDisplay,
   displayToCents,
   plaidAmountToCents,
+  normalizeAmount,
 } from "./money";
 
 describe("money utilities", () => {
@@ -31,6 +32,43 @@ describe("money utilities", () => {
     });
     it("rounds fractional cents", () => {
       expect(displayToCents(12.555)).toBe(1256);
+    });
+  });
+
+  describe("normalizeAmount", () => {
+    it("flips sign for depository accounts (expense positive → negative)", () => {
+      expect(normalizeAmount(1250, "depository")).toBe(-1250);
+    });
+    it("flips sign for depository accounts (income negative → positive)", () => {
+      expect(normalizeAmount(-5000, "depository")).toBe(5000);
+    });
+    it("preserves sign for credit accounts", () => {
+      expect(normalizeAmount(-5000, "credit")).toBe(-5000);
+    });
+    it("preserves sign for credit account payments (positive stays positive)", () => {
+      expect(normalizeAmount(20000, "credit")).toBe(20000);
+    });
+    it("preserves sign for investment accounts", () => {
+      expect(normalizeAmount(-100000, "investment")).toBe(-100000);
+    });
+    it("returns 0 (not -0) for zero amount on depository", () => {
+      expect(Object.is(normalizeAmount(0, "depository"), -0)).toBe(false);
+      expect(normalizeAmount(0, "depository")).toBe(0);
+    });
+    it("returns 0 (not -0) for zero amount on credit", () => {
+      expect(Object.is(normalizeAmount(0, "credit"), -0)).toBe(false);
+    });
+    it("treats unknown account types as depository (safe default)", () => {
+      expect(normalizeAmount(1250, "other")).toBe(-1250);
+    });
+    it("treats savings as depository", () => {
+      expect(normalizeAmount(1250, "savings")).toBe(-1250);
+    });
+    it("treats checking as depository", () => {
+      expect(normalizeAmount(1250, "checking")).toBe(-1250);
+    });
+    it("treats loan as credit-like (no flip)", () => {
+      expect(normalizeAmount(-5000, "loan")).toBe(-5000);
     });
   });
 
@@ -65,6 +103,21 @@ describe("money property-based tests", () => {
     "displayToCents always returns an integer",
     (amount) => {
       expect(Number.isInteger(displayToCents(amount))).toBe(true);
+    }
+  );
+
+  test.prop([fc.integer({ min: -9999999, max: 9999999 })])(
+    "normalizeAmount sign symmetry for depository",
+    (amount) => {
+      expect(normalizeAmount(amount, "depository")).toBe(
+        -normalizeAmount(-amount, "depository")
+      );
+    }
+  );
+  test.prop([fc.integer({ min: -9999999, max: 9999999 })])(
+    "normalizeAmount is identity for credit accounts",
+    (amount) => {
+      expect(normalizeAmount(amount, "credit")).toBe(amount === 0 ? 0 : amount);
     }
   );
 });
