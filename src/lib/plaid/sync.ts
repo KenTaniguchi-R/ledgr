@@ -72,7 +72,7 @@ export interface MerchantUpsert {
 // Error classification
 // ---------------------------------------------------------------------------
 
-const REAUTH_ERROR_CODES = new Set([
+export const REAUTH_ERROR_CODES = new Set([
   "ITEM_LOGIN_REQUIRED",
   "INVALID_CREDENTIALS",
   "INVALID_MFA",
@@ -82,7 +82,7 @@ const REAUTH_ERROR_CODES = new Set([
   "INSUFFICIENT_CREDENTIALS",
 ]);
 
-const TRANSIENT_ERROR_CODES = new Set([
+export const TRANSIENT_ERROR_CODES = new Set([
   "INSTITUTION_DOWN",
   "INSTITUTION_NOT_RESPONDING",
   "INSTITUTION_NOT_AVAILABLE",
