@@ -9,7 +9,7 @@ import { GripVertical } from "lucide-react";
 import { BudgetProgressWidget } from "./widgets/budget-progress";
 import { NetWorthChart } from "./widgets/net-worth-chart";
 import { SpendingByCategory } from "./widgets/spending-by-category";
-import { CashFlowChart } from "./widgets/cash-flow-chart";
+import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { RecentTransactionsWidget } from "./widgets/recent-transactions";
 import { AccountBalancesWidget } from "./widgets/account-balances";
 import { DashboardSummaryCards } from "./widgets/dashboard-summary-cards";
@@ -111,7 +111,7 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
           />
         );
       case "cash-flow":
-        return <CashFlowChart data={data.cashFlow} />;
+        return <CashFlowBarChart data={data.cashFlow} />;
       case "recent-txns":
         return <RecentTransactionsWidget data={data.recentTransactions} />;
       case "accounts":

@@ -16,11 +16,9 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
   const [view, setView] = useState<"donut" | "bar">("donut");
 
   const chartData = data.map((r) => ({
-    categoryId: r.categoryId,
-    categoryName: r.categoryName,
-    categoryIcon: null,
-    groupName: r.groupName,
-    total: r.total,
+    id: r.categoryId,
+    name: r.categoryName,
+    value: r.total,
   }));
 
   return (

@@ -7,7 +7,7 @@ import { PortfolioSummaryHeader } from "@/components/organisms/portfolio-summary
 import { HoldingsTable } from "@/components/organisms/holdings-table";
 import { InvestmentTransactionList } from "@/components/organisms/investment-transaction-list";
 import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
-import { SpendingChart, type ChartDataItem } from "@/components/atoms/spending-chart";
+import { SpendingChart, type SpendingChartItem } from "@/components/atoms/spending-chart";
 import type {
   PortfolioSummary,
   PortfolioPoint,
@@ -49,7 +49,8 @@ export function InvestmentPageLayout({ summary, history, allocation, holdings, t
     router.push(`?${params.toString()}`);
   }
 
-  const allocationChartData: ChartDataItem[] = allocation.map((a) => ({
+  const allocationChartData: SpendingChartItem[] = allocation.map((a) => ({
+    id: null,
     name: a.type.charAt(0).toUpperCase() + a.type.slice(1).replace("_", " "),
     value: a.value,
   }));

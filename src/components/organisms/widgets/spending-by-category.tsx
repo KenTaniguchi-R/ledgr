@@ -41,7 +41,10 @@ export function SpendingByCategory({ data, currentMonth, onMonthChange, isLoadin
         <ChartViewToggle value={view} onChange={setView} />
       </div>
       <div className="flex-1 min-h-0">
-        <SpendingChart data={data} viewMode={view} />
+        <SpendingChart
+          data={data.map((r) => ({ id: r.categoryId, name: r.categoryName, value: r.total }))}
+          viewMode={view}
+        />
       </div>
     </div>
   );

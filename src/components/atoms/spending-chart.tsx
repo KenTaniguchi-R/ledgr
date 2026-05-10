@@ -3,39 +3,41 @@
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { centsToDisplay } from "@/lib/money";
 import { CHART_COLORS } from "@/lib/chart-colors";
-import type { MonthlySpendingRow } from "@/queries/dashboard";
 
-export interface ChartDataItem {
+export interface SpendingChartItem {
+  id: string | null;
   name: string;
   value: number;
 }
 
 interface SpendingChartProps {
-  data: MonthlySpendingRow[] | ChartDataItem[];
+  data: SpendingChartItem[];
   viewMode: "donut" | "bar";
+  onItemClick?: (item: { id: string | null; name: string }) => void;
 }
 
-export function SpendingChart({ data, viewMode }: SpendingChartProps) {
-  const normalizedData: ChartDataItem[] = data.map((item) => {
-    if ("categoryName" in item) {
-      return { name: item.categoryName, value: item.total };
-    }
-    return item;
-  });
+export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProps) {
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+        No spending data available.
+      </div>
+    );
+  }
 
-  const total = normalizedData.reduce((sum, d) => sum + d.value, 0);
-  const top8 = normalizedData.slice(0, 8);
-  const otherTotal = normalizedData.slice(8).reduce((sum, d) => sum + d.value, 0);
-  const chartData: ChartDataItem[] =
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  const top8 = data.slice(0, 8);
+  const otherTotal = data.slice(8).reduce((sum, d) => sum + d.value, 0);
+  const chartData: SpendingChartItem[] =
     otherTotal > 0
-      ? [
-          ...top8,
-          {
-            name: "Other",
-            value: otherTotal,
-          },
-        ]
+      ? [...top8, { id: null, name: "Other", value: otherTotal }]
       : top8;
+
+  function handleClick(index: number) {
+    if (!onItemClick) return;
+    const item = chartData[index];
+    if (item) onItemClick({ id: item.id, name: item.name });
+  }
 
   if (viewMode === "donut") {
     return (
@@ -51,6 +53,8 @@ export function SpendingChart({ data, viewMode }: SpendingChartProps) {
                 cy="50%"
                 innerRadius="55%"
                 outerRadius="85%"
+                onClick={(_, index) => handleClick(index)}
+                className={onItemClick ? "cursor-pointer" : ""}
               >
                 {chartData.map((_, i) => (
                   <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
@@ -68,6 +72,7 @@ export function SpendingChart({ data, viewMode }: SpendingChartProps) {
               amount={row.value}
               percentage={total > 0 ? (row.value / total) * 100 : 0}
               color={CHART_COLORS[i % CHART_COLORS.length]}
+              onClick={onItemClick ? () => handleClick(i) : undefined}
             />
           ))}
         </div>
@@ -85,7 +90,11 @@ export function SpendingChart({ data, viewMode }: SpendingChartProps) {
         />
         <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
         <Tooltip formatter={(v) => centsToDisplay(Number(v))} />
-        <Bar dataKey="value">
+        <Bar
+          dataKey="value"
+          onClick={(_, index) => handleClick(index)}
+          className={onItemClick ? "cursor-pointer" : ""}
+        >
           {chartData.map((_, i) => (
             <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
           ))}
@@ -97,23 +106,24 @@ export function SpendingChart({ data, viewMode }: SpendingChartProps) {
 
 function SpendingLegendRow({
   name,
-  icon,
   amount,
   percentage,
   color,
+  onClick,
 }: {
   name: string;
-  icon?: string;
   amount: number;
   percentage: number;
   color: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 py-1 text-sm">
+    <div
+      className={`flex items-center gap-2 py-1 text-sm ${onClick ? "cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1" : ""}`}
+      onClick={onClick}
+    >
       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-      <span className="truncate flex-1">
-        {icon ? `${icon} ` : ""}{name}
-      </span>
+      <span className="truncate flex-1">{name}</span>
       <span className="font-medium tabular-nums">{centsToDisplay(amount)}</span>
       <span className="text-muted-foreground text-xs w-10 text-right">{percentage.toFixed(0)}%</span>
     </div>
