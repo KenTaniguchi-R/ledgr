@@ -21,3 +21,11 @@ export function plaidAmountToCents(plaidAmount: number | null | undefined): numb
   if (plaidAmount === null || plaidAmount === undefined) return null;
   return Math.round(plaidAmount * 100);
 }
+
+export function parseToCents(input: string): number | null {
+  const cleaned = input.replace(/[$,\s]/g, "");
+  if (cleaned === "") return null;
+  const parsed = Number(cleaned);
+  if (Number.isNaN(parsed)) return null;
+  return Math.round(parsed * 100);
+}

@@ -5,6 +5,7 @@ import {
   displayToCents,
   plaidAmountToCents,
   normalizeAmount,
+  parseToCents,
 } from "./money";
 
 describe("money utilities", () => {
@@ -91,6 +92,33 @@ describe("money utilities", () => {
     it("returns 0 for zero (not null)", () => {
       expect(plaidAmountToCents(0)).toBe(0);
     });
+  });
+});
+
+describe("parseToCents", () => {
+  it("parses a simple dollar string", () => {
+    expect(parseToCents("125.00")).toBe(12500);
+  });
+  it("parses a string without decimals", () => {
+    expect(parseToCents("125")).toBe(12500);
+  });
+  it("parses a string with $ prefix", () => {
+    expect(parseToCents("$125.00")).toBe(12500);
+  });
+  it("parses a string with commas", () => {
+    expect(parseToCents("$1,250.00")).toBe(125000);
+  });
+  it("returns null for invalid input", () => {
+    expect(parseToCents("abc")).toBeNull();
+  });
+  it("returns null for empty string", () => {
+    expect(parseToCents("")).toBeNull();
+  });
+  it("returns 0 for '0'", () => {
+    expect(parseToCents("0")).toBe(0);
+  });
+  it("handles whitespace", () => {
+    expect(parseToCents("  125.50  ")).toBe(12550);
   });
 });
 
