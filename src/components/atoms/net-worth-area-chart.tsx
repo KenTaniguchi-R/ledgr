@@ -1,0 +1,79 @@
+"use client";
+
+import {
+  ComposedChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { centsToDisplay } from "@/lib/money";
+import { INCOME_COLOR, EXPENSE_COLOR, PRIMARY_COLOR } from "@/lib/chart-colors";
+import type { NetWorthPoint } from "@/queries/dashboard";
+
+interface NetWorthAreaChartProps {
+  data: NetWorthPoint[];
+  height?: number;
+}
+
+function formatDate(date: string) {
+  return new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+interface TooltipEntry {
+  name: string;
+  value: number;
+  color: string;
+}
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
+      <p className="font-medium">{formatDate(label ?? "")}</p>
+      {payload.map((entry: TooltipEntry) => (
+        <p key={entry.name} style={{ color: entry.color }}>
+          {entry.name}: {centsToDisplay(entry.value)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+        Net worth history will appear after your accounts sync.
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} />
+        <YAxis
+          tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
+          tick={{ fontSize: 11 }}
+          width={60}
+        />
+        <Tooltip content={<CustomTooltip />} />
+        <Area
+          type="monotone"
+          dataKey="netWorth"
+          name="Net Worth"
+          fill="hsl(var(--primary) / 0.1)"
+          stroke={PRIMARY_COLOR}
+          strokeWidth={2}
+        />
+        <Line type="monotone" dataKey="assets" name="Assets" stroke={INCOME_COLOR} strokeWidth={1.5} dot={false} />
+        <Line type="monotone" dataKey="liabilities" name="Liabilities" stroke={EXPENSE_COLOR} strokeWidth={1.5} dot={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
