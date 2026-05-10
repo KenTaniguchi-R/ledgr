@@ -314,7 +314,10 @@ export function getInvestmentTransactions(
     sql`${investmentTransactions.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`,
   ];
 
-  if (filters.type) conditions.push(eq(investmentTransactions.type, filters.type));
+  if (filters.type)
+    conditions.push(
+      eq(investmentTransactions.type, filters.type as "buy" | "sell" | "dividend" | "transfer" | "fee" | "other"),
+    );
   if (filters.dateFrom) conditions.push(gte(investmentTransactions.date, filters.dateFrom));
   if (filters.dateTo) conditions.push(lte(investmentTransactions.date, filters.dateTo));
 
