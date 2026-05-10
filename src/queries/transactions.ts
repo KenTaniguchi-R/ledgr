@@ -41,6 +41,43 @@ export interface TransactionPage {
   nextCursor: string | null;
 }
 
+export const transactionSelectFields = {
+  id: transactions.id,
+  date: transactions.date,
+  name: transactions.name,
+  originalName: transactions.originalName,
+  amount: transactions.amount,
+  normalizedAmount: transactions.normalizedAmount,
+  currency: transactions.currency,
+  pending: transactions.pending,
+  reviewed: transactions.reviewed,
+  accountId: transactions.accountId,
+  accountName: accounts.name,
+  merchantId: transactions.merchantId,
+  merchantName: merchants.name,
+  merchantLogoUrl: merchants.logoUrl,
+  categoryId: transactions.categoryId,
+  categoryName: categories.name,
+  categoryGroupName: categoryGroups.name,
+  categoryIcon: categories.icon,
+  notes: transactions.notes,
+};
+
+export function baseTransactionQuery(db: LedgrDb, householdId: string) {
+  const scoped = scopedQuery(householdId, db);
+  const select = transactionSelectFields;
+  const from = transactions;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function joins(query: any) {
+    return query
+      .leftJoin(accounts, eq(transactions.accountId, accounts.id))
+      .leftJoin(merchants, eq(transactions.merchantId, merchants.id))
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id));
+  }
+  return { scoped, select, from, joins };
+}
+
 function encodeCursor(date: string, id: string): string {
   return Buffer.from(JSON.stringify({ date, id })).toString("base64");
 }
@@ -64,7 +101,6 @@ export function getTransactions(
   cursor: string | null = null,
   db: LedgrDb = defaultDb,
 ): TransactionPage {
-  const scoped = scopedQuery(householdId, db);
   const conditions: (SQL | undefined)[] = [notDeleted(transactions)];
 
   if (filters.dateFrom) {
@@ -95,34 +131,9 @@ export function getTransactions(
     );
   }
 
-  const rows = db
-    .select({
-      id: transactions.id,
-      date: transactions.date,
-      name: transactions.name,
-      originalName: transactions.originalName,
-      amount: transactions.amount,
-      normalizedAmount: transactions.normalizedAmount,
-      currency: transactions.currency,
-      pending: transactions.pending,
-      reviewed: transactions.reviewed,
-      accountId: transactions.accountId,
-      accountName: accounts.name,
-      merchantId: transactions.merchantId,
-      merchantName: merchants.name,
-      merchantLogoUrl: merchants.logoUrl,
-      categoryId: transactions.categoryId,
-      categoryName: categories.name,
-      categoryGroupName: categoryGroups.name,
-      categoryIcon: categories.icon,
-      notes: transactions.notes,
-    })
-    .from(transactions)
-    .leftJoin(accounts, eq(transactions.accountId, accounts.id))
-    .leftJoin(merchants, eq(transactions.merchantId, merchants.id))
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-    .where(scoped.where(transactions, ...conditions))
+  const base = baseTransactionQuery(db, householdId);
+  const rows = base.joins(db.select(base.select).from(base.from))
+    .where(base.scoped.where(transactions, ...conditions))
     .orderBy(desc(transactions.date), desc(transactions.id))
     .limit(limit + 1)
     .all();
