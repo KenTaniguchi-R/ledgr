@@ -70,7 +70,7 @@ export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
 
 export const PlaidStreamAmountSchema = z.object({
   amount: z.number().nullable(),
-  iso_currency_code: z.string().nullable(),
+  iso_currency_code: z.string().nullable().optional(),
   unofficial_currency_code: z.string().nullable().optional(),
 });
 
@@ -103,7 +103,7 @@ export const PlaidRecurringStreamSchema = z
       })
       .nullable()
       .optional(),
-    category: z.array(z.string()).optional(),
+    category: z.array(z.string()).nullable().optional(),
     status: z
       .enum(["MATURE", "EARLY_DETECTION", "TOMBSTONED", "UNKNOWN"])
       .optional(),
