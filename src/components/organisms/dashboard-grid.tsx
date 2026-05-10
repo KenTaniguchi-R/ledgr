@@ -13,6 +13,7 @@ import { CashFlowChart } from "./widgets/cash-flow-chart";
 import { RecentTransactionsWidget } from "./widgets/recent-transactions";
 import { AccountBalancesWidget } from "./widgets/account-balances";
 import { DashboardSummaryCards } from "./widgets/dashboard-summary-cards";
+import { UpcomingBillsWidget } from "./widgets/upcoming-bills";
 import { WidgetPlaceholder } from "@/components/molecules/widget-placeholder";
 import { DASHBOARD_WIDGETS, type GridItem } from "./widgets/registry";
 import { saveLayout } from "@/actions/dashboard";
@@ -20,6 +21,7 @@ import type { DashboardSummary, NetWorthPoint, MonthlySpendingRow, CashFlowRow }
 import type { TransactionRow } from "@/queries/transactions";
 import type { AccountType } from "@/db/schema/accounts";
 import type { BudgetMonth } from "@/queries/budgets";
+import type { BillRow } from "@/queries/recurring";
 
 export interface DashboardData {
   summary: DashboardSummary;
@@ -29,6 +31,7 @@ export interface DashboardData {
   recentTransactions: TransactionRow[];
   accounts: { id: string; name: string; type: AccountType; currentBalance: number | null; currency: string | null }[];
   budgetData?: BudgetMonth;
+  upcomingBills: BillRow[];
 }
 
 interface DashboardGridProps {
@@ -118,6 +121,8 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
         ) : (
           <WidgetPlaceholder title="Budget Progress" description="No budget data" />
         );
+      case "bills":
+        return <UpcomingBillsWidget data={data.upcomingBills} />;
       default:
         return null;
     }

@@ -8,6 +8,7 @@ import {
 } from "@/queries/dashboard";
 import { getAccounts } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
+import { getUpcomingBills } from "@/queries/recurring";
 import { getCurrentMonth } from "@/lib/date-utils";
 import { getLayout } from "@/actions/dashboard";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
@@ -19,7 +20,7 @@ export default async function DashboardPage() {
   const session = await getSession();
   const userId = session!.user.id;
 
-  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData] =
+  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills] =
     await Promise.all([
       getDashboardSummary(householdId),
       getNetWorthHistory(householdId, "6M"),
@@ -28,6 +29,7 @@ export default async function DashboardPage() {
       getRecentTransactions(householdId, 5),
       getAccounts(householdId),
       getBudgetForMonth(householdId, getCurrentMonth()),
+      getUpcomingBills(householdId, { limit: 5 }),
     ]);
 
   const accounts = allAccounts
@@ -45,6 +47,7 @@ export default async function DashboardPage() {
     recentTransactions,
     accounts,
     budgetData,
+    upcomingBills,
   };
 
   return (
