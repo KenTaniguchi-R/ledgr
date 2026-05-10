@@ -178,7 +178,7 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 **Implementation notes:**
 - Widget registry + composition pattern with react-grid-layout (drag-and-drop)
 - 6 active widgets: net worth chart, spending by category, cash flow, recent transactions, account balances, summary cards
-- 3 placeholder widgets: budgets (Phase 8), bills (Phase 10), goals (Phase 13)
+- 2 placeholder widgets remaining: goals (Phase 12). Budgets (Phase 8) and bills (Phase 9) now active.
 - Per-user layout persistence via user_settings.dashboardLayout JSON
 - Shared utilities extracted: `lib/date-utils.ts`, `lib/account-utils.ts`
 - `baseTransactionQuery` extracted from transactions.ts for reuse
@@ -214,12 +214,24 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ## Phase 9 — Recurring Transactions + Bills
 
-**Status:** Not started
+**Status:** Complete
 
 **Deliverables:**
-- `src/lib/plaid/recurring.ts` — Plaid `/transactions/recurring/get`
-- Daily recurring detection job
-- `/app/(dashboard)/bills/page.tsx` — calendar + list view
+- `src/lib/plaid/recurring.ts` — Plaid `/transactions/recurring/get` sync with upsert-by-stream-id
+- Recurring sync chained after 4h transaction sync in scheduler (non-fatal)
+- `src/queries/recurring.ts` — `getUpcomingBills()`, `getRecurringSummary()` with monthly normalization
+- `src/actions/recurring.ts` — manual `refreshRecurring()` server action
+- `/app/(dashboard)/bills/page.tsx` — bills list page with search, loading skeleton, error boundary
+- Dashboard widget activated (upcoming 5 bills)
+- Sidebar nav item added
+
+**Implementation notes:**
+- Snapshot-replace sync pattern: upsert by `plaidStreamId`, deactivate missing streams
+- Transaction back-linking via bulk UPDATE on `transactions.recurringTransactionId`
+- Pre-decrypted access token passed from scheduler to avoid double AES decrypt
+- Monthly normalization uses exact fractions (weekly × 52/12, yearly × 1/12)
+- BillList is a server component; BillSearch is a client molecule with debounced URL param update
+- 10 integration tests (7 sync + 3 query)
 
 ---
 
