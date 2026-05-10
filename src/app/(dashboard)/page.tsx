@@ -1,4 +1,3 @@
-import dynamic from "next/dynamic";
 import { getHouseholdId, getSession } from "@/lib/auth/session";
 import {
   getDashboardSummary,
@@ -10,15 +9,8 @@ import {
 import { getAccounts } from "@/queries/accounts";
 import { getLayout } from "@/actions/dashboard";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
+import { DashboardGridLoader } from "@/components/organisms/dashboard-grid-loader";
 import type { DashboardData } from "@/components/organisms/dashboard-grid";
-
-const DashboardGrid = dynamic(
-  () => import("@/components/organisms/dashboard-grid").then((m) => ({ default: m.DashboardGrid })),
-  {
-    ssr: false,
-    loading: () => <div className="animate-pulse text-muted-foreground">Loading dashboard...</div>,
-  }
-);
 
 export default async function DashboardPage() {
   const householdId = await getHouseholdId();
@@ -54,7 +46,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight mb-4">Dashboard</h1>
-      <DashboardGrid layout={layout} data={data} userId={userId} />
+      <DashboardGridLoader layout={layout} data={data} userId={userId} />
     </div>
   );
 }
