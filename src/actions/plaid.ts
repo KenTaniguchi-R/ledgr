@@ -10,7 +10,7 @@ import { plaidAmountToCents } from "@/lib/money";
 import { mapPlaidAccountType, todayISO, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { plaidItems, accounts, balanceHistory } from "@/db/schema";
+import { plaidItems, accounts, balanceHistory, institutionLogos } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 
 export async function createLinkToken() {
@@ -56,13 +56,18 @@ export async function exchangeAndStoreAccounts(
     const institutionId = itemRes.data.item.institution_id ?? null;
 
     let institutionName = "Unknown Institution";
+    let institutionLogo: string | null = null;
+    let institutionPrimaryColor: string | null = null;
     if (institutionId) {
       try {
         const instRes = await getPlaidClient().institutionsGetById({
           institution_id: institutionId,
           country_codes: [CountryCode.Us],
+          options: { include_optional_metadata: true },
         });
         institutionName = instRes.data.institution.name;
+        institutionLogo = instRes.data.institution.logo ?? null;
+        institutionPrimaryColor = instRes.data.institution.primary_color ?? null;
       } catch {
         // Fall back to "Unknown Institution" if lookup fails
       }
@@ -101,9 +106,20 @@ export async function exchangeAndStoreAccounts(
           plaidInstitutionId: institutionId,
           plaidItemId: itemRes.data.item.item_id,
           institutionName,
+          primaryColor: institutionPrimaryColor,
           status: "active",
         })
         .run();
+
+      if (institutionLogo) {
+        tx.insert(institutionLogos)
+          .values({
+            id: uuid(),
+            plaidItemId: plaidItemId,
+            logo: institutionLogo,
+          })
+          .run();
+      }
 
       for (const acct of plaidAccounts) {
         const accountId = uuid();
