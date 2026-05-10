@@ -117,3 +117,33 @@ export function comparisonLabel(from: string, to: string): string {
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `vs ${fmt(fromDate)} – ${fmt(toDate)}`;
 }
+
+export type BillStatus = "overdue" | "due-soon" | "upcoming" | "inactive";
+
+export function deriveBillStatus(
+  nextDate: string | null,
+  isActive: boolean,
+): BillStatus {
+  if (!isActive) return "inactive";
+  if (!nextDate) return "upcoming";
+  const today = todayDateString();
+  if (nextDate < today) return "overdue";
+  const threeDaysOut = new Date();
+  threeDaysOut.setDate(threeDaysOut.getDate() + 3);
+  const threshold = threeDaysOut.toISOString().slice(0, 10);
+  if (nextDate <= threshold) return "due-soon";
+  return "upcoming";
+}
+
+export function relativeDateLabel(dateStr: string): string {
+  const today = new Date(todayDateString() + "T12:00:00");
+  const target = new Date(dateStr + "T12:00:00");
+  const diffDays = Math.round(
+    (target.getTime() - today.getTime()) / 86400000,
+  );
+  if (diffDays < 0) return `${Math.abs(diffDays)}d overdue`;
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays <= 7) return `in ${diffDays} days`;
+  return target.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
