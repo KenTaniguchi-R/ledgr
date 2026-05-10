@@ -24,6 +24,7 @@ export interface InstitutionGroup {
   institutionName: string;
   plaidItemId: string | null;
   status: "active" | "error" | "reauth_required" | null;
+  lastSyncedAt: string | null;
   accounts: AccountRow[];
 }
 
@@ -52,6 +53,7 @@ export function getAccountsByInstitution(
           institutionName: item?.institutionName ?? "Unknown Institution",
           plaidItemId: account.plaidItemId,
           status: (item?.status as InstitutionGroup["status"]) ?? null,
+          lastSyncedAt: item?.updatedAt ?? null,
           accounts: [],
         });
       }
@@ -63,6 +65,7 @@ export function getAccountsByInstitution(
           institutionName: "Manual Accounts",
           plaidItemId: null,
           status: null,
+          lastSyncedAt: null,
           accounts: [],
         });
       }
