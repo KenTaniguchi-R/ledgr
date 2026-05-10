@@ -49,3 +49,19 @@ export const PlaidSyncResponseSchema = z.object({
 });
 
 export type PlaidSyncResponse = z.infer<typeof PlaidSyncResponseSchema>;
+
+export const WebhookPayloadSchema = z.object({
+  webhook_type: z.string(),
+  webhook_code: z.string(),
+  item_id: z.string(),
+  error: z
+    .object({
+      error_type: z.string(),
+      error_code: z.string(),
+      error_message: z.string(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
