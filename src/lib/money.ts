@@ -9,7 +9,8 @@ export function displayToCents(display: number): number {
   return Math.round(display * 100);
 }
 
-export function plaidAmountToCents(plaidAmount: number): number {
+export function plaidAmountToCents(plaidAmount: number | null | undefined): number | null {
+  if (plaidAmount === null || plaidAmount === undefined) return null;
   return Math.round(plaidAmount * 100);
 }
 

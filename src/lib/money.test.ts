@@ -42,6 +42,15 @@ describe("money utilities", () => {
     it("handles negative amounts (credits)", () => {
       expect(plaidAmountToCents(-50.0)).toBe(-5000);
     });
+    it("returns null for null input", () => {
+      expect(plaidAmountToCents(null)).toBeNull();
+    });
+    it("returns null for undefined input", () => {
+      expect(plaidAmountToCents(undefined as unknown as number | null)).toBeNull();
+    });
+    it("returns 0 for zero (not null)", () => {
+      expect(plaidAmountToCents(0)).toBe(0);
+    });
   });
 
   describe("normalizeAmount", () => {
