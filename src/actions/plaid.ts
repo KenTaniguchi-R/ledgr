@@ -230,16 +230,19 @@ type UpdateAccountInput = {
   isHidden?: boolean;
 };
 
-export async function updateAccount(accountId: string, data: UpdateAccountInput) {
+export async function updateAccount(
+  accountId: string,
+  data: UpdateAccountInput,
+  db: LedgrDb = defaultDb,
+) {
   const householdId = await getHouseholdId();
-
   const parsed = updateAccountSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input" };
   }
 
-  const scoped = scopedQuery(householdId);
-  const existing = defaultDb
+  const scoped = scopedQuery(householdId, db);
+  const existing = db
     .select({ id: accounts.id })
     .from(accounts)
     .where(scoped.where(accounts, eq(accounts.id, accountId)))
@@ -254,10 +257,9 @@ export async function updateAccount(accountId: string, data: UpdateAccountInput)
   if (parsed.data.isHidden !== undefined) updates.isHidden = parsed.data.isHidden;
 
   if (Object.keys(updates).length > 0) {
-    defaultDb
-      .update(accounts)
+    db.update(accounts)
       .set(updates)
-      .where(eq(accounts.id, accountId))
+      .where(scoped.where(accounts, eq(accounts.id, accountId)))
       .run();
   }
 
