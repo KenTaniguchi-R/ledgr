@@ -6,9 +6,10 @@ import {
   categories,
   accounts,
   balanceHistory,
+  recurringTransactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, getIncomeCategoryIds } from "@/lib/query-helpers";
+import { notDeleted, getIncomeCategoryIds, notIncome } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 import {
   spendingBaseConditions,
@@ -16,6 +17,8 @@ import {
   aggregateSpending,
   enrichSpendingMap,
 } from "@/lib/spending-helpers";
+import { getCurrentMonth, monthBounds } from "@/lib/date-utils";
+import type { SankeyNode, SankeyLink } from "@/components/molecules/sankey-chart";
 
 export interface ReportFilters {
   dateFrom: string;
@@ -378,4 +381,216 @@ export function getReportNetWorthHistory(
       liabilities,
       netWorth: assets - liabilities,
     }));
+}
+
+export function getCashFlowSankey(
+  householdId: string,
+  filters: ReportFilters,
+  db: LedgrDb = defaultDb,
+): { nodes: SankeyNode[]; links: SankeyLink[] } {
+  const scoped = scopedQuery(householdId, db);
+  const incomeCatIds = getIncomeCategoryIds(db);
+
+  const conditions = [
+    notDeleted(transactions),
+    eq(transactions.pending, false),
+    eq(transactions.isTransfer, false),
+    isNull(transactions.transferPairId),
+    gte(transactions.date, filters.dateFrom),
+    lte(transactions.date, filters.dateTo),
+  ];
+
+  if (filters.accountIds?.length) {
+    conditions.push(inArray(transactions.accountId, filters.accountIds));
+  }
+
+  const txns = db
+    .select({
+      categoryId: transactions.categoryId,
+      categoryName: categories.name,
+      normalizedAmount: transactions.normalizedAmount,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(scoped.where(transactions, ...conditions))
+    .all();
+
+  const incomeMap = new Map<string, { name: string; total: number }>();
+  const expenseMap = new Map<string, { name: string; total: number }>();
+
+  for (const txn of txns) {
+    if (!txn.categoryId) continue;
+    if (incomeCatIds.has(txn.categoryId)) {
+      const existing = incomeMap.get(txn.categoryId);
+      const amount = Math.abs(txn.normalizedAmount);
+      if (existing) existing.total += amount;
+      else incomeMap.set(txn.categoryId, { name: txn.categoryName ?? "Unknown", total: amount });
+    } else if (txn.normalizedAmount > 0) {
+      const existing = expenseMap.get(txn.categoryId);
+      if (existing) existing.total += txn.normalizedAmount;
+      else expenseMap.set(txn.categoryId, { name: txn.categoryName ?? "Unknown", total: txn.normalizedAmount });
+    }
+  }
+
+  const totalIncome = [...incomeMap.values()].reduce((s, v) => s + v.total, 0);
+  const totalExpenses = [...expenseMap.values()].reduce((s, v) => s + v.total, 0);
+
+  const nodes: SankeyNode[] = [];
+  for (const [id, data] of incomeMap) {
+    nodes.push({ id: `income-${id}`, name: data.name, type: "income" });
+  }
+  for (const [id, data] of expenseMap) {
+    nodes.push({ id: `expense-${id}`, name: data.name, type: "expense" });
+  }
+
+  const surplus = totalIncome - totalExpenses;
+  if (surplus > 0) {
+    nodes.push({ id: "savings", name: "Savings", type: "savings" });
+  }
+
+  const links: SankeyLink[] = [];
+  for (const [incomeId, incomeData] of incomeMap) {
+    const incomeShare = totalIncome > 0 ? incomeData.total / totalIncome : 0;
+    for (const [expenseId, expenseData] of expenseMap) {
+      const linkValue = Math.round(expenseData.total * incomeShare);
+      if (linkValue > 0) {
+        links.push({
+          source: `income-${incomeId}`,
+          target: `expense-${expenseId}`,
+          value: linkValue,
+        });
+      }
+    }
+    if (surplus > 0) {
+      const savingsValue = Math.round(surplus * incomeShare);
+      if (savingsValue > 0) {
+        links.push({
+          source: `income-${incomeId}`,
+          target: "savings",
+          value: savingsValue,
+        });
+      }
+    }
+  }
+
+  return { nodes, links };
+}
+
+export interface SafeToSpendResult {
+  monthlyIncome: number;
+  recurringExpenses: number;
+  discretionarySpent: number;
+  safeToSpend: number;
+}
+
+export function getSafeToSpend(
+  householdId: string,
+  db: LedgrDb = defaultDb,
+): SafeToSpendResult {
+  const scoped = scopedQuery(householdId, db);
+  const incomeCatIds = getIncomeCategoryIds(db);
+  const { from: dateFrom, to: dateTo } = monthBounds(getCurrentMonth());
+
+  // Monthly income (including pending — so paycheck shows immediately)
+  const incomeTxns = db
+    .select({ normalizedAmount: transactions.normalizedAmount })
+    .from(transactions)
+    .where(
+      scoped.where(
+        transactions,
+        notDeleted(transactions),
+        gte(transactions.date, dateFrom),
+        lte(transactions.date, dateTo),
+        eq(transactions.isTransfer, false),
+        isNull(transactions.transferPairId),
+        incomeCatIds.size > 0
+          ? inArray(transactions.categoryId, [...incomeCatIds])
+          : sql`0`,
+      ),
+    )
+    .all();
+
+  const monthlyIncome = incomeTxns.reduce((s, t) => s + Math.abs(t.normalizedAmount), 0);
+
+  // Recurring expenses: use actual posted amounts when available, projected otherwise
+  const activeRecurring = db
+    .select({
+      id: recurringTransactions.id,
+      averageAmount: recurringTransactions.averageAmount,
+      lastAmount: recurringTransactions.lastAmount,
+    })
+    .from(recurringTransactions)
+    .where(
+      scoped.where(
+        recurringTransactions,
+        eq(recurringTransactions.isActive, true),
+        eq(recurringTransactions.isIncome, false),
+      ),
+    )
+    .all();
+
+  // Find which recurring transactions already posted this month
+  const recurringIds = activeRecurring.map((r) => r.id);
+  const postedRecurring = recurringIds.length > 0
+    ? db
+        .select({
+          recurringTransactionId: transactions.recurringTransactionId,
+          total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
+        })
+        .from(transactions)
+        .where(
+          scoped.where(
+            transactions,
+            notDeleted(transactions),
+            gte(transactions.date, dateFrom),
+            lte(transactions.date, dateTo),
+            inArray(transactions.recurringTransactionId, recurringIds),
+          ),
+        )
+        .groupBy(transactions.recurringTransactionId)
+        .all()
+    : [];
+
+  const postedMap = new Map(
+    postedRecurring.map((r) => [r.recurringTransactionId, r.total]),
+  );
+
+  let recurringExpenses = 0;
+  for (const rec of activeRecurring) {
+    const posted = postedMap.get(rec.id);
+    if (posted !== undefined) {
+      recurringExpenses += posted;
+    } else {
+      recurringExpenses += rec.averageAmount ?? rec.lastAmount ?? 0;
+    }
+  }
+
+  // Discretionary spending: non-recurring expenses this month
+  const discretionaryTxns = db
+    .select({ normalizedAmount: transactions.normalizedAmount })
+    .from(transactions)
+    .where(
+      scoped.where(
+        transactions,
+        notDeleted(transactions),
+        gte(transactions.date, dateFrom),
+        lte(transactions.date, dateTo),
+        eq(transactions.pending, false),
+        eq(transactions.isTransfer, false),
+        isNull(transactions.transferPairId),
+        isNull(transactions.recurringTransactionId),
+        sql`${transactions.normalizedAmount} > 0`,
+        notIncome(db),
+      ),
+    )
+    .all();
+
+  const discretionarySpent = discretionaryTxns.reduce((s, t) => s + t.normalizedAmount, 0);
+
+  return {
+    monthlyIncome,
+    recurringExpenses,
+    discretionarySpent,
+    safeToSpend: monthlyIncome - recurringExpenses - discretionarySpent,
+  };
 }
