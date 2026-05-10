@@ -6,6 +6,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { getHouseholdId } from "@/lib/auth/session";
 import { decrypt } from "@/lib/encryption";
+import { scopedQuery } from "@/lib/scoped-query";
 import { syncRecurringTransactions } from "@/lib/plaid/recurring";
 
 export async function refreshRecurring(
@@ -15,17 +16,16 @@ export async function refreshRecurring(
 > {
   try {
     const householdId = await getHouseholdId();
+    const scoped = scopedQuery(householdId, dbInstance);
 
     const activeItems = dbInstance
       .select({
         id: plaidItems.id,
         accessToken: plaidItems.accessToken,
-        householdId: plaidItems.householdId,
       })
       .from(plaidItems)
-      .where(eq(plaidItems.status, "active"))
-      .all()
-      .filter((item) => item.householdId === householdId);
+      .where(scoped.where(plaidItems, eq(plaidItems.status, "active")))
+      .all();
 
     let totalUpserted = 0;
     let totalDeactivated = 0;

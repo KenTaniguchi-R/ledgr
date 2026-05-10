@@ -12,7 +12,6 @@ import { notDeleted } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 import { todayDateString, rangeToDateBounds, monthBounds, getCurrentMonth } from "@/lib/date-utils";
 import { baseTransactionQuery, type TransactionRow } from "./transactions";
-export type { BillRow } from "./recurring";
 
 // ─── getDashboardSummary ────────────────────────────────────────────────────
 

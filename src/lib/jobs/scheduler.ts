@@ -42,6 +42,7 @@ export function startScheduler() {
       .select({
         id: plaidItems.id,
         householdId: plaidItems.householdId,
+        accessToken: plaidItems.accessToken,
       })
       .from(plaidItems)
       .where(eq(plaidItems.status, "active"))
@@ -54,25 +55,17 @@ export function startScheduler() {
           console.log(
             `[scheduler] Synced ${item.id}: +${result.addedCount} ~${result.modifiedCount} -${result.removedCount}`
           );
-          // Chain recurring sync after successful transaction sync
           try {
-            const itemRow = db
-              .select({ accessToken: plaidItems.accessToken })
-              .from(plaidItems)
-              .where(eq(plaidItems.id, item.id))
-              .get();
-            if (itemRow) {
-              const accessToken = decrypt(itemRow.accessToken);
-              const recurring = await syncRecurringTransactions(
-                item.id,
-                item.householdId,
-                accessToken,
-                db,
-              );
-              console.log(
-                `[scheduler] Recurring for ${item.id}: ${recurring.upserted} upserted, ${recurring.deactivated} deactivated`
-              );
-            }
+            const accessToken = decrypt(item.accessToken);
+            const recurring = await syncRecurringTransactions(
+              item.id,
+              item.householdId,
+              accessToken,
+              db,
+            );
+            console.log(
+              `[scheduler] Recurring for ${item.id}: ${recurring.upserted} upserted, ${recurring.deactivated} deactivated`
+            );
           } catch (recurringErr) {
             console.error(`[scheduler] Recurring sync failed for ${item.id}:`, recurringErr);
           }

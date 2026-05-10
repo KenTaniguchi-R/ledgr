@@ -367,4 +367,4 @@ export const recurringErrorHandler = http.post(
     )
 );
 
-export const allHandlers = [...plaidHandlers, webhookKeyHandler, recurringGetHandler];
+export const allHandlers = [...plaidHandlers, webhookKeyHandler];

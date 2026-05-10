@@ -10,7 +10,7 @@ import {
 import { plaidAmountToCents, normalizeAmount } from "@/lib/money";
 import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "./client";
-import { extractPlaidErrorCode, nowISO } from "./utils";
+import { extractPlaidErrorCode, nowISO, titleCase } from "./utils";
 import type { LedgrDb } from "@/db";
 import {
   plaidItems,
@@ -116,17 +116,6 @@ async function retryWithBackoff<T>(
   }
   // Should be unreachable, but TypeScript needs it
   throw new Error("retryWithBackoff exhausted");
-}
-
-// ---------------------------------------------------------------------------
-// Title-case helper
-// ---------------------------------------------------------------------------
-
-function titleCase(str: string): string {
-  return str
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ---------------------------------------------------------------------------

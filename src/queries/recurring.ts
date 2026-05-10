@@ -1,4 +1,4 @@
-import { eq, asc, like, or } from "drizzle-orm";
+import { eq, asc, like } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { recurringTransactions, merchants, categories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -33,15 +33,10 @@ export function getUpcomingBills(
   ];
 
   if (opts.search) {
-    const pattern = `%${opts.search}%`;
-    conditions.push(
-      or(
-        like(recurringTransactions.name, pattern),
-      )!,
-    );
+    conditions.push(like(recurringTransactions.name, `%${opts.search}%`));
   }
 
-  let query = db
+  let builder = db
     .select({
       id: recurringTransactions.id,
       name: recurringTransactions.name,
@@ -54,20 +49,20 @@ export function getUpcomingBills(
       nextDate: recurringTransactions.nextDate,
       lastDate: recurringTransactions.lastDate,
       isIncome: recurringTransactions.isIncome,
-      isActive: recurringTransactions.isActive,
     })
     .from(recurringTransactions)
     .leftJoin(merchants, eq(recurringTransactions.merchantId, merchants.id))
     .leftJoin(categories, eq(recurringTransactions.categoryId, categories.id))
     .where(scoped.where(recurringTransactions, ...conditions))
-    .orderBy(asc(recurringTransactions.nextDate))
-    .all();
+    .orderBy(asc(recurringTransactions.nextDate));
 
   if (opts.limit) {
-    query = query.slice(0, opts.limit);
+    builder = builder.limit(opts.limit) as typeof builder;
   }
 
-  return query.map((row) => ({
+  const rows = builder.all();
+
+  return rows.map((row) => ({
     id: row.id,
     name: row.name,
     merchantName: row.merchantName,
@@ -79,7 +74,7 @@ export function getUpcomingBills(
     nextDate: row.nextDate,
     lastDate: row.lastDate,
     isIncome: Boolean(row.isIncome),
-    status: deriveBillStatus(row.nextDate, Boolean(row.isActive)),
+    status: deriveBillStatus(row.nextDate, true),
     relativeDateLabel: row.nextDate ? relativeDateLabel(row.nextDate) : null,
   }));
 }

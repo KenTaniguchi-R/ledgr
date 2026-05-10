@@ -6,7 +6,7 @@ import {
   type PlaidRecurringStream,
 } from "./schemas";
 import { plaidAmountToCents } from "@/lib/money";
-import { nowISO } from "./utils";
+import { nowISO, titleCase } from "./utils";
 import type { LedgrDb } from "@/db";
 import { db as defaultDb } from "@/db";
 import {
@@ -26,13 +26,6 @@ const FREQUENCY_MAP: Record<string, Frequency | null> = {
   ANNUALLY: "yearly",
   UNKNOWN: null,
 };
-
-function titleCase(str: string): string {
-  return str
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export async function syncRecurringTransactions(
   plaidItemId: string,
@@ -76,12 +69,12 @@ export async function syncRecurringTransactions(
     ];
 
     const now = nowISO();
-    let upserted = 0;
-    let deactivated = 0;
-
     const seenStreamIds = new Set<string>();
 
-    db.transaction((tx) => {
+    const result = db.transaction((tx) => {
+      let upserted = 0;
+      let deactivated = 0;
+
       const existingMerchants = tx
         .select({ id: merchants.id, name: merchants.name })
         .from(merchants)
@@ -220,9 +213,11 @@ export async function syncRecurringTransactions(
           deactivated++;
         }
       }
-    });
 
-    return { upserted, deactivated };
+      return { upserted, deactivated };
+    }) as { upserted: number; deactivated: number };
+
+    return result;
   } catch (err) {
     console.error(
       `[recurring] Failed to sync recurring for item ${plaidItemId}:`,
