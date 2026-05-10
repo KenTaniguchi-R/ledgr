@@ -85,7 +85,7 @@ export function HoldingsTable({ holdings, view }: HoldingsTableProps) {
                 <div><span className="text-muted-foreground">Value</span><p className="font-medium tabular-nums">{centsToDisplay(selectedHolding.currentValue)}</p></div>
                 <div><span className="text-muted-foreground">Cost Basis</span><p className="font-medium tabular-nums">{selectedHolding.costBasis !== null ? centsToDisplay(selectedHolding.costBasis) : "—"}</p></div>
                 <div><span className="text-muted-foreground">Shares</span><p className="font-medium tabular-nums">{selectedHolding.quantity}</p></div>
-                <div><span className="text-muted-foreground">Gain/Loss</span><p>{selectedHolding.gainLossPercent !== null ? <ComparisonBadge current={selectedHolding.currentValue} previous={selectedHolding.costBasis} pill /> : "—"}</p></div>
+                <div><span className="text-muted-foreground">Gain/Loss</span><p>{selectedHolding.gainLossPercent !== null ? <ComparisonBadge current={selectedHolding.currentValue} previous={selectedHolding.costBasis} pill invertColor /> : "—"}</p></div>
                 {selectedHolding.sector && <div className="col-span-2"><span className="text-muted-foreground">Sector</span><p>{selectedHolding.sector}</p></div>}
                 {selectedHolding.accountName && <div className="col-span-2"><span className="text-muted-foreground">Account</span><p>{selectedHolding.accountName}</p></div>}
               </div>

@@ -34,6 +34,7 @@ export function HoldingRow({ holding, onClick }: HoldingRowProps) {
             current={holding.currentValue}
             previous={holding.costBasis}
             pill
+            invertColor
           />
         ) : (
           <span className="text-muted-foreground text-xs">—</span>

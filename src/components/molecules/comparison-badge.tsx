@@ -5,9 +5,10 @@ interface ComparisonBadgeProps {
   previous: number | null;
   periodLabel?: string;
   pill?: boolean;
+  invertColor?: boolean;
 }
 
-export function ComparisonBadge({ current, previous, periodLabel, pill }: ComparisonBadgeProps) {
+export function ComparisonBadge({ current, previous, periodLabel, pill, invertColor }: ComparisonBadgeProps) {
   if (previous === null || previous === 0) {
     if (pill) {
       return (
@@ -28,7 +29,7 @@ export function ComparisonBadge({ current, previous, periodLabel, pill }: Compar
       className={`inline-flex items-center gap-1 text-xs ${
         isFlat
           ? "text-muted-foreground"
-          : isUp
+          : (isUp !== invertColor)
             ? "text-destructive"
             : "text-green-600"
       }${pill ? " rounded-full bg-muted px-2 py-0.5" : ""}`}

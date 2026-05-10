@@ -12,7 +12,7 @@ import {
 import { getPlaidClient } from "./client";
 import { decrypt } from "@/lib/encryption";
 import { todayDateString } from "@/lib/date-utils";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   investmentHoldings,
@@ -346,7 +346,7 @@ async function doInvestmentSync(
   const item = db
     .select({ accessToken: plaidItems.accessToken })
     .from(plaidItems)
-    .where(eq(plaidItems.id, itemId))
+    .where(and(eq(plaidItems.id, itemId), eq(plaidItems.householdId, householdId)))
     .get();
 
   if (!item) {

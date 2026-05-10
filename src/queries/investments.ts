@@ -222,7 +222,8 @@ export function getHoldings(
   accountId: string | undefined,
   db: LedgrDb = defaultDb,
 ): InvestmentHoldingRow[] {
-  const accIds = accountId ? [accountId] : investmentAccountIds(householdId, db);
+  const allAccIds = investmentAccountIds(householdId, db);
+  const accIds = accountId ? allAccIds.filter((id) => id === accountId) : allAccIds;
   if (accIds.length === 0) return [];
 
   const inAccIds = sql`${investmentHoldings.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`;
@@ -305,9 +306,10 @@ export function getInvestmentTransactions(
   cursor: string | null = null,
   db: LedgrDb = defaultDb,
 ): InvTxnPage {
+  const allAccIds = investmentAccountIds(householdId, db);
   const accIds = filters.accountId
-    ? [filters.accountId]
-    : investmentAccountIds(householdId, db);
+    ? allAccIds.filter((id) => id === filters.accountId)
+    : allAccIds;
   if (accIds.length === 0) return { rows: [], nextCursor: null };
 
   const conditions = [
