@@ -1,6 +1,7 @@
 "use client";
 
 import { AmountDisplay } from "@/components/atoms/amount-display";
+import { EntityAvatar } from "@/components/atoms/entity-avatar";
 import { CategoryPicker } from "@/components/molecules/category-picker";
 import { ReviewedCheckbox } from "@/components/molecules/reviewed-checkbox";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
@@ -44,13 +45,21 @@ export function TransactionRow({
         {new Date(txn.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
       </span>
 
-      <div className="truncate pr-2">
-        <span className="font-medium">{txn.name}</span>
-        {txn.originalName !== txn.name && (
-          <span className="text-xs text-muted-foreground ml-1 hidden group-hover/row:inline">
-            ({txn.originalName})
-          </span>
-        )}
+      <div className="flex items-center gap-1.5 pr-2 min-w-0">
+        <EntityAvatar
+          logoUrl={txn.merchantLogoUrl}
+          name={txn.merchantName ?? txn.name}
+          pfcPrimary={txn.pfcPrimary}
+          size="sm"
+        />
+        <div className="truncate">
+          <span className="font-medium">{txn.name}</span>
+          {txn.originalName !== txn.name && (
+            <span className="text-xs text-muted-foreground ml-1 hidden group-hover/row:inline">
+              ({txn.originalName})
+            </span>
+          )}
+        </div>
       </div>
 
       <span className="text-muted-foreground text-xs truncate">{txn.accountName}</span>
