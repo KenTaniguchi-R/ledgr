@@ -33,7 +33,6 @@ const splitSchema = z.object({
   notes: z.string().max(500).nullable(),
 });
 
-// --- Action 1: fetchTransactionDetail ---
 
 export async function fetchTransactionDetail(
   transactionId: string,
@@ -49,7 +48,6 @@ export async function fetchTransactionDetail(
   return { data: detail };
 }
 
-// --- Action 2: updateTransactionFields ---
 
 export async function updateTransactionFields(
   transactionId: string,
@@ -78,12 +76,10 @@ export async function updateTransactionFields(
 
   const fields = parsedData.data;
 
-  // Block date edit on Plaid-synced transactions
   if (fields.date && existing.plaidTransactionId) {
     return { error: "Cannot edit date on bank-synced transactions" };
   }
 
-  // Transfer cascade: clear both sides
   if (fields.isTransfer === false && existing.transferPairId) {
     db.transaction(() => {
       db.update(transactions)
@@ -95,8 +91,7 @@ export async function updateTransactionFields(
         .where(eq(transactions.id, existing.transferPairId!))
         .run();
     });
-    const { isTransfer: _, ...rest } = fields;
-    if (Object.keys(rest).length === 0) return { success: true };
+    if (Object.keys(fields).length === 1) return { success: true };
   }
 
   const updates: Partial<typeof transactions.$inferInsert> = { updatedAt: nowISO() };
@@ -113,7 +108,6 @@ export async function updateTransactionFields(
   return { success: true };
 }
 
-// --- Action 3: upsertSplit ---
 
 export async function upsertSplit(
   transactionId: string,
@@ -184,7 +178,6 @@ export async function upsertSplit(
         .run();
     }
 
-    // Set categorySource to manual on first split
     if (existingSplits.length === 0 && !splitId) {
       db.update(transactions)
         .set({ categorySource: "manual", updatedAt: nowISO() })
@@ -203,18 +196,15 @@ export async function upsertSplit(
   });
 }
 
-// --- Action 4: deleteSplit ---
 
 export async function deleteSplit(
   splitId: string,
-  _transactionId: string,
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
   const parsedSplitId = transactionIdSchema.safeParse(splitId);
   if (!parsedSplitId.success) return { error: "Invalid input" };
 
-  // Derive transactionId from DB, not client-supplied value
   const split = db
     .select({ id: transactionSplits.id, transactionId: transactionSplits.transactionId })
     .from(transactionSplits)
@@ -223,7 +213,6 @@ export async function deleteSplit(
 
   if (!split) return { error: "Split not found" };
 
-  // Verify ownership through parent transaction
   const scoped = scopedQuery(householdId, db);
   const txn = db
     .select({ id: transactions.id })

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useTransition } from "react";
+import { useState, useCallback, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -22,27 +22,29 @@ export function EditableText({
   disabled = false,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [localValue, setLocalValue] = useState(value);
-  const savedRef = useRef(value);
+  const [draft, setDraft] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  const displayValue = isEditing ? draft : value;
+
   const handleClick = useCallback(() => {
-    if (!disabled) setIsEditing(true);
-  }, [disabled]);
+    if (!disabled) {
+      setDraft(value);
+      setIsEditing(true);
+    }
+  }, [disabled, value]);
 
   const handleBlur = useCallback(() => {
     setIsEditing(false);
-    if (localValue === savedRef.current) return;
+    if (draft === value) return;
 
     startTransition(async () => {
-      const result = await onSave(localValue);
+      const result = await onSave(draft);
       if ("error" in result) {
-        setLocalValue(savedRef.current);
-      } else {
-        savedRef.current = localValue;
+        setDraft(value);
       }
     });
-  }, [localValue, onSave]);
+  }, [draft, value, onSave]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -51,19 +53,19 @@ export function EditableText({
         (e.target as HTMLInputElement).blur();
       }
       if (e.key === "Escape") {
-        setLocalValue(savedRef.current);
+        setDraft(value);
         setIsEditing(false);
       }
     },
-    [],
+    [value],
   );
 
   if (isEditing) {
     return (
       <Input
         autoFocus
-        value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         disabled={isPending}
@@ -81,12 +83,12 @@ export function EditableText({
         "text-left text-sm cursor-pointer rounded px-1 py-0.5 -mx-1",
         "hover:bg-muted/50 hover:underline decoration-muted-foreground/40 underline-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        !localValue && "text-muted-foreground italic",
+        !displayValue && "text-muted-foreground italic",
         isPending && "opacity-50",
         className,
       )}
     >
-      {localValue || placeholder}
+      {displayValue || placeholder}
     </button>
   );
 }

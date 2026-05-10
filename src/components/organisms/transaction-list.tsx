@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { TransactionRow, TRANSACTION_GRID_COLS } from "@/components/molecules/transaction-row";
@@ -35,7 +35,6 @@ export function TransactionList({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadingMore, setLoadingMore] = useState(false);
   const { selectedId, select, clear } = useSelectedTransaction();
-  const activeRowRef = useRef<HTMLDivElement>(null);
 
   const groups = useMemo(() => groupByDate(rows), [rows]);
 
@@ -91,7 +90,6 @@ export function TransactionList({
 
   const handlePanelClose = useCallback(() => {
     clear();
-    activeRowRef.current?.focus();
   }, [clear]);
 
   const hasBulkSelection = selected.size > 0;

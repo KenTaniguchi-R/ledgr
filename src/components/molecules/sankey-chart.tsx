@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { sankey, sankeyLinkHorizontal } from "d3-sankey";
-import type { SankeyNode as D3SankeyNode, SankeyLink as D3SankeyLink } from "d3-sankey";
 import { centsToDisplay } from "@/lib/money";
 import { INCOME_COLOR, CHART_COLORS } from "@/lib/chart-colors";
 
@@ -25,22 +24,27 @@ interface SankeyChartProps {
   height?: number;
 }
 
-// Internal link type used by d3-sankey when nodeId returns a number index
-interface IndexedLink {
-  source: number;
-  target: number;
-  value: number;
+interface LayoutNode extends SankeyNode {
+  _index: number;
+  x0?: number;
+  x1?: number;
+  y0?: number;
+  y1?: number;
 }
 
-type LayoutNode = D3SankeyNode<SankeyNode & { _index: number }, IndexedLink>;
-type LayoutLink = D3SankeyLink<SankeyNode & { _index: number }, IndexedLink>;
+interface LayoutLink {
+  source: LayoutNode;
+  target: LayoutNode;
+  value: number;
+  width?: number;
+}
 
 const SAVINGS_COLOR = "hsl(142 40% 60%)";
 
-function getNodeColor(node: SankeyNode, index: number): string {
+function getNodeColor(node: SankeyNode, expenseIdx: number): string {
   if (node.type === "income") return INCOME_COLOR;
   if (node.type === "savings") return SAVINGS_COLOR;
-  return CHART_COLORS[index % CHART_COLORS.length];
+  return CHART_COLORS[expenseIdx % CHART_COLORS.length];
 }
 
 export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyChartProps) {
@@ -61,19 +65,19 @@ export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyC
 
     if (indexedLinks.length === 0) return null;
 
-    // Assign a stable index to each node so nodeId can return it
     const indexedNodes = nodes.map((n, i) => ({ ...n, _index: i }));
 
-    const generator = sankey<SankeyNode & { _index: number }, IndexedLink>()
+    const generator = sankey<SankeyNode & { _index: number }, { source: number; target: number; value: number }>()
       .nodeId((node) => node._index)
       .nodeWidth(20)
       .nodePadding(8)
       .extent([[0, 0], [600, height - 40]]);
 
-    return generator({
-      nodes: indexedNodes,
-      links: indexedLinks,
-    });
+    const result = generator({ nodes: indexedNodes, links: indexedLinks });
+    return {
+      nodes: result.nodes as LayoutNode[],
+      links: result.links as unknown as LayoutLink[],
+    };
   }, [nodes, links, height]);
 
   if (!layout || layout.nodes.length === 0) {
@@ -84,54 +88,53 @@ export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyC
     );
   }
 
-  const expenseIndex = new Map<string, number>();
-  let ei = 0;
+  const expenseIndexMap = new Map<string, number>();
+  let idx = 0;
   for (const node of layout.nodes) {
-    if ((node as unknown as SankeyNode).type === "expense") {
-      expenseIndex.set((node as unknown as SankeyNode).id, ei++);
+    if (node.type === "expense") {
+      expenseIndexMap.set(node.id, idx++);
     }
+  }
+
+  function expenseIdx(nodeId: string) {
+    return expenseIndexMap.get(nodeId) ?? 0;
   }
 
   return (
     <div className="relative w-full" style={{ height }}>
       <svg viewBox={`0 0 600 ${height - 40}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
         <defs>
-          {(layout.links as unknown as LayoutLink[]).map((link, i) => {
-            const sourceNode = link.source as LayoutNode;
-            const targetNode = link.target as LayoutNode;
-            const sourceData = sourceNode as unknown as SankeyNode;
-            const targetData = targetNode as unknown as SankeyNode;
-            const sColor = getNodeColor(sourceData, 0);
-            const tColor = getNodeColor(targetData, expenseIndex.get(targetData.id) ?? 0);
-            return (
-              <linearGradient key={i} id={`link-gradient-${i}`} gradientUnits="userSpaceOnUse"
-                x1={(sourceNode.x1 ?? 0)} x2={(targetNode.x0 ?? 0)}>
-                <stop offset="0%" stopColor={sColor} />
-                <stop offset="100%" stopColor={tColor} />
-              </linearGradient>
-            );
-          })}
+          {layout.links.map((link, i) => (
+            <linearGradient
+              key={i}
+              id={`link-gradient-${i}`}
+              gradientUnits="userSpaceOnUse"
+              x1={link.source.x1 ?? 0}
+              x2={link.target.x0 ?? 0}
+            >
+              <stop offset="0%" stopColor={getNodeColor(link.source, 0)} />
+              <stop offset="100%" stopColor={getNodeColor(link.target, expenseIdx(link.target.id))} />
+            </linearGradient>
+          ))}
         </defs>
 
-        {(layout.links as unknown as LayoutLink[]).map((link, i) => {
+        {layout.links.map((link, i) => {
           const path = sankeyLinkHorizontal()(link as never);
           if (!path) return null;
-          const sourceData = (link.source as LayoutNode) as unknown as SankeyNode;
-          const targetData = (link.target as LayoutNode) as unknown as SankeyNode;
           return (
             <path
               key={i}
               d={path}
               fill="none"
               stroke={`url(#link-gradient-${i})`}
-              strokeWidth={Math.max((link as { width?: number }).width ?? 1, 1)}
+              strokeWidth={Math.max(link.width ?? 1, 1)}
               strokeOpacity={hoveredLink === i ? 0.4 : 0.15}
               onMouseEnter={(e) => {
                 setHoveredLink(i);
                 setTooltip({
                   x: e.clientX,
                   y: e.clientY,
-                  text: `${sourceData.name} → ${targetData.name}: ${centsToDisplay(link.value)}`,
+                  text: `${link.source.name} → ${link.target.name}: ${centsToDisplay(link.value)}`,
                 });
               }}
               onMouseLeave={() => {
@@ -142,35 +145,32 @@ export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyC
           );
         })}
 
-        {(layout.nodes as LayoutNode[]).map((node) => {
-          const nodeData = node as unknown as SankeyNode;
+        {layout.nodes.map((node) => {
           const x0 = node.x0 ?? 0;
           const y0 = node.y0 ?? 0;
           const x1 = node.x1 ?? 0;
           const y1 = node.y1 ?? 0;
-          const color = getNodeColor(nodeData, expenseIndex.get(nodeData.id) ?? 0);
           const nodeHeight = y1 - y0;
+          const color = getNodeColor(node, expenseIdx(node.id));
+          const clickable = onNodeClick && node.type !== "savings";
           return (
-            <g key={nodeData.id}>
+            <g key={node.id}>
               <rect
-                x={x0}
-                y={y0}
-                width={x1 - x0}
-                height={nodeHeight}
-                fill={color}
-                rx={2}
-                className={onNodeClick && nodeData.type !== "savings" ? "cursor-pointer" : ""}
-                onClick={() => onNodeClick && nodeData.type !== "savings" && onNodeClick(nodeData.id, nodeData.type)}
+                x={x0} y={y0}
+                width={x1 - x0} height={nodeHeight}
+                fill={color} rx={2}
+                className={clickable ? "cursor-pointer" : ""}
+                onClick={() => clickable && onNodeClick(node.id, node.type)}
               />
               {nodeHeight > 12 && (
                 <text
-                  x={nodeData.type === "income" ? x0 - 4 : x1 + 4}
+                  x={node.type === "income" ? x0 - 4 : x1 + 4}
                   y={(y0 + y1) / 2}
                   dy="0.35em"
-                  textAnchor={nodeData.type === "income" ? "end" : "start"}
+                  textAnchor={node.type === "income" ? "end" : "start"}
                   className="text-[10px] fill-foreground"
                 >
-                  {nodeData.name}
+                  {node.name}
                 </text>
               )}
             </g>

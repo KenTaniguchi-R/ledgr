@@ -19,12 +19,7 @@ export function getIncomeCategoryIds(db: LedgrDb): Set<string> {
 }
 
 export function notIncome(db: LedgrDb): SQL {
-  const ids = db
-    .select({ id: categories.id })
-    .from(categories)
-    .where(eq(categories.isIncome, true))
-    .all()
-    .map((r) => r.id);
+  const ids = [...getIncomeCategoryIds(db)];
   if (ids.length === 0) return sql`1=1`;
   return or(
     isNull(transactions.categoryId),

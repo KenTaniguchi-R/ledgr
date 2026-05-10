@@ -47,7 +47,7 @@ export function ReportTabs({
       value={activeTab}
       onValueChange={(tab) => updateFilter("tab", tab === "spending" ? null : tab)}
     >
-      <TabsList className="overflow-x-auto max-w-full">
+      <TabsList>
         <TabsTrigger value="spending">Spending</TabsTrigger>
         <TabsTrigger value="income-expense">Income vs Expense</TabsTrigger>
         <TabsTrigger value="cash-flow">Cash Flow</TabsTrigger>

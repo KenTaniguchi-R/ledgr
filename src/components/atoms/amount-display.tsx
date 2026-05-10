@@ -5,6 +5,7 @@ interface AmountDisplayProps {
   amount: number;
   currency?: string;
   pending?: boolean;
+  absolute?: boolean;
   className?: string;
 }
 
@@ -12,17 +13,18 @@ export function AmountDisplay({
   amount,
   currency = "USD",
   pending = false,
+  absolute = false,
   className,
 }: AmountDisplayProps) {
   const isIncome = amount > 0;
   const formatted = centsToDisplay(Math.abs(amount), currency);
-  const prefix = isIncome ? "+" : "-";
+  const prefix = absolute ? "" : isIncome ? "+" : "-";
 
   return (
     <span
       className={cn(
         "tabular-nums text-sm font-medium",
-        isIncome && "text-emerald-600",
+        isIncome && !absolute && "text-emerald-600",
         pending && "opacity-60",
         className,
       )}

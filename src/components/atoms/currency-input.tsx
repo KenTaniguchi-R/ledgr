@@ -20,12 +20,18 @@ export function CurrencyInput({
   disabled = false,
   className,
 }: CurrencyInputProps) {
-  const [display, setDisplay] = useState(centsToInputDisplay(value));
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const handleFocus = useCallback(() => {
+    setDraft(centsToInputDisplay(value));
+    setEditing(true);
+  }, [value]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-      setDisplay(raw);
+      setDraft(raw);
       const cents = parseToCents(raw);
       if (cents !== null) onChange(cents);
     },
@@ -33,21 +39,18 @@ export function CurrencyInput({
   );
 
   const handleBlur = useCallback(() => {
-    const cents = parseToCents(display);
-    if (cents !== null) {
-      setDisplay(centsToInputDisplay(cents));
-      onChange(cents);
-    } else {
-      setDisplay(centsToInputDisplay(value));
-    }
+    setEditing(false);
+    const cents = parseToCents(draft);
+    if (cents !== null) onChange(cents);
     onBlur?.();
-  }, [display, value, onChange, onBlur]);
+  }, [draft, onChange, onBlur]);
 
   return (
     <Input
       type="text"
       inputMode="decimal"
-      value={display}
+      value={editing ? draft : centsToInputDisplay(value)}
+      onFocus={handleFocus}
       onChange={handleChange}
       onBlur={handleBlur}
       disabled={disabled}

@@ -133,15 +133,21 @@ export function TransactionDetailPanel({
 
   const handleSplitDelete = useCallback(
     async (splitId: string) => {
-      const prev = splits;
-      setSplits((s) => s.filter((r) => r.id !== splitId));
-
-      if (!splitId.startsWith("draft-")) {
-        const result = await deleteSplit(splitId, transactionId);
-        if ("error" in result) setSplits(prev);
+      if (splitId.startsWith("draft-")) {
+        setSplits((s) => s.filter((r) => r.id !== splitId));
+        return;
       }
+
+      let snapshot: (SplitRow & { isDraft?: boolean })[] = [];
+      setSplits((s) => {
+        snapshot = s;
+        return s.filter((r) => r.id !== splitId);
+      });
+
+      const result = await deleteSplit(splitId);
+      if ("error" in result) setSplits(snapshot);
     },
-    [splits, transactionId],
+    [],
   );
 
   if (!txn) {
@@ -304,7 +310,7 @@ export function TransactionDetailPanel({
           </Label>
         </div>
 
-        {/* Metadata Section */}
+        {detailLoaded && <Separator />}
         {detailLoaded && (
           <TransactionMetadata
             originalName={txn.originalName}

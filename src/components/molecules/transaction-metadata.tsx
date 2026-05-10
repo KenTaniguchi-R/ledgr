@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 
 interface TransactionMetadataProps {
   originalName: string;
@@ -32,7 +31,6 @@ export function TransactionMetadata({
 
   return (
     <div>
-      <Separator className="my-3" />
       <button
         type="button"
         onClick={() => setOpen(!open)}

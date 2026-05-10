@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { todayDateString } from "@/lib/date-utils";
 
 export function useSearchParamFilters() {
   const router = useRouter();
@@ -42,5 +43,10 @@ export function useSearchParamFilters() {
 
   const hasFilters = searchParams.toString().length > 0;
 
-  return { updateFilter, updateFilters, clearFilters, hasFilters, searchParams };
+  const dateRange = useMemo(() => ({
+    from: searchParams.get("from") ?? "2000-01-01",
+    to: searchParams.get("to") ?? todayDateString(),
+  }), [searchParams]);
+
+  return { updateFilter, updateFilters, clearFilters, hasFilters, searchParams, dateRange };
 }

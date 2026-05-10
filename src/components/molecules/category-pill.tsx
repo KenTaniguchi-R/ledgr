@@ -20,7 +20,6 @@ interface CategoryPillProps {
 
 export function CategoryPill({
   transactionId,
-  currentCategoryId,
   currentCategoryName,
   categories,
   disabled = false,

@@ -4,8 +4,6 @@ import { useState } from "react";
 import { TrendLineChart } from "@/components/atoms/trend-line-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
-import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { CHART_COLORS } from "@/lib/chart-colors";
 import type { CategoryTrendRow } from "@/queries/reports";
 
@@ -16,11 +14,6 @@ interface ReportTrendsProps {
 export function ReportTrends({ data }: ReportTrendsProps) {
   const allCategories = [...new Set(data.map((r) => r.categoryName))];
   const [selected, setSelected] = useState<Set<string>>(new Set(allCategories.slice(0, 10)));
-  const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
-  const { searchParams } = useSearchParamFilters();
-
-  const dateFrom = searchParams.get("from") ?? "2000-01-01";
-  const dateTo = searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
 
   function toggle(name: string) {
     setSelected((prev) => {
@@ -81,12 +74,6 @@ export function ReportTrends({ data }: ReportTrendsProps) {
         ))}
       </div>
 
-      <DrillDownSheet
-        filter={drillDown}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onClose={() => setDrillDown(null)}
-      />
     </div>
   );
 }

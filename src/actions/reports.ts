@@ -9,7 +9,7 @@ import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId } from "@/lib/auth/session";
-import { getTransactions, type TransactionRow as TxnRow } from "@/queries/transactions";
+import { getTransactions, type TransactionRow } from "@/queries/transactions";
 
 const saveReportSchema = z.object({
   name: z.string().min(1).max(100),
@@ -76,22 +76,21 @@ export async function deleteReport(
   return { success: true };
 }
 
+const DRILL_DOWN_LIMIT = 50;
+
 export async function getDrillDownTransactions(filters: {
   categoryId?: string;
   dateFrom: string;
   dateTo: string;
   type?: "income" | "expense";
-}): Promise<{ rows: TxnRow[]; totalCount: number }> {
+}): Promise<{ rows: TransactionRow[]; hasMore: boolean }> {
   const householdId = await getHouseholdId();
 
-  const txnFilters = {
+  const page = getTransactions(householdId, {
     categoryId: filters.categoryId ?? undefined,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
-  };
+  }, DRILL_DOWN_LIMIT);
 
-  const page = getTransactions(householdId, txnFilters, 50);
-  const totalCount = page.rows.length;
-
-  return { rows: page.rows, totalCount };
+  return { rows: page.rows, hasMore: page.nextCursor !== null };
 }

@@ -6,8 +6,7 @@ import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
-import type { IncomeExpenseRow } from "@/queries/reports";
-import type { SafeToSpendResult } from "@/queries/reports";
+import type { IncomeExpenseRow, SafeToSpendResult } from "@/queries/reports";
 
 interface ReportCashFlowProps {
   sankeyNodes: SankeyNode[];
@@ -25,10 +24,7 @@ export function ReportCashFlow({
   isCurrentMonth,
 }: ReportCashFlowProps) {
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
-  const { searchParams } = useSearchParamFilters();
-
-  const dateFrom = searchParams.get("from") ?? "2000-01-01";
-  const dateTo = searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
+  const { dateRange } = useSearchParamFilters();
 
   const safeColor: SummaryItem["color"] = (() => {
     if (safeToSpend.monthlyIncome === 0) return "default";
@@ -64,7 +60,7 @@ export function ReportCashFlow({
     setDrillDown({
       categoryId: catId,
       categoryName: node?.name ?? "Unknown",
-      type: type as "income" | "expense",
+      type,
       tabContext: "Cash Flow",
     });
   }
@@ -90,8 +86,8 @@ export function ReportCashFlow({
 
       <DrillDownSheet
         filter={drillDown}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        dateFrom={dateRange.from}
+        dateTo={dateRange.to}
         onClose={() => setDrillDown(null)}
       />
     </div>

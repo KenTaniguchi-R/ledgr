@@ -324,7 +324,7 @@ describe("deleteSplit", () => {
     expect(before!.hasSplits).toBe(true);
     expect(before!.splits).toHaveLength(1);
 
-    const result = await deleteSplit(delSplitId, delTxnId, db);
+    const result = await deleteSplit(delSplitId, db);
     expect(result).toEqual({ success: true });
 
     const after = getTransactionDetail(householdId, delTxnId, db);

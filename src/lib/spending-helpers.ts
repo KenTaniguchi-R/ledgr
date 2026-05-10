@@ -18,7 +18,6 @@ export interface SpendingChartItem {
   groupId: string | null;
 }
 
-// ── Shared base conditions ──────────────────────────────────────────
 
 export function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
   const conditions = [
@@ -37,7 +36,6 @@ export function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
   return conditions;
 }
 
-// ── Split-aware helpers ────────────────────────────────────────────
 
 export function findSplitParentIds(
   scoped: ReturnType<typeof scopedQuery>,
@@ -54,7 +52,6 @@ export function findSplitParentIds(
     .map((r) => r.transactionId);
 }
 
-// ── Split-aware spending aggregation ────────────────────────────────
 
 export function aggregateSpending(
   householdId: string,

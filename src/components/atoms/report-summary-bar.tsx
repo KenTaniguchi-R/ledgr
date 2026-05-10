@@ -1,18 +1,18 @@
-"use client";
-
 import { centsToDisplay } from "@/lib/money";
 
 export interface SummaryItem {
   label: string;
   value: number;
   format?: "currency" | "number" | "percent";
-  color?: "default" | "income" | "expense" | "dynamic" | "safe-to-spend";
+  color?: "default" | "income" | "expense" | "dynamic";
   secondaryLabel?: string;
 }
 
 interface ReportSummaryBarProps {
   items: SummaryItem[];
 }
+
+const GREEN = "text-green-600 dark:text-green-500";
 
 function formatValue(value: number, format: SummaryItem["format"]): string {
   switch (format) {
@@ -28,17 +28,11 @@ function formatValue(value: number, format: SummaryItem["format"]): string {
 function getValueColor(item: SummaryItem): string {
   switch (item.color) {
     case "income":
-      return "text-green-600 dark:text-green-500";
+      return GREEN;
     case "expense":
       return "text-destructive";
     case "dynamic":
-      return item.value >= 0
-        ? "text-green-600 dark:text-green-500"
-        : "text-destructive";
-    case "safe-to-spend": {
-      if (item.value <= 0) return "text-destructive";
-      return "text-green-600 dark:text-green-500";
-    }
+      return item.value >= 0 ? GREEN : "text-destructive";
     default:
       return "";
   }

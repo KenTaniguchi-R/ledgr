@@ -18,10 +18,7 @@ interface ReportSpendingProps {
 export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpendingProps) {
   const [view, setView] = useState<"donut" | "bar">("donut");
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
-  const { searchParams } = useSearchParamFilters();
-
-  const dateFrom = searchParams.get("from") ?? "2000-01-01";
-  const dateTo = searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
+  const { dateRange } = useSearchParamFilters();
 
   const chartData = data.map((r) => ({
     id: r.categoryId,
@@ -102,8 +99,8 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
 
       <DrillDownSheet
         filter={drillDown}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        dateFrom={dateRange.from}
+        dateTo={dateRange.to}
         onClose={() => setDrillDown(null)}
       />
     </div>

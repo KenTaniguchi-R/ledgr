@@ -15,10 +15,7 @@ interface ReportIncomeExpenseProps {
 
 export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseProps) {
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
-  const { searchParams } = useSearchParamFilters();
-
-  const dateFrom = searchParams.get("from") ?? "2000-01-01";
-  const dateTo = searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
+  const { dateRange } = useSearchParamFilters();
 
   const chartData = data.map((r) => ({
     month: r.period,
@@ -62,8 +59,8 @@ export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseP
       )}
       <DrillDownSheet
         filter={drillDown}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        dateFrom={dateRange.from}
+        dateTo={dateRange.to}
         onClose={() => setDrillDown(null)}
       />
     </div>
