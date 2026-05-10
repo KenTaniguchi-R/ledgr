@@ -28,6 +28,29 @@ export function TransactionSplitRow({
   const savedAmount = useRef(split.amount);
   const [isPending, startTransition] = useTransition();
 
+  const handleCategoryChange = useCallback(
+    (categoryId: string | null, categoryName: string | null) => {
+      if (!categoryId) return;
+      startTransition(async () => {
+        const result = await upsertSplit(
+          transactionId,
+          split.isDraft ? null : split.id,
+          { categoryId, amount, notes: split.notes },
+        );
+        if ("error" in result) return;
+        savedAmount.current = amount;
+        onUpdate({
+          ...split,
+          id: result.data.id,
+          categoryId,
+          categoryName,
+          amount: result.data.amount,
+        });
+      });
+    },
+    [split, transactionId, amount, onUpdate],
+  );
+
   const handleAmountBlur = useCallback(() => {
     if (amount === savedAmount.current) return;
     if (!split.categoryId) return;
@@ -55,6 +78,7 @@ export function TransactionSplitRow({
           currentCategoryId={split.categoryId || null}
           currentCategoryName={split.categoryName}
           categories={categories}
+          onCategoryChange={handleCategoryChange}
         />
       </div>
 

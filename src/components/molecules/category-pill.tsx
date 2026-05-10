@@ -15,6 +15,7 @@ interface CategoryPillProps {
   currentCategoryName: string | null;
   categories: CategoryGroup[];
   disabled?: boolean;
+  onCategoryChange?: (categoryId: string | null, categoryName: string | null) => void;
 }
 
 export function CategoryPill({
@@ -23,6 +24,7 @@ export function CategoryPill({
   currentCategoryName,
   categories,
   disabled = false,
+  onCategoryChange,
 }: CategoryPillProps) {
   const [open, setOpen] = useState(false);
   const [categoryName, setCategoryName] = useState(currentCategoryName);
@@ -38,6 +40,11 @@ export function CategoryPill({
 
     setCategoryName(newName);
     setOpen(false);
+
+    if (onCategoryChange) {
+      onCategoryChange(categoryId, newName);
+      return;
+    }
 
     startTransition(async () => {
       const result = await updateTransactionCategory(transactionId, categoryId);
