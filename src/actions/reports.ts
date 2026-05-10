@@ -62,17 +62,14 @@ export async function deleteReport(
   const householdId = await getHouseholdId();
   const scoped = scopedQuery(householdId, db);
 
-  const existing = db
-    .select({ id: savedReports.id })
-    .from(savedReports)
+  const result = db
+    .delete(savedReports)
     .where(scoped.where(savedReports, eq(savedReports.id, reportId)))
-    .get();
+    .run();
 
-  if (!existing) {
+  if (result.changes === 0) {
     return { error: "Report not found" };
   }
-
-  db.delete(savedReports).where(eq(savedReports.id, reportId)).run();
 
   revalidatePath("/reports");
   return { success: true };
