@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, ArrowLeftRight, Wallet, BarChart3, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, ArrowLeftRight, Wallet, BarChart3, Receipt, LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/accounts", label: "Accounts", icon: Building2 },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/budgets", label: "Budgets", icon: Wallet },
+  { href: "/bills", label: "Bills", icon: Receipt },
   { href: "/reports", label: "Reports", icon: BarChart3 },
 ];
 
