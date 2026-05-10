@@ -37,8 +37,8 @@ beforeEach(() => {
   insertTransaction(db, householdId, accountId, { date: "2026-03-15", normalizedAmount: 3000, amount: -3000, categoryId: foodCatId, name: "Restaurant" });
   // Rent in March
   insertTransaction(db, householdId, accountId, { date: "2026-03-01", normalizedAmount: 100000, amount: -100000, categoryId: rentCatId, name: "Rent" });
-  // Income in March (negative normalizedAmount = income)
-  insertTransaction(db, householdId, accountId, { date: "2026-03-01", normalizedAmount: -500000, amount: 500000, categoryId: incomeCatId, name: "Salary" });
+  // Income in March (positive normalizedAmount after sign-flip from Plaid credit)
+  insertTransaction(db, householdId, accountId, { date: "2026-03-01", normalizedAmount: 500000, amount: -500000, categoryId: incomeCatId, name: "Salary" });
   // Food in February (prior period)
   insertTransaction(db, householdId, accountId, { date: "2026-02-10", normalizedAmount: 4000, amount: -4000, categoryId: foodCatId, name: "Grocery Feb" });
 });
@@ -75,8 +75,7 @@ describe("getSpendingByCategory", () => {
 });
 
 describe("getIncomeVsExpense", () => {
-  test("uses normalizedAmount sign, handles uncategorized", async () => {
-    // Add uncategorized expense
+  test("classifies by category isIncome flag, not by sign", async () => {
     insertTransaction(db, householdId, accountId, { date: "2026-03-20", normalizedAmount: 2000, amount: -2000, categoryId: null, name: "Unknown" });
 
     const { getIncomeVsExpense } = await import("../../src/queries/reports");
@@ -84,8 +83,10 @@ describe("getIncomeVsExpense", () => {
 
     const march = result.find((r) => r.period === "2026-03");
     expect(march).toBeDefined();
-    expect(march!.expenses).toBe(110000); // 5000 + 3000 + 100000 + 2000
+    // Salary (500000) is income because category.isIncome = true
     expect(march!.income).toBe(500000);
+    // Food (5000 + 3000) + Rent (100000) + Unknown (2000) = 110000
+    expect(march!.expenses).toBe(110000);
     expect(march!.net).toBe(500000 - 110000);
   });
 });
@@ -99,6 +100,14 @@ describe("getCategoryTrends", () => {
     const foodFeb = result.find((r) => r.period === "2026-02" && r.categoryName === "Food");
     expect(foodMarch?.total).toBe(8000);
     expect(foodFeb?.total).toBe(4000);
+  });
+
+  test("income categories excluded from trends", async () => {
+    const { getCategoryTrends } = await import("../../src/queries/reports");
+    const result = getCategoryTrends(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
+
+    const salaryTrend = result.find((r) => r.categoryName === "Salary");
+    expect(salaryTrend).toBeUndefined();
   });
 });
 
@@ -149,6 +158,17 @@ describe("guards", () => {
     const result = getSpendingByCategory(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31", accountIds: [accountId] }, db);
     const food = result.find((r) => r.categoryName === "Food");
     expect(food?.total).toBe(8000); // Only original account
+  });
+
+  test("income categories excluded from spending", async () => {
+    const { getSpendingByCategory } = await import("../../src/queries/reports");
+    const result = getSpendingByCategory(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
+
+    const salary = result.find((r) => r.categoryName === "Salary");
+    expect(salary).toBeUndefined();
+
+    const food = result.find((r) => r.categoryName === "Food");
+    expect(food?.total).toBe(8000);
   });
 
   test("split transactions attributed to split categories", async () => {
