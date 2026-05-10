@@ -1,0 +1,667 @@
+import { v4 as uuid } from "uuid";
+import { eq, and } from "drizzle-orm";
+import type { PlaidApi } from "plaid";
+import {
+  PlaidSyncResponseSchema,
+  type PlaidTransaction,
+  type PlaidRemovedTransaction,
+} from "./schemas";
+import { plaidAmountToCents, normalizeAmount } from "@/lib/money";
+import { decrypt } from "@/lib/encryption";
+import { getPlaidClient } from "./client";
+import type { LedgrDb } from "@/db";
+import {
+  plaidItems,
+  syncLog,
+  transactions,
+  accounts,
+  merchants,
+} from "@/db/schema";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type SyncResult =
+  | {
+      success: true;
+      addedCount: number;
+      modifiedCount: number;
+      removedCount: number;
+      syncedAt: string;
+    }
+  | { success: false; error: string };
+
+export interface FetchAllPagesResult {
+  added: PlaidTransaction[];
+  modified: PlaidTransaction[];
+  removed: PlaidRemovedTransaction[];
+  nextCursor: string;
+}
+
+export interface ProcessedBatch {
+  inserts: TransactionRow[];
+  upserts: TransactionRow[];
+  merchantUpserts: MerchantUpsert[];
+  pendingToRemove: string[]; // plaid_transaction_ids to soft-delete
+  removedIds: string[]; // plaid_transaction_ids to soft-delete
+}
+
+interface TransactionRow {
+  plaidTransactionId: string;
+  plaidAccountId: string;
+  date: string;
+  originalName: string;
+  name: string;
+  amount: number;
+  normalizedAmount: number;
+  currency: string;
+  pending: boolean;
+  pendingTransactionId: string | null;
+  merchantName: string | null;
+  logoUrl: string | null;
+  plaidCategory: string | null;
+  plaidCategoryDetailed: string | null;
+}
+
+export interface MerchantUpsert {
+  normalizedName: string;
+  rawNames: string[];
+  logoUrl: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Error classification
+// ---------------------------------------------------------------------------
+
+const REAUTH_ERROR_CODES = new Set([
+  "ITEM_LOGIN_REQUIRED",
+  "INVALID_CREDENTIALS",
+  "INVALID_MFA",
+  "ITEM_LOCKED",
+  "USER_SETUP_REQUIRED",
+  "MFA_NOT_SUPPORTED",
+  "INSUFFICIENT_CREDENTIALS",
+]);
+
+const TRANSIENT_ERROR_CODES = new Set([
+  "INSTITUTION_DOWN",
+  "INSTITUTION_NOT_RESPONDING",
+  "INSTITUTION_NOT_AVAILABLE",
+  "TRANSACTIONS_LIMIT",
+  "RATE_LIMIT_EXCEEDED",
+  "INTERNAL_SERVER_ERROR",
+]);
+
+// ---------------------------------------------------------------------------
+// Retry helper
+// ---------------------------------------------------------------------------
+
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const errorCode = extractPlaidErrorCode(err);
+      if (errorCode !== "RATE_LIMIT_EXCEEDED" || attempt === maxAttempts) {
+        throw err;
+      }
+      const baseDelay = Math.pow(2, attempt) * 500;
+      const jitter = Math.random() * 500;
+      await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
+    }
+  }
+  // Should be unreachable, but TypeScript needs it
+  throw new Error("retryWithBackoff exhausted");
+}
+
+function extractPlaidErrorCode(err: unknown): string | null {
+  if (
+    err &&
+    typeof err === "object" &&
+    "response" in err &&
+    (err as { response?: { data?: { error_code?: string } } }).response?.data
+      ?.error_code
+  ) {
+    return (err as { response: { data: { error_code: string } } }).response.data
+      .error_code;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Title-case helper
+// ---------------------------------------------------------------------------
+
+function titleCase(str: string): string {
+  return str
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ---------------------------------------------------------------------------
+// 1. fetchAllPages
+// ---------------------------------------------------------------------------
+
+export async function fetchAllPages(
+  client: PlaidApi,
+  accessToken: string,
+  cursor: string | null,
+): Promise<FetchAllPagesResult> {
+  const allAdded: PlaidTransaction[] = [];
+  const allModified: PlaidTransaction[] = [];
+  const allRemoved: PlaidRemovedTransaction[] = [];
+  let currentCursor = cursor;
+
+  let hasMore = true;
+  while (hasMore) {
+    const requestBody: { access_token: string; cursor?: string } = {
+      access_token: accessToken,
+    };
+    if (currentCursor !== null) {
+      requestBody.cursor = currentCursor;
+    }
+
+    const response = await retryWithBackoff(async () => {
+      const res = await client.transactionsSync(requestBody);
+      return res.data;
+    });
+
+    const parsed = PlaidSyncResponseSchema.parse(response);
+
+    allAdded.push(...parsed.added);
+    allModified.push(...parsed.modified);
+    allRemoved.push(...parsed.removed);
+    currentCursor = parsed.next_cursor;
+    hasMore = parsed.has_more;
+  }
+
+  return {
+    added: allAdded,
+    modified: allModified,
+    removed: allRemoved,
+    nextCursor: currentCursor!,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 2. processBatch
+// ---------------------------------------------------------------------------
+
+export function processBatch(
+  added: PlaidTransaction[],
+  modified: PlaidTransaction[],
+  removed: PlaidRemovedTransaction[],
+  householdId: string,
+  accountTypeMap: Map<string, string>,
+): ProcessedBatch {
+  // Build merchant upserts (deduplicated by normalized name)
+  const merchantMap = new Map<string, MerchantUpsert>();
+
+  function collectMerchant(txn: PlaidTransaction) {
+    if (!txn.merchant_name) return;
+    const normalized = titleCase(txn.merchant_name);
+    const existing = merchantMap.get(normalized);
+    if (existing) {
+      if (!existing.rawNames.includes(txn.merchant_name)) {
+        existing.rawNames.push(txn.merchant_name);
+      }
+      if (!existing.logoUrl && txn.logo_url) {
+        existing.logoUrl = txn.logo_url;
+      }
+    } else {
+      merchantMap.set(normalized, {
+        normalizedName: normalized,
+        rawNames: [txn.merchant_name],
+        logoUrl: txn.logo_url ?? null,
+      });
+    }
+  }
+
+  function toRow(txn: PlaidTransaction): TransactionRow {
+    const amountCents = plaidAmountToCents(txn.amount)!;
+    const accountType = accountTypeMap.get(txn.account_id) ?? "other";
+    const normalizedAmt = normalizeAmount(amountCents, accountType);
+    return {
+      plaidTransactionId: txn.transaction_id,
+      plaidAccountId: txn.account_id,
+      date: txn.date,
+      originalName: txn.name,
+      name: txn.merchant_name ? titleCase(txn.merchant_name) : txn.name,
+      amount: amountCents,
+      normalizedAmount: normalizedAmt,
+      currency: txn.iso_currency_code ?? "USD",
+      pending: txn.pending,
+      pendingTransactionId: txn.pending_transaction_id ?? null,
+      merchantName: txn.merchant_name ? titleCase(txn.merchant_name) : null,
+      logoUrl: txn.logo_url ?? null,
+      plaidCategory: txn.personal_finance_category?.primary ?? null,
+      plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
+    };
+  }
+
+  // Detect pending→posted transitions
+  const pendingToRemove: string[] = [];
+  for (const txn of added) {
+    if (txn.pending_transaction_id) {
+      pendingToRemove.push(txn.pending_transaction_id);
+    }
+  }
+
+  // Process added
+  const inserts: TransactionRow[] = [];
+  for (const txn of added) {
+    collectMerchant(txn);
+    inserts.push(toRow(txn));
+  }
+
+  // Process modified
+  const upserts: TransactionRow[] = [];
+  for (const txn of modified) {
+    collectMerchant(txn);
+    upserts.push(toRow(txn));
+  }
+
+  // Removed IDs
+  const removedIds = removed.map((r) => r.transaction_id);
+
+  return {
+    inserts,
+    upserts,
+    merchantUpserts: Array.from(merchantMap.values()),
+    pendingToRemove,
+    removedIds,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 3. applyToDb
+// ---------------------------------------------------------------------------
+
+interface AccountBalanceInfo {
+  account_id: string;
+  balances: {
+    current: number | null;
+    available: number | null;
+    limit: number | null;
+    iso_currency_code: string | null;
+  };
+}
+
+export async function applyToDb(
+  db: LedgrDb,
+  processed: ProcessedBatch,
+  itemId: string,
+  householdId: string,
+  newCursor: string,
+  accountBalances: AccountBalanceInfo[] = [],
+): Promise<{ addedCount: number; modifiedCount: number; removedCount: number }> {
+  const now = new Date().toISOString();
+
+  return db.transaction((tx) => {
+    // --- Build account lookup: plaid_account_id → internal account id ---
+    const accountRows = tx
+      .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
+      .from(accounts)
+      .where(
+        and(
+          eq(accounts.householdId, householdId),
+          eq(accounts.plaidItemId, itemId),
+        ),
+      )
+      .all();
+
+    const plaidToInternal = new Map<string, string>();
+    for (const row of accountRows) {
+      if (row.plaidAccountId) {
+        plaidToInternal.set(row.plaidAccountId, row.id);
+      }
+    }
+
+    // --- Upsert merchants ---
+    const merchantNameToId = new Map<string, string>();
+    for (const mu of processed.merchantUpserts) {
+      const existing = tx
+        .select({ id: merchants.id, rawNames: merchants.rawNames })
+        .from(merchants)
+        .where(
+          and(
+            eq(merchants.householdId, householdId),
+            eq(merchants.name, mu.normalizedName),
+          ),
+        )
+        .get();
+
+      if (existing) {
+        // Merge raw names
+        const existingRaw: string[] = existing.rawNames
+          ? JSON.parse(existing.rawNames)
+          : [];
+        const merged = Array.from(
+          new Set([...existingRaw, ...mu.rawNames]),
+        );
+        tx.update(merchants)
+          .set({
+            rawNames: JSON.stringify(merged),
+            logoUrl: mu.logoUrl ?? undefined,
+            updatedAt: now,
+          })
+          .where(eq(merchants.id, existing.id))
+          .run();
+        merchantNameToId.set(mu.normalizedName, existing.id);
+      } else {
+        const merchantId = uuid();
+        tx.insert(merchants)
+          .values({
+            id: merchantId,
+            householdId,
+            name: mu.normalizedName,
+            rawNames: JSON.stringify(mu.rawNames),
+            logoUrl: mu.logoUrl,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .run();
+        merchantNameToId.set(mu.normalizedName, merchantId);
+      }
+    }
+
+    // --- Insert new transactions ---
+    let addedCount = 0;
+    for (const row of processed.inserts) {
+      const internalAccountId = plaidToInternal.get(row.plaidAccountId);
+      if (!internalAccountId) continue; // skip if account not found
+
+      const merchantId = row.merchantName
+        ? merchantNameToId.get(row.merchantName) ?? null
+        : null;
+
+      tx.insert(transactions)
+        .values({
+          id: uuid(),
+          accountId: internalAccountId,
+          householdId,
+          plaidTransactionId: row.plaidTransactionId,
+          pendingTransactionId: row.pendingTransactionId,
+          merchantId,
+          date: row.date,
+          originalName: row.originalName,
+          name: row.name,
+          amount: row.amount,
+          normalizedAmount: row.normalizedAmount,
+          currency: row.currency,
+          pending: row.pending,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run();
+      addedCount++;
+    }
+
+    // --- Upsert modified transactions ---
+    let modifiedCount = 0;
+    for (const row of processed.upserts) {
+      const internalAccountId = plaidToInternal.get(row.plaidAccountId);
+      if (!internalAccountId) continue;
+
+      const merchantId = row.merchantName
+        ? merchantNameToId.get(row.merchantName) ?? null
+        : null;
+
+      const existingTxn = tx
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(eq(transactions.plaidTransactionId, row.plaidTransactionId))
+        .get();
+
+      if (existingTxn) {
+        tx.update(transactions)
+          .set({
+            accountId: internalAccountId,
+            merchantId,
+            date: row.date,
+            originalName: row.originalName,
+            name: row.name,
+            amount: row.amount,
+            normalizedAmount: row.normalizedAmount,
+            currency: row.currency,
+            pending: row.pending,
+            pendingTransactionId: row.pendingTransactionId,
+            updatedAt: now,
+          })
+          .where(eq(transactions.id, existingTxn.id))
+          .run();
+      } else {
+        tx.insert(transactions)
+          .values({
+            id: uuid(),
+            accountId: internalAccountId,
+            householdId,
+            plaidTransactionId: row.plaidTransactionId,
+            pendingTransactionId: row.pendingTransactionId,
+            merchantId,
+            date: row.date,
+            originalName: row.originalName,
+            name: row.name,
+            amount: row.amount,
+            normalizedAmount: row.normalizedAmount,
+            currency: row.currency,
+            pending: row.pending,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .run();
+      }
+      modifiedCount++;
+    }
+
+    // --- Soft-delete pending→posted replacements ---
+    for (const pendingPlaidId of processed.pendingToRemove) {
+      tx.update(transactions)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(eq(transactions.plaidTransactionId, pendingPlaidId))
+        .run();
+    }
+
+    // --- Soft-delete removed transactions ---
+    let removedCount = 0;
+    for (const removedPlaidId of processed.removedIds) {
+      const result = tx
+        .update(transactions)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(eq(transactions.plaidTransactionId, removedPlaidId))
+        .run();
+      if (result.changes > 0) removedCount++;
+    }
+
+    // --- Update account balances ---
+    for (const ab of accountBalances) {
+      const internalId = plaidToInternal.get(ab.account_id);
+      if (!internalId) continue;
+
+      tx.update(accounts)
+        .set({
+          currentBalance: plaidAmountToCents(ab.balances.current),
+          availableBalance: plaidAmountToCents(ab.balances.available),
+          creditLimit: plaidAmountToCents(ab.balances.limit),
+          updatedAt: now,
+        })
+        .where(eq(accounts.id, internalId))
+        .run();
+    }
+
+    // --- Update sync cursor ---
+    tx.update(plaidItems)
+      .set({ syncCursor: newCursor, updatedAt: now })
+      .where(eq(plaidItems.id, itemId))
+      .run();
+
+    // --- Write sync_log entry ---
+    tx.insert(syncLog)
+      .values({
+        id: uuid(),
+        plaidItemId: itemId,
+        cursorAfter: newCursor,
+        addedCount,
+        modifiedCount,
+        removedCount,
+        syncedAt: now,
+      })
+      .run();
+
+    return { addedCount, modifiedCount, removedCount };
+  }) as { addedCount: number; modifiedCount: number; removedCount: number };
+}
+
+// ---------------------------------------------------------------------------
+// 4. syncInstitution — orchestrator
+// ---------------------------------------------------------------------------
+
+const activeSyncs = new Map<string, Promise<SyncResult>>();
+
+export async function syncInstitution(
+  itemId: string,
+  householdId: string,
+  db: LedgrDb,
+): Promise<SyncResult> {
+  // Per-item in-process lock
+  const existing = activeSyncs.get(itemId);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = doSync(itemId, householdId, db);
+  activeSyncs.set(itemId, promise);
+
+  try {
+    return await promise;
+  } finally {
+    activeSyncs.delete(itemId);
+  }
+}
+
+async function doSync(
+  itemId: string,
+  householdId: string,
+  db: LedgrDb,
+): Promise<SyncResult> {
+  const now = new Date().toISOString();
+
+  try {
+    // Read plaid_items row
+    const item = db
+      .select()
+      .from(plaidItems)
+      .where(
+        and(eq(plaidItems.id, itemId), eq(plaidItems.householdId, householdId)),
+      )
+      .get();
+
+    if (!item) {
+      return { success: false, error: `Plaid item ${itemId} not found` };
+    }
+
+    // Decrypt access token
+    const accessToken = decrypt(item.accessToken);
+
+    // Build accountTypeMap
+    const accountRows = db
+      .select({
+        plaidAccountId: accounts.plaidAccountId,
+        type: accounts.type,
+      })
+      .from(accounts)
+      .where(
+        and(
+          eq(accounts.householdId, householdId),
+          eq(accounts.plaidItemId, itemId),
+        ),
+      )
+      .all();
+
+    const accountTypeMap = new Map<string, string>();
+    for (const row of accountRows) {
+      if (row.plaidAccountId) {
+        accountTypeMap.set(row.plaidAccountId, row.type);
+      }
+    }
+
+    // Fetch all pages
+    const client = getPlaidClient();
+    const cursor = item.syncCursor ?? null;
+    const fetchResult = await fetchAllPages(client, accessToken, cursor);
+
+    // Process batch
+    const processed = processBatch(
+      fetchResult.added,
+      fetchResult.modified,
+      fetchResult.removed,
+      householdId,
+      accountTypeMap,
+    );
+
+    // Apply to DB
+    const counts = await applyToDb(
+      db,
+      processed,
+      itemId,
+      householdId,
+      fetchResult.nextCursor,
+    );
+
+    // Reset status to active on success
+    db.update(plaidItems)
+      .set({ status: "active", errorCode: null, updatedAt: now })
+      .where(eq(plaidItems.id, itemId))
+      .run();
+
+    return {
+      success: true,
+      addedCount: counts.addedCount,
+      modifiedCount: counts.modifiedCount,
+      removedCount: counts.removedCount,
+      syncedAt: now,
+    };
+  } catch (err: unknown) {
+    const errorCode = extractPlaidErrorCode(err);
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown sync error";
+
+    // Classify error and update item status
+    if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
+      db.update(plaidItems)
+        .set({
+          status: "reauth_required",
+          errorCode,
+          updatedAt: now,
+        })
+        .where(eq(plaidItems.id, itemId))
+        .run();
+    } else if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
+      db.update(plaidItems)
+        .set({
+          status: "error",
+          errorCode,
+          updatedAt: now,
+        })
+        .where(eq(plaidItems.id, itemId))
+        .run();
+    }
+
+    // Write error sync_log entry
+    db.insert(syncLog)
+      .values({
+        id: uuid(),
+        plaidItemId: itemId,
+        error: errorCode ?? errorMessage,
+        syncedAt: now,
+      })
+      .run();
+
+    return { success: false, error: errorCode ?? errorMessage };
+  }
+}
