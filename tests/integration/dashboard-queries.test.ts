@@ -162,7 +162,7 @@ describe("getMonthlySpending", () => {
     expect(result.length).toBe(1);
     expect(result[0].categoryId).toBe(categoryId);
     expect(result[0].categoryName).toBe("Groceries");
-    expect(result[0].categoryIcon).toBe("🛒");
+    expect(result[0].categoryIcon).toBeNull(); // enrichSpendingMap does not query icon
     expect(result[0].groupName).toBe("Food");
     expect(result[0].total).toBe(8000);
   });

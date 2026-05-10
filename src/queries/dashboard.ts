@@ -1,15 +1,15 @@
-import { eq, gt, gte, lt, lte, and, desc, inArray, isNull } from "drizzle-orm";
+import { eq, gte, lte, and, desc, inArray, isNull } from "drizzle-orm";
 export { getInvestmentsSummary } from "./investments";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   accounts,
   balanceHistory,
   transactions,
-  categories,
-  categoryGroups,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, notIncome, getIncomeCategoryIds } from "@/lib/query-helpers";
+import { notDeleted, getIncomeCategoryIds } from "@/lib/query-helpers";
+import { aggregateSpending, enrichSpendingMap } from "@/lib/spending-helpers";
+import type { ReportFilters } from "@/queries/reports";
 import { classifyAccountType } from "@/lib/account-utils";
 import { todayDateString, rangeToDateBounds, monthBounds, getCurrentMonth } from "@/lib/date-utils";
 import { baseTransactionQuery, type TransactionRow } from "./transactions";
@@ -196,85 +196,20 @@ export function getMonthlySpending(
   month?: string,
   db: LedgrDb = defaultDb
 ): MonthlySpendingRow[] {
-  const scoped = scopedQuery(householdId, db);
-
   const targetMonth = month ?? getCurrentMonth();
   const { from: dateFrom, to: dateTo } = monthBounds(targetMonth);
 
-  // Get expense transactions (negative normalizedAmount, non-pending, non-deleted)
-  const expenseTxns = db
-    .select({
-      categoryId: transactions.categoryId,
-      normalizedAmount: transactions.normalizedAmount,
-    })
-    .from(transactions)
-    .where(
-      scoped.where(
-        transactions,
-        notDeleted(transactions),
-        gte(transactions.date, dateFrom),
-        lte(transactions.date, dateTo),
-        eq(transactions.pending, false),
-        lt(transactions.normalizedAmount, 0),
-        notIncome(db)
-      )
-    )
-    .all();
+  const filters: ReportFilters = { dateFrom, dateTo };
+  const spending = aggregateSpending(householdId, filters, db);
+  const enriched = enrichSpendingMap(spending, db);
 
-  // Aggregate by categoryId (store as positive for display)
-  const byCategory = new Map<string | null, number>();
-  for (const txn of expenseTxns) {
-    const key = txn.categoryId;
-    byCategory.set(key, (byCategory.get(key) ?? 0) + Math.abs(txn.normalizedAmount));
-  }
-
-  if (byCategory.size === 0) return [];
-
-  // Fetch category details
-  const categoryIds = [...byCategory.keys()].filter((id): id is string => id !== null);
-
-  type CatRow = { id: string; name: string; icon: string | null; groupName: string | null };
-  let catRows: CatRow[] = [];
-  if (categoryIds.length > 0) {
-    catRows = db
-      .select({
-        id: categories.id,
-        name: categories.name,
-        icon: categories.icon,
-        groupName: categoryGroups.name,
-      })
-      .from(categories)
-      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-      .where(inArray(categories.id, categoryIds))
-      .all();
-  }
-
-  const catMap = new Map(catRows.map((c) => [c.id, c]));
-
-  const result: MonthlySpendingRow[] = [];
-
-  for (const [categoryId, total] of byCategory.entries()) {
-    if (categoryId === null) {
-      result.push({
-        categoryId: null,
-        categoryName: "Uncategorized",
-        categoryIcon: null,
-        groupName: null,
-        total,
-      });
-    } else {
-      const cat = catMap.get(categoryId);
-      result.push({
-        categoryId,
-        categoryName: cat?.name ?? "Unknown",
-        categoryIcon: cat?.icon ?? null,
-        groupName: cat?.groupName ?? null,
-        total,
-      });
-    }
-  }
-
-  return result.sort((a, b) => b.total - a.total);
+  return enriched.map((item) => ({
+    categoryId: item.id,
+    categoryName: item.name,
+    categoryIcon: null,
+    groupName: item.groupName,
+    total: item.value,
+  }));
 }
 
 // ─── getCashFlow ─────────────────────────────────────────────────────────────

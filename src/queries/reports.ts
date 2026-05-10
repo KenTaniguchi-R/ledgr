@@ -1,16 +1,21 @@
-import { eq, gt, gte, lt, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
+import { eq, gte, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
   transactionSplits,
   categories,
-  categoryGroups,
   accounts,
   balanceHistory,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, notIncome, getIncomeCategoryIds } from "@/lib/query-helpers";
+import { notDeleted, getIncomeCategoryIds } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
+import {
+  spendingBaseConditions,
+  findSplitParentIds,
+  aggregateSpending,
+  enrichSpendingMap,
+} from "@/lib/spending-helpers";
 
 export interface ReportFilters {
   dateFrom: string;
@@ -42,139 +47,6 @@ export interface CategoryTrendRow {
   total: number;
 }
 
-// ── Shared base conditions ──────────────────────────────────────────
-
-function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
-  const conditions = [
-    notDeleted(transactions),
-    lt(transactions.normalizedAmount, 0),
-    eq(transactions.pending, false),
-    eq(transactions.isTransfer, false),
-    isNull(transactions.transferPairId),
-    gte(transactions.date, filters.dateFrom),
-    lte(transactions.date, filters.dateTo),
-    notIncome(db),
-  ];
-  if (filters.accountIds?.length) {
-    conditions.push(inArray(transactions.accountId, filters.accountIds));
-  }
-  return conditions;
-}
-
-// ── Split-aware helpers ────────────────────────────────────────────
-
-function findSplitParentIds(
-  scoped: ReturnType<typeof scopedQuery>,
-  conditions: ReturnType<typeof spendingBaseConditions>,
-  db: LedgrDb,
-): string[] {
-  return db
-    .select({ transactionId: transactionSplits.transactionId })
-    .from(transactionSplits)
-    .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
-    .where(scoped.where(transactions, ...conditions))
-    .groupBy(transactionSplits.transactionId)
-    .all()
-    .map((r) => r.transactionId);
-}
-
-// ── Split-aware spending aggregation ────────────────────────────────
-
-function aggregateSpending(
-  householdId: string,
-  filters: ReportFilters,
-  db: LedgrDb,
-): Map<string, number> {
-  const scoped = scopedQuery(householdId, db);
-  const conditions = spendingBaseConditions(filters, db);
-
-  const splitParentIds = findSplitParentIds(scoped, conditions, db);
-
-  // Non-split transactions
-  const nonSplitConditions =
-    splitParentIds.length > 0
-      ? [...conditions, notInArray(transactions.id, splitParentIds)]
-      : conditions;
-
-  const nonSplitRows = db
-    .select({
-      categoryId: transactions.categoryId,
-      total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
-    })
-    .from(transactions)
-    .where(scoped.where(transactions, ...nonSplitConditions))
-    .groupBy(transactions.categoryId)
-    .all();
-
-  const spending = new Map<string, number>();
-  for (const row of nonSplitRows) {
-    const key = row.categoryId ?? "uncategorized";
-    spending.set(key, (spending.get(key) ?? 0) + row.total);
-  }
-
-  // Split transactions
-  if (splitParentIds.length > 0) {
-    const splitRows = db
-      .select({
-        categoryId: transactionSplits.categoryId,
-        total: sql<number>`COALESCE(SUM(${transactionSplits.amount}), 0)`,
-      })
-      .from(transactionSplits)
-      .where(inArray(transactionSplits.transactionId, splitParentIds))
-      .groupBy(transactionSplits.categoryId)
-      .all();
-
-    for (const row of splitRows) {
-      spending.set(row.categoryId, (spending.get(row.categoryId) ?? 0) + row.total);
-    }
-  }
-
-  return spending;
-}
-
-function enrichSpendingMap(
-  spending: Map<string, number>,
-  db: LedgrDb,
-): Omit<SpendingRow, "prevTotal">[] {
-  const categoryIds = [...spending.keys()].filter((k) => k !== "uncategorized");
-
-  type CatRow = { id: string; name: string; groupName: string | null; groupId: string | null };
-  let catRows: CatRow[] = [];
-  if (categoryIds.length > 0) {
-    catRows = db
-      .select({
-        id: categories.id,
-        name: categories.name,
-        groupName: categoryGroups.name,
-        groupId: categoryGroups.id,
-      })
-      .from(categories)
-      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-      .where(inArray(categories.id, categoryIds))
-      .all();
-  }
-
-  const catMap = new Map(catRows.map((c) => [c.id, c]));
-  const result: Omit<SpendingRow, "prevTotal">[] = [];
-
-  for (const [key, total] of spending.entries()) {
-    if (key === "uncategorized") {
-      result.push({ categoryId: null, categoryName: "Uncategorized", groupName: null, groupId: null, total });
-    } else {
-      const cat = catMap.get(key);
-      result.push({
-        categoryId: key,
-        categoryName: cat?.name ?? "Unknown",
-        groupName: cat?.groupName ?? null,
-        groupId: cat?.groupId ?? null,
-        total,
-      });
-    }
-  }
-
-  return result.sort((a, b) => b.total - a.total);
-}
-
 // ── Public query functions ──────────────────────────────────────────
 
 export function getSpendingByCategory(
@@ -192,8 +64,12 @@ export function getSpendingByCategory(
   }
 
   return enriched.map((row) => ({
-    ...row,
-    prevTotal: prevMap.get(row.categoryId ?? "uncategorized") ?? 0,
+    categoryId: row.id,
+    categoryName: row.name,
+    groupName: row.groupName,
+    groupId: row.groupId,
+    total: row.value,
+    prevTotal: prevMap.get(row.id ?? "uncategorized") ?? 0,
   }));
 }
 
