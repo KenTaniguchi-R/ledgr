@@ -11,8 +11,6 @@ const TEST_BODY = JSON.stringify({
   item_id: "test-item-123",
 });
 
-const bodyHash = createHash("sha256").update(TEST_BODY).digest("hex");
-
 let privateKey: CryptoKey;
 let publicJwk: Record<string, unknown>;
 const TEST_KID = "test-key-id-1";
