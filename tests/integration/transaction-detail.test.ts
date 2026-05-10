@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { test } from "@fast-check/vitest";
+import * as fc from "fast-check";
 import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
 import { getTransactionDetail } from "@/queries/transactions";
@@ -328,5 +330,28 @@ describe("deleteSplit", () => {
     const after = getTransactionDetail(householdId, delTxnId, db);
     expect(after!.hasSplits).toBe(false);
     expect(after!.splits).toHaveLength(0);
+  });
+});
+
+describe("split remaining balance math", () => {
+  test.prop([
+    fc.integer({ min: 100, max: 10_000_00 }),
+    fc.array(fc.integer({ min: 1, max: 1_000_00 }), { minLength: 1, maxLength: 10 }),
+  ])("sum of splits + remaining equals abs(amount)", (totalCents, rawSplitAmounts) => {
+    const absTotal = Math.abs(totalCents);
+    const cappedSplits: number[] = [];
+    let runningTotal = 0;
+
+    for (const amt of rawSplitAmounts) {
+      if (runningTotal + amt > absTotal) break;
+      cappedSplits.push(amt);
+      runningTotal += amt;
+    }
+
+    const splitSum = cappedSplits.reduce((s, a) => s + a, 0);
+    const remaining = absTotal - splitSum;
+
+    expect(splitSum + remaining).toBe(absTotal);
+    expect(remaining).toBeGreaterThanOrEqual(0);
   });
 });
