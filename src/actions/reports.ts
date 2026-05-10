@@ -1,0 +1,78 @@
+"use server";
+
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { v4 as uuid } from "uuid";
+import { db as defaultDb, type LedgrDb } from "@/db";
+import { savedReports } from "@/db/schema";
+import { scopedQuery } from "@/lib/scoped-query";
+import { getHouseholdId } from "@/lib/auth/session";
+
+const saveReportSchema = z.object({
+  name: z.string().min(1).max(100),
+  reportType: z.enum(["spending", "income-expense", "trends", "net-worth"]),
+  filters: z.object({
+    dateFrom: z.string(),
+    dateTo: z.string(),
+    accountIds: z.array(z.string()).optional(),
+    categoryIds: z.array(z.string()).optional(),
+  }),
+});
+
+export async function saveReport(
+  input: z.infer<typeof saveReportSchema>,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true; id: string } | { error: string }> {
+  const parsed = saveReportSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "Invalid input" };
+  }
+
+  const householdId = await getHouseholdId();
+  const id = uuid();
+  const now = new Date().toISOString();
+
+  db.insert(savedReports)
+    .values({
+      id,
+      householdId,
+      name: parsed.data.name,
+      reportType: parsed.data.reportType,
+      filters: JSON.stringify(parsed.data.filters),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+
+  revalidatePath("/reports");
+  return { success: true, id };
+}
+
+export async function deleteReport(
+  reportId: string,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true } | { error: string }> {
+  const parsed = z.string().min(1).safeParse(reportId);
+  if (!parsed.success) {
+    return { error: "Invalid report ID" };
+  }
+
+  const householdId = await getHouseholdId();
+  const scoped = scopedQuery(householdId, db);
+
+  const existing = db
+    .select({ id: savedReports.id })
+    .from(savedReports)
+    .where(scoped.where(savedReports, eq(savedReports.id, reportId)))
+    .get();
+
+  if (!existing) {
+    return { error: "Report not found" };
+  }
+
+  db.delete(savedReports).where(eq(savedReports.id, reportId)).run();
+
+  revalidatePath("/reports");
+  return { success: true };
+}

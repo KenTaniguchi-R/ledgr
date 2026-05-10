@@ -10,3 +10,4 @@ export * from "./recurring";
 export * from "./goals";
 export * from "./investments";
 export * from "./notifications";
+export * from "./reports";
