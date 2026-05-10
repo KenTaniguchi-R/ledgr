@@ -3,6 +3,14 @@ import type { PlaidApi } from "plaid";
 import type { PlaidHolding, PlaidSecurity, PlaidInvestmentTxn } from "./schemas";
 import { mapSecurityType, PlaidHoldingsResponseSchema, PlaidInvestmentTxnsResponseSchema } from "./schemas";
 import { retryWithBackoff } from "./utils";
+import {
+  extractPlaidErrorCode,
+  REAUTH_ERROR_CODES,
+  TRANSIENT_ERROR_CODES,
+  SKIP_ERROR_CODES,
+} from "./utils";
+import { getPlaidClient } from "./client";
+import { decrypt } from "@/lib/encryption";
 import { todayDateString } from "@/lib/date-utils";
 import { eq, inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
@@ -11,6 +19,7 @@ import {
   holdingsHistory,
   investmentTransactions,
   accounts,
+  plaidItems,
 } from "@/db/schema";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -304,5 +313,118 @@ export function snapshotHoldings(dbInstance: LedgrDb = defaultDb): void {
       })
       .onConflictDoNothing()
       .run();
+  }
+}
+
+// ─── Sync Orchestrator ──────────────────────────────────────────────────────
+
+const activeInvestmentSyncs = new Map<string, Promise<InvestmentSyncResult>>();
+
+export async function syncInvestments(
+  itemId: string,
+  householdId: string,
+  db: LedgrDb,
+): Promise<InvestmentSyncResult> {
+  const existing = activeInvestmentSyncs.get(itemId);
+  if (existing) return existing;
+
+  const promise = doInvestmentSync(itemId, householdId, db);
+  activeInvestmentSyncs.set(itemId, promise);
+
+  try {
+    return await promise;
+  } finally {
+    activeInvestmentSyncs.delete(itemId);
+  }
+}
+
+async function doInvestmentSync(
+  itemId: string,
+  householdId: string,
+  db: LedgrDb,
+): Promise<InvestmentSyncResult> {
+  const item = db
+    .select({ accessToken: plaidItems.accessToken })
+    .from(plaidItems)
+    .where(eq(plaidItems.id, itemId))
+    .get();
+
+  if (!item) {
+    return { success: false, error: "Item not found" };
+  }
+
+  const accessToken = decrypt(item.accessToken);
+  const client = getPlaidClient();
+
+  // Build account map
+  const itemAccounts = db
+    .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
+    .from(accounts)
+    .where(eq(accounts.plaidItemId, itemId))
+    .all();
+
+  const plaidToInternalAccount = new Map<string, string>();
+  for (const acc of itemAccounts) {
+    if (acc.plaidAccountId) {
+      plaidToInternalAccount.set(acc.plaidAccountId, acc.id);
+    }
+  }
+
+  try {
+    // Fetch holdings
+    const { holdings: rawHoldings, securities: holdingSecurities } =
+      await fetchHoldings(client, accessToken);
+
+    // Fetch investment transactions (24 months)
+    const endDate = todayDateString();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - 24);
+    const startDateStr = startDate.toISOString().split("T")[0];
+
+    const { transactions: rawTxns, securities: txnSecurities } =
+      await fetchAllInvestmentTransactionPages(client, accessToken, startDateStr, endDate);
+
+    // Merge securities from both responses
+    const allSecurities = new Map<string, PlaidSecurity>();
+    for (const sec of holdingSecurities) allSecurities.set(sec.security_id, sec);
+    for (const sec of txnSecurities) allSecurities.set(sec.security_id, sec);
+    const mergedSecurities = Array.from(allSecurities.values());
+
+    // Process
+    const holdingRows = processHoldings(rawHoldings, mergedSecurities, householdId, plaidToInternalAccount);
+    const txnRows = processInvestmentTransactions(rawTxns, mergedSecurities, plaidToInternalAccount);
+
+    // Apply
+    const result = applyInvestmentsToDb(db, holdingRows, txnRows, itemId, householdId);
+
+    return {
+      success: true,
+      holdingsUpserted: result.holdingsUpserted,
+      txnsInserted: result.txnsInserted,
+    };
+  } catch (err: unknown) {
+    const errorCode = extractPlaidErrorCode(err);
+
+    if (errorCode && SKIP_ERROR_CODES.has(errorCode)) {
+      return { success: true, skipped: true };
+    }
+
+    if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
+      db.update(plaidItems)
+        .set({ status: "reauth_required" })
+        .where(eq(plaidItems.id, itemId))
+        .run();
+      return { success: false, error: `Reauth required: ${errorCode}` };
+    }
+
+    if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
+      db.update(plaidItems)
+        .set({ status: "error" })
+        .where(eq(plaidItems.id, itemId))
+        .run();
+      return { success: false, error: `Transient error: ${errorCode}` };
+    }
+
+    return { success: false, error: String(err) };
   }
 }

@@ -5,6 +5,7 @@ import { db, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { syncInstitution } from "@/lib/plaid/sync";
 import { syncRecurringTransactions } from "@/lib/plaid/recurring";
+import { syncInvestments, snapshotHoldings } from "@/lib/plaid/investments";
 import { decrypt } from "@/lib/encryption";
 import { todayDateString } from "@/lib/date-utils";
 
@@ -69,6 +70,34 @@ export function startScheduler() {
           } catch (recurringErr) {
             console.error(`[scheduler] Recurring sync failed for ${item.id}:`, recurringErr);
           }
+
+          // Chain investment sync for items with investment accounts
+          try {
+            const investmentAccounts = db
+              .select({ id: accounts.id })
+              .from(accounts)
+              .where(
+                and(
+                  eq(accounts.plaidItemId, item.id),
+                  eq(accounts.type, "investment"),
+                  isNull(accounts.deletedAt),
+                )
+              )
+              .all();
+
+            if (investmentAccounts.length > 0) {
+              const invResult = await syncInvestments(item.id, item.householdId, db);
+              if (invResult.success && !invResult.skipped) {
+                console.log(
+                  `[scheduler] Investment sync for ${item.id}: ${invResult.holdingsUpserted} holdings, ${invResult.txnsInserted} txns`
+                );
+              } else if (invResult.skipped) {
+                console.log(`[scheduler] Investment sync skipped for ${item.id} (product not supported)`);
+              }
+            }
+          } catch (invErr) {
+            console.error(`[scheduler] Investment sync failed for ${item.id}:`, invErr);
+          }
         } else {
           console.error(`[scheduler] Sync failed for ${item.id}: ${result.error}`);
         }
@@ -88,6 +117,17 @@ export function startScheduler() {
       console.log("[scheduler] Balance snapshot job complete");
     } catch (e) {
       console.error("[scheduler] Unexpected error during balance snapshot:", e);
+    }
+  });
+
+  // Holdings snapshot: every day at 1am (safety net)
+  cron.schedule("0 1 * * *", async () => {
+    console.log("[scheduler] Starting holdings snapshot job");
+    try {
+      snapshotHoldings();
+      console.log("[scheduler] Holdings snapshot job complete");
+    } catch (e) {
+      console.error("[scheduler] Unexpected error during holdings snapshot:", e);
     }
   });
 
