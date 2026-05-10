@@ -14,6 +14,7 @@ import { RecentTransactionsWidget } from "./widgets/recent-transactions";
 import { AccountBalancesWidget } from "./widgets/account-balances";
 import { DashboardSummaryCards } from "./widgets/dashboard-summary-cards";
 import { UpcomingBillsWidget } from "./widgets/upcoming-bills";
+import { InvestmentsWidget } from "./widgets/investments-widget";
 import { WidgetPlaceholder } from "@/components/molecules/widget-placeholder";
 import { DASHBOARD_WIDGETS, type GridItem } from "./widgets/registry";
 import { saveLayout } from "@/actions/dashboard";
@@ -22,6 +23,7 @@ import type { TransactionRow } from "@/queries/transactions";
 import type { AccountType } from "@/db/schema/accounts";
 import type { BudgetMonth } from "@/queries/budgets";
 import type { BillRow } from "@/queries/recurring";
+import type { getInvestmentsSummary } from "@/queries/dashboard";
 
 export interface DashboardData {
   summary: DashboardSummary;
@@ -32,6 +34,7 @@ export interface DashboardData {
   accounts: { id: string; name: string; type: AccountType; currentBalance: number | null; currency: string | null }[];
   budgetData?: BudgetMonth;
   upcomingBills: BillRow[];
+  investmentsData?: ReturnType<typeof getInvestmentsSummary>;
 }
 
 interface DashboardGridProps {
@@ -123,6 +126,15 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
         );
       case "bills":
         return <UpcomingBillsWidget data={data.upcomingBills} />;
+      case "investments":
+        return data.investmentsData ? (
+          <InvestmentsWidget
+            totalValue={data.investmentsData.totalValue}
+            dayChange={data.investmentsData.dayChange}
+          />
+        ) : (
+          <WidgetPlaceholder title="Investments" description="No investment accounts linked" />
+        );
       default:
         return null;
     }

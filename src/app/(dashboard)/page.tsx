@@ -5,6 +5,7 @@ import {
   getMonthlySpending,
   getCashFlow,
   getRecentTransactions,
+  getInvestmentsSummary,
 } from "@/queries/dashboard";
 import { getAccounts } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
@@ -20,7 +21,7 @@ export default async function DashboardPage() {
   const session = await getSession();
   const userId = session!.user.id;
 
-  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills] =
+  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData] =
     await Promise.all([
       getDashboardSummary(householdId),
       getNetWorthHistory(householdId, "6M"),
@@ -30,6 +31,7 @@ export default async function DashboardPage() {
       getAccounts(householdId),
       getBudgetForMonth(householdId, getCurrentMonth()),
       getUpcomingBills(householdId, { limit: 5 }),
+      getInvestmentsSummary(householdId),
     ]);
 
   const accounts = allAccounts
@@ -48,6 +50,7 @@ export default async function DashboardPage() {
     accounts,
     budgetData,
     upcomingBills,
+    investmentsData,
   };
 
   return (

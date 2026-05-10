@@ -29,6 +29,7 @@ export const DASHBOARD_WIDGETS: WidgetConfig[] = [
   { id: "recent-txns", title: "Recent Transactions", defaultSize: { w: 2, h: 2 } },
   { id: "budgets", title: "Budget Progress", defaultSize: { w: 2, h: 1 } },
   { id: "bills", title: "Upcoming Bills", defaultSize: { w: 2, h: 1 } },
+  { id: "investments", title: "Investments", defaultSize: { w: 2, h: 1 } },
   { id: "goals", title: "Goals", defaultSize: { w: 2, h: 1 }, isPlaceholder: true, placeholderText: "Coming in Phase 12" },
 ];
 
@@ -43,6 +44,7 @@ export function getDefaultLayout(): { desktop: GridItem[]; tablet: GridItem[]; m
     { i: "cash-flow", x: 2, y: 2, w: 2, h: 1 },
     { i: "recent-txns", x: 2, y: 3, w: 2, h: 2 },
     { i: "bills", x: 0, y: 5, w: 2, h: 1 },
+    { i: "investments", x: 0, y: 4, w: 2, h: 1 },
   ];
   const tablet: GridItem[] = desktop.map((item, i) => ({ ...item, x: 0, y: i * item.h, w: 2 }));
   const mobile: GridItem[] = desktop.map((item, i) => ({ ...item, x: 0, y: i * item.h, w: 1 }));

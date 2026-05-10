@@ -1,4 +1,5 @@
 import { eq, gt, gte, lte, desc } from "drizzle-orm";
+export { getInvestmentsSummary } from "./investments";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   accounts,
