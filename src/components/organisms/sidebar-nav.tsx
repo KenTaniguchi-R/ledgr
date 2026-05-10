@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, ArrowLeftRight, LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ interface SidebarNavProps {
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/accounts", label: "Accounts", icon: Building2 },
+  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
 ];
 
 export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
