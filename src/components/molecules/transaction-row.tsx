@@ -1,4 +1,3 @@
-// src/components/molecules/transaction-row.tsx
 "use client";
 
 import { Clock } from "lucide-react";
@@ -6,7 +5,6 @@ import { AmountDisplay } from "@/components/atoms/amount-display";
 import { EntityAvatar } from "@/components/atoms/entity-avatar";
 import { CategoryPill } from "@/components/molecules/category-pill";
 import { ReviewedDot } from "@/components/molecules/reviewed-dot";
-import { Badge } from "@/components/ui/badge";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
@@ -56,7 +54,7 @@ export function TransactionRow({
           pfcPrimary={txn.pfcPrimary}
           size="sm"
         />
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
           {txn.pending && <Clock className="size-3 text-muted-foreground shrink-0" />}
           <span className="font-medium truncate">{txn.name}</span>
           {txn.originalName !== txn.name && (
@@ -64,9 +62,9 @@ export function TransactionRow({
               ({txn.originalName})
             </span>
           )}
-          <Badge variant="secondary" className="text-[10px] px-1.5 h-4 hidden sm:inline-flex shrink-0 max-w-[100px] truncate">
+          <span className="hidden sm:inline text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate">
             {txn.accountName}
-          </Badge>
+          </span>
         </div>
       </div>
 

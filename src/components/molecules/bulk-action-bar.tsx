@@ -38,7 +38,7 @@ export function BulkActionBar({ selectedIds, categories, onComplete }: BulkActio
   }
 
   return (
-    <div className="sticky top-14 z-10 flex items-center gap-3 bg-muted/80 backdrop-blur-sm border rounded-md px-3 py-2 mb-2">
+    <div className="sticky top-14 z-20 flex items-center gap-3 bg-muted/80 backdrop-blur-sm border rounded-md px-3 py-2 mb-2">
       <span className="text-sm font-medium">{selectedIds.length} selected</span>
 
       <Select onValueChange={handleCategorize} disabled={isPending}>
