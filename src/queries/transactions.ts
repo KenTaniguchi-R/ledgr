@@ -191,3 +191,64 @@ export function getTransactions(
 
   return { rows: result, nextCursor };
 }
+
+export interface SplitRow {
+  id: string;
+  categoryId: string;
+  categoryName: string | null;
+  categoryIcon: string | null;
+  amount: number;
+  notes: string | null;
+}
+
+export interface TransactionDetail extends TransactionRow {
+  splits: SplitRow[];
+}
+
+export function getTransactionDetail(
+  householdId: string,
+  transactionId: string,
+  db: LedgrDb = defaultDb,
+): TransactionDetail | null {
+  const base = baseTransactionQuery(db, householdId);
+  const row = base
+    .joins(db.select(base.select).from(base.from))
+    .where(
+      base.scoped.where(
+        transactions,
+        eq(transactions.id, transactionId),
+        isNull(transactions.deletedAt),
+      ),
+    )
+    .get();
+
+  if (!row) return null;
+
+  const splits = db
+    .select({
+      id: transactionSplits.id,
+      categoryId: transactionSplits.categoryId,
+      categoryName: categories.name,
+      categoryIcon: categories.icon,
+      amount: transactionSplits.amount,
+      notes: transactionSplits.notes,
+    })
+    .from(transactionSplits)
+    .leftJoin(categories, eq(transactionSplits.categoryId, categories.id))
+    .where(eq(transactionSplits.transactionId, transactionId))
+    .all();
+
+  return {
+    ...row,
+    accountName: row.accountName ?? "",
+    currency: row.currency ?? "USD",
+    pending: Boolean(row.pending),
+    reviewed: Boolean(row.reviewed),
+    isTransfer: Boolean(row.isTransfer),
+    transferPairId: row.transferPairId ?? null,
+    categorySource: row.categorySource ?? null,
+    plaidTransactionId: row.plaidTransactionId ?? null,
+    hasSplits: splits.length > 0,
+    splits,
+  };
+}
