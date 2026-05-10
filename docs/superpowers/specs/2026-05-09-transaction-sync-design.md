@@ -1,7 +1,7 @@
 # Phase 3 — Transaction Sync Engine Design
 
 **Date:** 2026-05-09
-**Status:** Draft
+**Status:** Reviewed
 **Depends on:** Phase 2 (Plaid Link + Token Exchange) ✅
 
 ## Overview
@@ -15,13 +15,19 @@ Phase 3 implements cursor-based transaction sync via Plaid's `transactions/sync`
 `syncInstitution(itemId, householdId, db)` orchestrates three pure steps:
 
 ```
+0. Acquire per-item lock (in-process Map<itemId, Promise>)
+   → Prevents concurrent sync of the same item (cron + manual race)
+
 1. fetchAllPages(plaidClient, accessToken, cursor)
+   → If cursor is null (initial sync), omit cursor field from request entirely
    → Loops transactionsSync() until has_more=false
+   → Retries each page call with exponential backoff (3 attempts, jitter)
+   → Validates response against Zod schema (parse-don't-trust)
    → Returns: { added[], modified[], removed[], nextCursor, accounts[] }
 
-2. processBatch(added, modified, householdId)
+2. processBatch(added, modified, householdId, accountTypeMap)
    → Converts Plaid floats → integer cents
-   → Computes normalized_amount (-1 * amount)
+   → Computes normalized_amount with account-type-aware sign handling
    → Builds merchant upsert payloads (name normalization, raw_names tracking)
    → Detects pending→posted transitions via pending_transaction_id
    → Returns: { inserts[], upserts[], merchantUpserts[], pendingToRemove[] }
@@ -29,16 +35,26 @@ Phase 3 implements cursor-based transaction sync via Plaid's `transactions/sync`
 3. applyToDb(db, processed, itemId, newCursor)
    → Single db.transaction():
      - Upsert merchants → resolve merchant_id FKs
-     - INSERT new transactions
+     - INSERT new transactions (UNIQUE on plaid_transaction_id prevents dupes)
      - UPSERT modified transactions by plaid_transaction_id
      - Soft-delete removed transactions (set deleted_at)
      - Soft-delete pending rows replaced by posted versions
-     - Update account balances from Plaid response
+     - Update account balances (current, available, limit) from Plaid response
      - Update plaid_items.sync_cursor
      - INSERT sync_log entry
 ```
 
-**Key invariant:** Cursor update and record writes are atomic in a single SQLite transaction. A crash mid-sync loses no data — the next sync resumes from the last committed cursor.
+**Key invariants:**
+- Cursor update and record writes are atomic in a single SQLite transaction. A crash mid-sync loses no data — the next sync resumes from the last committed cursor.
+- Per-item in-process lock prevents concurrent sync of the same institution (cron job + manual "Sync Now" race condition). Lock is a `Map<string, Promise<SyncResult>>` — if a sync is already in progress for an item, `syncInstitution` awaits the existing promise instead of starting a new one.
+
+### Error Handling
+
+On Plaid API errors during `fetchAllPages`:
+- `ITEM_LOGIN_REQUIRED`, `INVALID_CREDENTIALS`, `INVALID_MFA`, `INSUFFICIENT_CREDENTIALS`, `USER_INPUT_NEEDED` → set `plaid_items.status = 'reauth_required'`
+- `INSTITUTION_DOWN`, `TRANSACTIONS_LIMIT`, `INTERNAL_SERVER_ERROR` → set `plaid_items.status = 'error'`, store error code in `plaid_items.error_code`
+- `RATE_LIMIT_EXCEEDED` → handled by retry with backoff (up to 3 attempts per page)
+- Any unrecoverable error → write `sync_log` entry with error, return `{ success: false, error }`
 
 ### Return Value
 
@@ -50,15 +66,35 @@ type SyncResult =
 
 ## Amount Handling
 
-| Field | Convention | Example ($12.50 debit) |
-|-------|-----------|----------------------|
-| Plaid raw | Float, positive = debit | `12.50` |
-| `amount` | Integer cents, Plaid convention | `1250` |
-| `normalized_amount` | Integer cents, flipped sign | `-1250` |
+**Plaid sign conventions vary by account type:**
 
-- Conversion: `Math.round(plaidAmount * 100)`
-- Normalization: `normalized_amount = -1 * amount`
-- **-0 guard:** When amount is 0, use `Math.abs()` to avoid `-0` in comparisons
+| Account Type | Plaid Convention | Example |
+|-------------|-----------------|---------|
+| Depository (checking, savings) | Positive = debit/expense, negative = credit/income | Purchase: `12.50`, deposit: `-500.00` |
+| Credit | Negative = purchase/expense, positive = payment/credit | Purchase: `-50.00`, payment: `200.00` |
+| Investment | Negative = buy, positive = sell | Buy: `-1000.00`, sell: `500.00` |
+
+**Storage:**
+
+| Field | Convention |
+|-------|-----------|
+| `amount` | Integer cents, raw Plaid convention preserved: `Math.round(plaidAmount * 100)` |
+| `normalized_amount` | Integer cents, **account-type-aware normalization** so that positive always = income, negative always = expense |
+
+**Normalization logic:**
+
+```typescript
+function normalizeAmount(amountCents: number, accountType: string): number {
+  // Depository: Plaid positive = expense → flip sign
+  // Credit: Plaid negative = expense → DON'T flip (already correct for normalized)
+  // Investment: Plaid negative = buy (expense) → DON'T flip
+  const shouldFlip = accountType === "depository";
+  const normalized = shouldFlip ? -amountCents : amountCents;
+  return normalized === 0 ? 0 : normalized; // -0 guard
+}
+```
+
+`processBatch` receives an `accountTypeMap: Map<plaidAccountId, accountType>` built from the accounts table to determine the correct normalization per transaction.
 
 ## Merchant Normalization
 
@@ -89,6 +125,11 @@ When processing added transactions:
      b. Soft-delete the pending row (set deleted_at)
      c. Insert the posted version as a new row (pending = false)
   2. If no pending_transaction_id → normal INSERT
+
+When processing removed transactions:
+  3. Soft-delete by plaid_transaction_id (set deleted_at)
+  4. This handles both posted removals AND pending transactions that never post
+     (declined charges, expired pre-auth holds). Both are legitimate terminal states.
 ```
 
 ## Background Job Scheduler
@@ -138,16 +179,11 @@ export async function triggerSync(plaidItemId: string): Promise<SyncResult> {
   // Return { success, addedCount, modifiedCount, removedCount, syncedAt }
 }
 
-// Sync all institutions for household
-export async function triggerSyncAll(): Promise<{ results: Record<string, SyncResult> }> {
-  const householdId = await getHouseholdId();
-  // Fetch all active plaid_items for householdId
-  // Sequential sync: SQLite is single-writer, so syncing items one at a time
-  // avoids WAL contention. Each item's Plaid API call + DB write completes
-  // before the next starts.
-  // revalidatePath("/accounts")
-  // Return per-item results
-}
+// No triggerSyncAll server action — the client orchestrates parallel
+// triggerSync() calls via Promise.allSettled(). Each call is independent,
+// shows per-institution progress honestly, and the per-item lock in
+// syncInstitution prevents races. SQLite WAL handles concurrent writes
+// from separate transactions fine.
 ```
 
 **Auth convention (standardized):** All server actions use `getHouseholdId()` which throws on unauthenticated — Next.js error boundary handles it. No more mixed `getSession()` null-check pattern.
@@ -174,6 +210,8 @@ src/components/atoms/sync-status-badge.tsx
 - Icons: Lucide, size-3.5 (matches existing atoms)
 - Transitions: `transition-opacity duration-300`
 - No background chrome — icon + text only
+- Container has `role="status"` and `aria-live="polite"` for screen reader announcements
+- Success auto-clear uses `useEffect` with `clearTimeout` cleanup on unmount
 
 ### `InstitutionHeader` (molecule — updated)
 
@@ -188,6 +226,8 @@ src/components/atoms/sync-status-badge.tsx
 - Sync Now: `variant="ghost" size="sm"`, Lucide `RefreshCw` (size-3.5)
 - Sync Now reveal: `opacity-0 group-hover:opacity-100 transition-opacity` (matches AccountCard edit pattern)
 - Disabled during sync: `opacity-50 pointer-events-none`
+- **Hidden for manual accounts** — `InstitutionHeader` receives `plaidItemId: string | null`. When null (manual/CSV accounts), Sync Now button and last-synced timestamp are not rendered.
+- New props: `plaidItemId: string | null`, `lastSyncedAt: string | null`, `syncStatus: SyncStatus`, `onSync: () => void`
 
 ### `AccountList` (organism — updated)
 
@@ -202,9 +242,9 @@ src/components/atoms/sync-status-badge.tsx
 └─────────────────────────────────────────────────────┘
 ```
 
-- State: `useState<Map<string, SyncStatus>>` keyed by plaidItemId
-- Sync All: ghost button in header, calls `triggerSyncAll()` server action (sequential server-side). While awaiting, all institutions show syncing state. Results update each badge independently on completion.
-- `revalidatePath` in server action refreshes balances automatically
+- State: `useState<Map<string, SyncStatus>>` keyed by plaidItemId (always create new Map on update to trigger re-render — never mutate in place)
+- Sync All: ghost button in header, fires `Promise.allSettled(itemIds.map(id => handleSync(id)))` — parallel independent calls. Each institution's badge updates independently as its sync resolves.
+- `revalidatePath` in server action invalidates RSC cache. Client calls `router.refresh()` after action resolves to pull fresh data into mounted components.
 
 ## File Structure
 
@@ -215,7 +255,7 @@ src/lib/plaid/sync.ts              — syncInstitution, fetchAllPages, processBa
 src/lib/plaid/sync.test.ts         — colocated unit + property tests
 src/lib/plaid/schemas.ts           — Zod schemas for Plaid sync response validation
 src/lib/jobs/scheduler.ts          — node-cron setup
-src/actions/sync.ts                — triggerSync, triggerSyncAll server actions
+src/actions/sync.ts                — triggerSync server action
 src/components/atoms/sync-status-badge.tsx
 tests/integration/transaction-sync.test.ts
 ```
@@ -252,42 +292,87 @@ Three consistency fixes before building new code:
 
 ### Integration Tests (`tests/integration/transaction-sync.test.ts`)
 
-5 behavioral tests:
+8 behavioral tests. Each test gets a fresh `createTestDb()` and seeds the prerequisite chain (household → plaid_item → accounts). MSW lifecycle: `server.use()` per test + `server.resetHandlers()` in `afterEach`. Shared test constants for transaction IDs (used by both fixtures and DB seeds).
 
 1. **Multi-page pagination drains all pages** — all txns inserted, cursor = "final"
 2. **Removed transactions are soft-deleted** — `deleted_at IS NOT NULL`
 3. **Modified transactions upsert without duplicates** — row count stays 1, amount updated
 4. **Pending→posted transition** — pending row soft-deleted, posted row inserted
 5. **Cursor atomicity** — cursor unchanged if write fails mid-transaction
+6. **Empty sync** — no changes from Plaid, cursor advances, sync_log written with zero counts
+7. **Duplicate plaid_transaction_id rejected** — UNIQUE constraint prevents duplicate inserts
+8. **Cross-household isolation** — sync for household A does not affect household B's data
+
+### Server Action Tests (`tests/integration/sync-actions.test.ts`)
+
+3 tests for security-critical paths:
+
+1. **Auth guard** — unauthenticated call throws
+2. **Ownership check** — triggerSync with plaidItemId from another household returns error
+3. **Plaid error → item status update** — ITEM_LOGIN_REQUIRED sets plaid_items.status = 'reauth_required'
 
 ### Colocated Unit Tests (`src/lib/plaid/sync.test.ts`)
 
-- `processBatch` — cents conversion, normalized_amount, merchant payload shape
+- `processBatch` — cents conversion, account-type-aware normalized_amount, merchant payload shape
 - Amount edge cases: zero (-0 guard), large amounts, negative credits
+- Credit card amount normalization (Plaid negative = expense → normalized stays negative)
 
-### Property Test
+### Property Tests
 
 ```typescript
 test.prop([fc.float({ min: -99999.99, max: 99999.99, noNaN: true })])(
-  "plaidAmountToCents round-trips without float drift",
-  (amount) => { ... }
+  "plaidAmountToCents sign symmetry",
+  (amount) => {
+    expect(Math.abs(plaidAmountToCents(amount))).toBe(Math.abs(plaidAmountToCents(-amount)));
+  }
 )
+
+test.prop([fc.float({ min: -99999.99, max: 99999.99, noNaN: true })])(
+  "plaidAmountToCents always returns integer",
+  (amount) => {
+    expect(Number.isInteger(plaidAmountToCents(amount))).toBe(true);
+  }
+)
+
+// -0 guard
+test("plaidAmountToCents(0) is not negative zero", () => {
+  expect(Object.is(plaidAmountToCents(0), -0)).toBe(false);
+});
 ```
 
 ### Zod Contract Schemas (`src/lib/plaid/schemas.ts`)
 
-Validate MSW fixture objects against Plaid response shapes. Catches SDK drift. Schemas for: sync response envelope, transaction object, removed notification.
+Validate Plaid responses at runtime in `fetchAllPages` (parse-don't-trust pattern). Also validate MSW fixtures against the same schemas in tests to keep fixtures honest. Schemas for: sync response envelope, transaction object, removed notification.
 
 ### No E2E for Phase 3
 
 Sync is server-side. The "Sync Now" button will be implicitly tested when Phase 4 adds transaction list E2E.
 
-## Missing Indexes (Add in Migration)
+### MSW Lifecycle
+
+Tests must follow this lifecycle to prevent fixture bleed:
+
+```typescript
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+Per-test fixture overrides via `server.use(...syncPageOne, ...syncPageTwo)` — these are reset after each test.
+
+## Schema Changes (Add in Migration)
 
 ```sql
+-- New UNIQUE constraint (prevents duplicate transactions from concurrent sync race)
+CREATE UNIQUE INDEX idx_txn_plaid_id_unique ON transactions(plaid_transaction_id) WHERE plaid_transaction_id IS NOT NULL;
+
+-- Performance indexes
 CREATE INDEX idx_sync_log_plaid_item_id ON sync_log(plaid_item_id);
 CREATE INDEX idx_plaid_items_household_institution ON plaid_items(household_id, plaid_institution_id);
+CREATE INDEX idx_merchants_household_name ON merchants(household_id, name);
 ```
+
+Note: The existing `idx_txn_plaid_id` (non-unique) should be replaced by the new UNIQUE partial index above.
 
 ## Environment Variables
 
@@ -305,4 +390,4 @@ Phase 3 guarantees for Phase 4:
 3. `category_id = null` on all synced transactions (categorization is Phase 4)
 4. `reviewed = false` on all synced transactions
 5. Soft-delete via `deleted_at`, not hard delete
-6. `plaid_transaction_id` indexed for upserts
+6. `plaid_transaction_id` has UNIQUE constraint for safe upserts
