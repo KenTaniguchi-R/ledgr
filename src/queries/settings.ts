@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { userSettings } from "@/db/schema";
+import { nowISO } from "@/lib/date-utils";
 import { v4 as uuid } from "uuid";
 
 export interface AiSettings {
@@ -56,7 +57,7 @@ export function upsertAiSettings(
     .where(eq(userSettings.userId, userId))
     .get();
 
-  const now = new Date().toISOString();
+  const now = nowISO();
 
   if (existing) {
     const updates: Record<string, unknown> = {

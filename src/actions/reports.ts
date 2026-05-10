@@ -7,6 +7,7 @@ import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
+import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId } from "@/lib/auth/session";
 
 const saveReportSchema = z.object({
@@ -31,7 +32,7 @@ export async function saveReport(
 
   const householdId = await getHouseholdId();
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = nowISO();
 
   db.insert(savedReports)
     .values({

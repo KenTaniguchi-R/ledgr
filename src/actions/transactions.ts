@@ -7,6 +7,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
+import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId } from "@/lib/auth/session";
 import { getTransactions, type TransactionFilters, type TransactionPage } from "@/queries/transactions";
 
@@ -40,7 +41,7 @@ export async function updateTransactionCategory(
   const updates: Partial<typeof transactions.$inferInsert> = {
     categoryId: parsedCatId.data,
     categorySource: parsedCatId.data !== null ? "manual" : null,
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowISO(),
   };
   if (parsedCatId.data !== null) {
     updates.reviewed = true;
@@ -73,7 +74,7 @@ export async function toggleReviewed(
 
   const newReviewed = !existing.reviewed;
   db.update(transactions)
-    .set({ reviewed: newReviewed, updatedAt: new Date().toISOString() })
+    .set({ reviewed: newReviewed, updatedAt: nowISO() })
     .where(eq(transactions.id, existing.id))
     .run();
 
@@ -113,7 +114,7 @@ export async function bulkUpdateCategory(
   const updates: Partial<typeof transactions.$inferInsert> = {
     categoryId,
     categorySource: categoryId !== null ? "manual" : null,
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowISO(),
   };
   if (categoryId !== null) {
     updates.reviewed = true;
@@ -159,7 +160,7 @@ export async function bulkMarkReviewed(
 
   const ownedIds = owned.map((r) => r.id);
   db.update(transactions)
-    .set({ reviewed, updatedAt: new Date().toISOString() })
+    .set({ reviewed, updatedAt: nowISO() })
     .where(inArray(transactions.id, ownedIds))
     .run();
 

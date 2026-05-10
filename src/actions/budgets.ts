@@ -7,6 +7,7 @@ import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { budgets, budgetCategories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
+import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId } from "@/lib/auth/session";
 
 const monthSchema = z.string().regex(/^\d{4}-\d{2}$/);
@@ -49,7 +50,7 @@ export async function createBudget(
   }
 
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = nowISO();
   db.insert(budgets)
     .values({
       id,
@@ -223,7 +224,7 @@ export async function updateBudgetType(
   }
 
   db.update(budgets)
-    .set({ type: parsedType.data, updatedAt: new Date().toISOString() })
+    .set({ type: parsedType.data, updatedAt: nowISO() })
     .where(eq(budgets.id, budgetId))
     .run();
 

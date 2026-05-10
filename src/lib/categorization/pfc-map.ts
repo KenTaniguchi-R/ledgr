@@ -82,7 +82,3 @@ export const PFC_DETAILED_TO_CATEGORY: Record<string, string> = {
   TRAVEL_RENTAL_CARS: "Travel",
   TRAVEL_OTHER_TRAVEL: "Travel",
 };
-
-export function pfcToCategoryName(pfcDetailed: string): string | null {
-  return PFC_DETAILED_TO_CATEGORY[pfcDetailed] ?? null;
-}

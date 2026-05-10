@@ -7,7 +7,8 @@ import { Products, CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
-import { mapPlaidAccountType, todayISO, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
+import { mapPlaidAccountType, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
+import { todayDateString as todayISO, nowISO } from "@/lib/date-utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory, institutionLogos } from "@/db/schema";
@@ -213,7 +214,7 @@ export async function disconnectPlaidItem(
     // Best-effort — continue with local cleanup even if Plaid call fails
   }
 
-  const now = new Date().toISOString();
+  const now = nowISO();
   db.transaction((tx) => {
     tx.update(accounts)
       .set({ deletedAt: now, plaidItemId: null, plaidAccountId: null })

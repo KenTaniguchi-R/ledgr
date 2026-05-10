@@ -9,6 +9,7 @@ import {
   householdMembers,
 } from "@/db/schema";
 import { notDeleted } from "@/lib/query-helpers";
+import { nowISO } from "@/lib/date-utils";
 import { createUserModel, type AiProvider } from "./provider";
 import { getUserAiSettings } from "@/queries/settings";
 import { decrypt } from "@/lib/encryption";
@@ -168,7 +169,7 @@ export async function categorizeWithAi(
   const threshold = settings.aiConfidenceThreshold;
   const batchSize = getBatchSize(settings.aiProvider as AiProvider);
   let categorized = 0;
-  const now = new Date().toISOString();
+  const now = nowISO();
 
   for (let i = 0; i < uncategorized.length; i += batchSize) {
     const batch = uncategorized.slice(i, i + batchSize);
@@ -179,6 +180,7 @@ export async function categorizeWithAi(
     }));
     const batchIds = new Set(batch.map((t) => t.id));
 
+    let aboveThreshold: z.infer<typeof categorizationSchema>["assignments"] = [];
     try {
       const { output } = await generateText({
         model,
@@ -194,28 +196,19 @@ export async function categorizeWithAi(
           validCategoryIds,
           batchIds,
         );
-        const aboveThreshold = validated.filter(
-          (a) => a.confidence >= threshold,
-        );
-
-        if (aboveThreshold.length > 0) {
-          db.transaction((tx) => {
-            for (const a of aboveThreshold) {
-              tx.update(transactions)
-                .set({ categoryId: a.categoryId, categorySource: "ai", updatedAt: now })
-                .where(eq(transactions.id, a.transactionId))
-                .run();
-            }
-          });
-          categorized += aboveThreshold.length;
-        }
+        aboveThreshold = validated.filter((a) => a.confidence >= threshold);
       }
     } catch (e) {
       console.error(`AI categorization batch failed:`, e);
     }
 
-    // Mark all batch transactions as attempted regardless of success
     db.transaction((tx) => {
+      for (const a of aboveThreshold) {
+        tx.update(transactions)
+          .set({ categoryId: a.categoryId, categorySource: "ai", updatedAt: now })
+          .where(eq(transactions.id, a.transactionId))
+          .run();
+      }
       for (const id of batchIds) {
         tx.update(transactions)
           .set({ aiCategorizationAttemptedAt: now })
@@ -223,6 +216,7 @@ export async function categorizeWithAi(
           .run();
       }
     });
+    categorized += aboveThreshold.length;
   }
 
   return { categorized, skipped: uncategorized.length - categorized };

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getHouseholdId } from "@/lib/auth/session";
-import { todayISO } from "@/lib/plaid/utils";
+import { todayDateString as todayISO } from "@/lib/date-utils";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, balanceHistory } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";

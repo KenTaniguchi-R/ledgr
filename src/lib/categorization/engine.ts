@@ -3,6 +3,7 @@ import type { LedgrDb } from "@/db";
 import { transactions, merchants, categoryRules, accounts, categories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
+import { nowISO } from "@/lib/date-utils";
 import { PFC_DETAILED_TO_CATEGORY } from "./pfc-map";
 
 export interface CategorizableTransaction {
@@ -175,7 +176,7 @@ export function categorizeSyncedTransactions(
   const assignments = categorizeTransactions(categorizableTxns, rules, pfcCategoryMap);
   if (assignments.length === 0) return;
 
-  const now = new Date().toISOString();
+  const now = nowISO();
   db.transaction((tx) => {
     for (const assignment of assignments) {
       tx.update(transactions)

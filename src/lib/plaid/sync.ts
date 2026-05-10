@@ -12,12 +12,12 @@ import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "./client";
 import {
   extractPlaidErrorCode,
-  nowISO,
   titleCase,
   REAUTH_ERROR_CODES,
   TRANSIENT_ERROR_CODES,
   retryWithBackoff,
 } from "./utils";
+import { nowISO } from "@/lib/date-utils";
 import type { LedgrDb } from "@/db";
 import {
   plaidItems,
@@ -193,19 +193,15 @@ export function processBatch(
     }
   }
 
-  // Process added
-  const inserts: TransactionRow[] = [];
-  for (const txn of added) {
-    collectMerchant(txn);
-    inserts.push(toRow(txn));
+  function processTransactions(txns: PlaidTransaction[]): TransactionRow[] {
+    return txns.map((txn) => {
+      collectMerchant(txn);
+      return toRow(txn);
+    });
   }
 
-  // Process modified
-  const upserts: TransactionRow[] = [];
-  for (const txn of modified) {
-    collectMerchant(txn);
-    upserts.push(toRow(txn));
-  }
+  const inserts = processTransactions(added);
+  const upserts = processTransactions(modified);
 
   // Removed IDs
   const removedIds = removed.map((r) => r.transaction_id);

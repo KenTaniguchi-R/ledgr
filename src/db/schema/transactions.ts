@@ -73,19 +73,3 @@ export const transactionSplits = sqliteTable(
     index("idx_splits_category").on(table.categoryId),
   ]
 );
-
-export const transactionAttachments = sqliteTable(
-  "transaction_attachments",
-  {
-    id: text("id").primaryKey(),
-    transactionId: text("transaction_id")
-      .notNull()
-      .references(() => transactions.id, { onDelete: "cascade" }),
-    filename: text("filename").notNull(),
-    filePath: text("file_path").notNull(),
-    mimeType: text("mime_type"),
-    sizeBytes: integer("size_bytes"),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-  },
-  (table) => [index("idx_attachments_txn").on(table.transactionId)]
-);

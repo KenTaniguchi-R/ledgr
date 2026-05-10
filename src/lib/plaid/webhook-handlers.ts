@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { plaidItems, type PlaidItemStatus } from "@/db/schema";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { syncInstitution } from "./sync";
-import { nowISO, REAUTH_ERROR_CODES } from "./utils";
+import { REAUTH_ERROR_CODES } from "./utils";
+import { nowISO } from "@/lib/date-utils";
 import type { WebhookPayload } from "./schemas";
 
 type WebhookContext = { db: LedgrDb; payload: WebhookPayload };
