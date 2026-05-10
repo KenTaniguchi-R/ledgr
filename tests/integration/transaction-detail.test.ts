@@ -51,7 +51,7 @@ beforeAll(() => {
       id: accountId,
       householdId,
       name: "Checking",
-      type: "depository",
+      type: "checking",
       subtype: "checking",
     })
     .run();
