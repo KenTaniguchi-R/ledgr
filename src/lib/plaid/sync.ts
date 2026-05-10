@@ -416,6 +416,7 @@ export async function applyToDb(
       const pendingRow = tx
         .select({
           categoryId: transactions.categoryId,
+          categorySource: transactions.categorySource,
           reviewed: transactions.reviewed,
         })
         .from(transactions)
@@ -444,6 +445,7 @@ export async function applyToDb(
           tx.update(transactions)
             .set({
               categoryId: pendingRow.categoryId,
+              categorySource: pendingRow.categorySource,
               reviewed: pendingRow.reviewed,
               updatedAt: now,
             })
