@@ -23,7 +23,7 @@ export type AccountRow = ReturnType<typeof getAccounts>[number];
 export interface InstitutionGroup {
   institutionName: string;
   plaidItemId: string | null;
-  status: "active" | "error" | "reauth_required" | "revoked" | null;
+  status: "active" | "error" | "reauth_required" | null;
   lastSyncedAt: string | null;
   accounts: AccountRow[];
 }

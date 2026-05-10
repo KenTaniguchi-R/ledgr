@@ -5,7 +5,7 @@ import { SyncStatusBadge, type SyncStatus } from "@/components/atoms/sync-status
 
 interface InstitutionHeaderProps {
   institutionName: string;
-  status: "active" | "error" | "reauth_required" | "revoked" | null;
+  status: "active" | "error" | "reauth_required" | null;
   accountCount: number;
   plaidItemId: string | null;
   lastSyncedAt: string | null;

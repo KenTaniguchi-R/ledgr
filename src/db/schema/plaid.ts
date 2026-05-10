@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { households } from "./households";
 
@@ -9,11 +9,10 @@ export const plaidItems = sqliteTable("plaid_items", {
     .references(() => households.id, { onDelete: "cascade" }),
   accessToken: text("access_token").notNull(),
   plaidInstitutionId: text("plaid_institution_id"),
-  plaidItemId: text("plaid_item_id"),
   institutionName: text("institution_name"),
   syncCursor: text("sync_cursor"),
   status: text("status", {
-    enum: ["active", "error", "reauth_required", "revoked"],
+    enum: ["active", "error", "reauth_required"],
   }).default("active"),
   errorCode: text("error_code"),
   createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
@@ -21,7 +20,6 @@ export const plaidItems = sqliteTable("plaid_items", {
 }, (table) => [
   index("idx_plaid_items_household").on(table.householdId),
   index("idx_plaid_items_household_institution").on(table.householdId, table.plaidInstitutionId),
-  uniqueIndex("idx_plaid_items_plaid_item_id").on(table.plaidItemId),
 ]);
 
 export const syncLog = sqliteTable("sync_log", {
