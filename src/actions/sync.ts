@@ -27,6 +27,7 @@ export async function triggerSync(
 
   const result = await syncInstitution(plaidItemId, householdId, db);
 
+  revalidatePath("/");
   revalidatePath("/accounts");
   revalidatePath("/transactions");
 

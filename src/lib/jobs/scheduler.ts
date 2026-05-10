@@ -1,8 +1,35 @@
 import cron from "node-cron";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { plaidItems } from "@/db/schema";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
+import { db, type LedgrDb } from "@/db";
+import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { syncInstitution } from "@/lib/plaid/sync";
+import { todayDateString } from "@/lib/date-utils";
+
+export async function snapshotBalances(dbInstance: LedgrDb = db): Promise<void> {
+  const activeAccounts = dbInstance
+    .select({ id: accounts.id, currentBalance: accounts.currentBalance })
+    .from(accounts)
+    .where(
+      and(
+        isNull(accounts.deletedAt),
+        eq(accounts.isHidden, false),
+        isNotNull(accounts.currentBalance),
+      )
+    )
+    .all();
+
+  const date = todayDateString();
+
+  for (const account of activeAccounts) {
+    if (account.currentBalance === null) continue;
+    dbInstance
+      .insert(balanceHistory)
+      .values({ id: uuid(), accountId: account.id, date, balance: account.currentBalance })
+      .onConflictDoNothing({ target: [balanceHistory.accountId, balanceHistory.date] })
+      .run();
+  }
+}
 
 export function startScheduler() {
   // Transaction sync: every 4 hours
@@ -34,6 +61,17 @@ export function startScheduler() {
     }
 
     console.log("[scheduler] Transaction sync job complete");
+  });
+
+  // Balance snapshot: every day at midnight
+  cron.schedule("0 0 * * *", async () => {
+    console.log("[scheduler] Starting balance snapshot job");
+    try {
+      await snapshotBalances();
+      console.log("[scheduler] Balance snapshot job complete");
+    } catch (e) {
+      console.error("[scheduler] Unexpected error during balance snapshot:", e);
+    }
   });
 
   console.log("[scheduler] Started (transaction sync every 4 hours)");
