@@ -11,6 +11,8 @@ import {
 import { rangeToDateBounds, shiftDateRange, comparisonLabel } from "@/lib/date-utils";
 import { ReportFilterBar } from "@/components/molecules/report-filter-bar";
 import { ReportTabs } from "@/components/organisms/report-tabs";
+import { SavedReportPicker } from "@/components/organisms/saved-report-picker";
+import { getSavedReportsByHousehold } from "@/queries/saved-reports";
 
 const VALID_TABS = new Set(["spending", "income-expense", "trends", "net-worth"]);
 
@@ -78,12 +80,16 @@ export default async function ReportsPage({
   const allCategories = getCategories(householdId);
   const allAccounts = getAccounts(householdId);
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
+  const savedReports = getSavedReportsByHousehold(householdId);
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
 
-      <ReportFilterBar accounts={accountOptions} categories={allCategories} />
+      <div className="flex items-start justify-between gap-2">
+        <ReportFilterBar accounts={accountOptions} categories={allCategories} />
+        <SavedReportPicker reports={savedReports} activeTab={tab} />
+      </div>
 
       <ReportTabs
         activeTab={tab}
