@@ -65,3 +65,59 @@ export const WebhookPayloadSchema = z.object({
 });
 
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
+
+// ─── Recurring Streams ──────────────────────────────────────────────────────
+
+export const PlaidStreamAmountSchema = z.object({
+  amount: z.number().nullable(),
+  iso_currency_code: z.string().nullable(),
+  unofficial_currency_code: z.string().nullable().optional(),
+});
+
+export const PlaidRecurringStreamSchema = z
+  .object({
+    stream_id: z.string(),
+    account_id: z.string(),
+    description: z.string(),
+    merchant_name: z.string().nullable(),
+    first_date: z.string(),
+    last_date: z.string(),
+    predicted_next_date: z.string().nullable(),
+    average_amount: PlaidStreamAmountSchema,
+    last_amount: PlaidStreamAmountSchema,
+    frequency: z.enum([
+      "WEEKLY",
+      "BIWEEKLY",
+      "SEMI_MONTHLY",
+      "MONTHLY",
+      "ANNUALLY",
+      "UNKNOWN",
+    ]),
+    is_active: z.boolean(),
+    transaction_ids: z.array(z.string()),
+    personal_finance_category: z
+      .object({
+        primary: z.string(),
+        detailed: z.string(),
+        confidence_level: z.string().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
+    category: z.array(z.string()).optional(),
+    status: z
+      .enum(["MATURE", "EARLY_DETECTION", "TOMBSTONED", "UNKNOWN"])
+      .optional(),
+  })
+  .passthrough();
+
+export type PlaidRecurringStream = z.infer<typeof PlaidRecurringStreamSchema>;
+
+export const PlaidRecurringResponseSchema = z.object({
+  inflow_streams: z.array(PlaidRecurringStreamSchema),
+  outflow_streams: z.array(PlaidRecurringStreamSchema),
+  request_id: z.string(),
+});
+
+export type PlaidRecurringResponse = z.infer<
+  typeof PlaidRecurringResponseSchema
+>;

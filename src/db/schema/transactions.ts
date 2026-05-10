@@ -4,6 +4,7 @@ import { accounts } from "./accounts";
 import { households } from "./households";
 import { merchants } from "./merchants";
 import { categories } from "./categories";
+import { recurringTransactions } from "./recurring";
 
 export const transactions = sqliteTable(
   "transactions",
@@ -19,7 +20,7 @@ export const transactions = sqliteTable(
     pendingTransactionId: text("pending_transaction_id"),
     merchantId: text("merchant_id").references(() => merchants.id),
     categoryId: text("category_id").references(() => categories.id),
-    recurringTransactionId: text("recurring_transaction_id"),
+    recurringTransactionId: text("recurring_transaction_id").references(() => recurringTransactions.id),
     transferPairId: text("transfer_pair_id"),
     date: text("date").notNull(),
     originalName: text("original_name").notNull(),

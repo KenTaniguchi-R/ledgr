@@ -1,6 +1,7 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { households } from "./households";
+import { accounts } from "./accounts";
 import { merchants } from "./merchants";
 import { categories } from "./categories";
 
@@ -12,6 +13,7 @@ export const recurringTransactions = sqliteTable(
       .notNull()
       .references(() => households.id, { onDelete: "cascade" }),
     plaidStreamId: text("plaid_stream_id"),
+    accountId: text("account_id").references(() => accounts.id),
     name: text("name").notNull(),
     merchantId: text("merchant_id").references(() => merchants.id),
     categoryId: text("category_id").references(() => categories.id),
@@ -30,5 +32,6 @@ export const recurringTransactions = sqliteTable(
   (table) => [
     index("idx_recurring_household").on(table.householdId),
     index("idx_recurring_next").on(table.nextDate),
+    uniqueIndex("idx_recurring_plaid_stream_id").on(table.plaidStreamId),
   ]
 );
