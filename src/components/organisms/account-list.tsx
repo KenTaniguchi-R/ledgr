@@ -25,6 +25,8 @@ interface AccountListProps {
 export function AccountList({ groups }: AccountListProps) {
   const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
   const [syncStates, setSyncStates] = useState<Map<string, SyncState>>(new Map());
+  const [reAuthingItemId, setReAuthingItemId] = useState<string | null>(null);
+  const [reAuthError, setReAuthError] = useState<string | null>(null);
   const router = useRouter();
 
   const plaidItemIds = groups
@@ -71,6 +73,14 @@ export function AccountList({ groups }: AccountListProps) {
   const getSyncState = (itemId: string | null): SyncState =>
     (itemId ? syncStates.get(itemId) : undefined) ?? { status: "idle" };
 
+  const handleReAuthSuccess = useCallback(() => {
+    setReAuthingItemId(null);
+    setReAuthError(null);
+    router.refresh();
+  }, [router]);
+
+  const isSyncing = plaidItemIds.some((id) => getSyncState(id).status === "syncing");
+
   return (
     <>
       {plaidItemIds.length > 0 && (
@@ -79,7 +89,7 @@ export function AccountList({ groups }: AccountListProps) {
             variant="ghost"
             size="sm"
             onClick={handleSyncAll}
-            disabled={plaidItemIds.some((id) => getSyncState(id).status === "syncing")}
+            disabled={isSyncing || reAuthingItemId !== null}
           >
             <RefreshCw className="size-3.5 mr-1" />
             Sync All
@@ -101,6 +111,8 @@ export function AccountList({ groups }: AccountListProps) {
                 syncStatus={state.status}
                 syncError={state.error}
                 onSync={() => group.plaidItemId && handleSync(group.plaidItemId)}
+                onReAuthSuccess={handleReAuthSuccess}
+                reAuthError={group.plaidItemId === reAuthingItemId ? reAuthError : null}
               />
               <Separator />
               <div>
