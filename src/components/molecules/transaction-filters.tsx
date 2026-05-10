@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Download } from "lucide-react";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -133,6 +133,16 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
           <X className="h-3 w-3 mr-1" /> Clear
         </Button>
       )}
+
+      <a
+        href={`/api/export/transactions?${searchParams.toString()}`}
+        download
+        className="ml-auto"
+      >
+        <Button variant="outline" size="xs" className="text-xs">
+          <Download className="h-3 w-3 mr-1" /> Export
+        </Button>
+      </a>
     </div>
   );
 }
