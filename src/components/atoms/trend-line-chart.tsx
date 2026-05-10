@@ -2,7 +2,6 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { centsToDisplay } from "@/lib/money";
-import { CHART_COLORS } from "@/lib/chart-colors";
 
 interface TrendLineChartProps {
   data: Record<string, number | string>[];
