@@ -14,6 +14,7 @@ function makeTxn(overrides: Partial<CategorizableTransaction> = {}): Categorizab
     merchantId: null,
     merchantName: null,
     merchantCategoryId: null,
+    pfcDetailed: null,
     ...overrides,
   };
 }
@@ -127,5 +128,71 @@ describe("categorizeTransactions", () => {
     const result = categorizeTransactions(txns, rules);
 
     expect(result.length).toBeLessThanOrEqual(txns.length);
+  });
+
+  it("falls back to PFC mapping when no rule or merchant default matches", () => {
+    const pfcMap = new Map([["FOOD_AND_DRINK_GROCERIES", "cat-groceries"]]);
+    const txns = [makeTxn({ name: "Random Store", pfcDetailed: "FOOD_AND_DRINK_GROCERIES" })];
+    const rules = [makeRule({ matchPattern: "no-match" })];
+
+    const result = categorizeTransactions(txns, rules, pfcMap);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].categoryId).toBe("cat-groceries");
+    expect(result[0].source).toBe("pfc");
+  });
+
+  it("rule takes priority over PFC mapping", () => {
+    const pfcMap = new Map([["FOOD_AND_DRINK_GROCERIES", "cat-pfc"]]);
+    const txns = [makeTxn({ name: "Whole Foods", pfcDetailed: "FOOD_AND_DRINK_GROCERIES" })];
+    const rules = [makeRule({ matchPattern: "whole foods", categoryId: "cat-rule" })];
+
+    const result = categorizeTransactions(txns, rules, pfcMap);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].categoryId).toBe("cat-rule");
+    expect(result[0].source).toBe("rule");
+  });
+
+  it("merchant default takes priority over PFC mapping", () => {
+    const pfcMap = new Map([["FOOD_AND_DRINK_GROCERIES", "cat-pfc"]]);
+    const txns = [makeTxn({
+      name: "Unknown",
+      merchantCategoryId: "cat-merchant",
+      merchantId: "m-1",
+      pfcDetailed: "FOOD_AND_DRINK_GROCERIES",
+    })];
+
+    const result = categorizeTransactions(txns, [], pfcMap);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].categoryId).toBe("cat-merchant");
+    expect(result[0].source).toBe("merchant_default");
+  });
+
+  it("skips PFC mapping when pfcDetailed is null", () => {
+    const pfcMap = new Map([["FOOD_AND_DRINK_GROCERIES", "cat-pfc"]]);
+    const txns = [makeTxn({ name: "Unknown", pfcDetailed: null })];
+
+    const result = categorizeTransactions(txns, [], pfcMap);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("skips PFC mapping when pfcDetailed is not in the map", () => {
+    const pfcMap = new Map([["FOOD_AND_DRINK_GROCERIES", "cat-pfc"]]);
+    const txns = [makeTxn({ name: "Unknown", pfcDetailed: "TRANSFER_IN_ACCOUNT_TRANSFER" })];
+
+    const result = categorizeTransactions(txns, [], pfcMap);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("works with empty PFC map (backward compatible)", () => {
+    const txns = [makeTxn({ name: "Store", pfcDetailed: "FOOD_AND_DRINK_GROCERIES" })];
+
+    const result = categorizeTransactions(txns, []);
+
+    expect(result).toHaveLength(0);
   });
 });

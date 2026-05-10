@@ -10,6 +10,7 @@ export interface CategorizableTransaction {
   merchantId: string | null;
   merchantName: string | null;
   merchantCategoryId: string | null;
+  pfcDetailed: string | null;
 }
 
 export interface CategoryRule {
@@ -23,12 +24,13 @@ export interface CategoryRule {
 export interface CategoryAssignment {
   transactionId: string;
   categoryId: string;
-  source: "rule" | "merchant_default";
+  source: "rule" | "merchant_default" | "pfc";
 }
 
 export function categorizeTransactions(
   transactions: CategorizableTransaction[],
   rules: CategoryRule[],
+  pfcCategoryMap: Map<string, string> = new Map(),
 ): CategoryAssignment[] {
   const sorted = [...rules].sort((a, b) => b.priority - a.priority);
   const assignments: CategoryAssignment[] = [];
@@ -58,6 +60,18 @@ export function categorizeTransactions(
         categoryId: txn.merchantCategoryId,
         source: "merchant_default",
       });
+      matched = true;
+    }
+
+    if (!matched && txn.pfcDetailed) {
+      const pfcCategoryId = pfcCategoryMap.get(txn.pfcDetailed);
+      if (pfcCategoryId) {
+        assignments.push({
+          transactionId: txn.id,
+          categoryId: pfcCategoryId,
+          source: "pfc",
+        });
+      }
     }
   }
 
@@ -140,6 +154,7 @@ export function categorizeSyncedTransactions(
       merchantId: txn.merchantId,
       merchantName: merchant?.name ?? null,
       merchantCategoryId: merchant?.categoryId ?? null,
+      pfcDetailed: null,
     };
   });
 
