@@ -39,6 +39,7 @@ export async function updateTransactionCategory(
 
   const updates: Partial<typeof transactions.$inferInsert> = {
     categoryId: parsedCatId.data,
+    categorySource: parsedCatId.data !== null ? "manual" : null,
     updatedAt: new Date().toISOString(),
   };
   if (parsedCatId.data !== null) {
@@ -111,6 +112,7 @@ export async function bulkUpdateCategory(
   const ownedIds = owned.map((r) => r.id);
   const updates: Partial<typeof transactions.$inferInsert> = {
     categoryId,
+    categorySource: categoryId !== null ? "manual" : null,
     updatedAt: new Date().toISOString(),
   };
   if (categoryId !== null) {

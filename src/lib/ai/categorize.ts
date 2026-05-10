@@ -202,7 +202,7 @@ export async function categorizeWithAi(
           db.transaction((tx) => {
             for (const a of aboveThreshold) {
               tx.update(transactions)
-                .set({ categoryId: a.categoryId, updatedAt: now })
+                .set({ categoryId: a.categoryId, categorySource: "ai", updatedAt: now })
                 .where(eq(transactions.id, a.transactionId))
                 .run();
             }
