@@ -1,3 +1,4 @@
+import { inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, plaidItems, institutionLogos, ACCOUNT_TYPES, type PlaidItemStatus } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -46,10 +47,14 @@ export function getAccountsByInstitution(
 
   const itemMap = new Map(items.map((i) => [i.id, i]));
 
-  const logos = db
-    .select()
-    .from(institutionLogos)
-    .all();
+  const itemIds = items.map((i) => i.id);
+  const logos = itemIds.length > 0
+    ? db
+        .select({ plaidItemId: institutionLogos.plaidItemId, logo: institutionLogos.logo })
+        .from(institutionLogos)
+        .where(inArray(institutionLogos.plaidItemId, itemIds))
+        .all()
+    : [];
   const logoMap = new Map(logos.map((l) => [l.plaidItemId, l.logo]));
   const groups = new Map<string, InstitutionGroup>();
 
