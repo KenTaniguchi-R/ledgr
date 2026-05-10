@@ -277,6 +277,8 @@ export function getIncomeVsExpense(
       entry.income += Math.abs(txn.normalizedAmount);
     } else if (txn.normalizedAmount > 0) {
       entry.expenses += txn.normalizedAmount;
+    } else {
+      entry.expenses += txn.normalizedAmount;
     }
   }
 
@@ -295,8 +297,8 @@ Key changes:
 - Fetches `categoryId` alongside each transaction
 - Builds a `Set` of income category IDs
 - Income: `categoryId` is in `incomeCatIds` → use `Math.abs(normalizedAmount)` (handles both positive and negative normalized amounts)
-- Expense: not income AND `normalizedAmount > 0`
-- Transactions with negative `normalizedAmount` and no income category are ignored (credits/refunds reducing expense totals — they don't belong in either bucket)
+- Expense: not income AND `normalizedAmount > 0` → adds to expenses
+- Refunds/credits: not income AND `normalizedAmount < 0` → reduces expenses (negative value subtracts from total)
 
 - [ ] **Step 4: Run the report tests**
 
