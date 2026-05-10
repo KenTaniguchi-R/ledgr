@@ -46,7 +46,7 @@ Browser ──▶ Next.js App Router
 - **Ownership enforcement via query wrapper.** A `scopedQuery(householdId)` wrapper auto-injects `household_id` filtering on all queries — not manual `assertOwnership()` calls. This prevents data leaks from a missed WHERE clause. SQLite has no RLS, so this is enforced at the application layer.
 - **Encryption at app layer.** Plaid access tokens and AI API keys encrypted with aes-256-gcm, key from `ENCRYPTION_KEY` env var.
 - **Background jobs via node-cron.** Plaid sync polling, AI batch categorization, daily balance snapshots, and recurring transaction updates run on a schedule. Not reliant on Vercel cron or external schedulers.
-- **Plaid is optional.** CSV/OFX import is a first-class citizen. The app must deliver full value without Plaid — for international users, privacy-focused users, or anyone who doesn't want to share bank credentials.
+- **Plaid is the primary feature.** Bank sync via Plaid is the core experience. CSV/OFX import is available as a supplementary option for accounts not supported by Plaid.
 - **Demo mode on first boot.** If no accounts exist, offer to load sample data so users can explore the dashboard before configuring anything. Critical for adoption.
 - **Better Auth adapter interface.** Pin Better Auth version and wrap auth calls behind an adapter so the auth provider is swappable if Better Auth stalls.
 
@@ -428,7 +428,7 @@ ENCRYPTION_KEY=...              # For encrypting access tokens + AI keys
 AUTH_SECRET=...                 # Better Auth session secret
 DATABASE_PATH=./data/ledgr.db  # SQLite file path
 
-# Plaid (optional — app works without it via CSV import)
+# Plaid (required — core bank sync feature)
 PLAID_CLIENT_ID=...
 PLAID_SECRET=...
 PLAID_ENV=sandbox|development|production
@@ -588,7 +588,7 @@ SQLite backup is just copying the file. Document:
 
 ### CSV Import (First-Class)
 
-CSV import is equal to Plaid — the app must deliver full value without Plaid.
+CSV import supplements Plaid for accounts not supported by Plaid.
 
 - Upload CSV file via UI
 - Column mapping step: user maps CSV columns to Ledgr fields (date, description, amount, category)
