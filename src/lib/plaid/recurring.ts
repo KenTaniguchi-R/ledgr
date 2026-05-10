@@ -16,7 +16,9 @@ import {
   merchants,
 } from "@/db/schema";
 
-const FREQUENCY_MAP: Record<string, string | null> = {
+type Frequency = "weekly" | "biweekly" | "semimonthly" | "monthly" | "yearly";
+
+const FREQUENCY_MAP: Record<string, Frequency | null> = {
   WEEKLY: "weekly",
   BIWEEKLY: "biweekly",
   SEMI_MONTHLY: "semimonthly",
