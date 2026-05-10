@@ -5,7 +5,9 @@ import { ChartViewToggle } from "@/components/atoms/chart-view-toggle";
 import { SpendingChart } from "@/components/atoms/spending-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { ComparisonBadge } from "@/components/molecules/comparison-badge";
+import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { centsToDisplay } from "@/lib/money";
+import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import type { SpendingRow } from "@/queries/reports";
 
 interface ReportSpendingProps {
@@ -15,6 +17,11 @@ interface ReportSpendingProps {
 
 export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpendingProps) {
   const [view, setView] = useState<"donut" | "bar">("donut");
+  const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
+  const { searchParams } = useSearchParamFilters();
+
+  const dateFrom = searchParams.get("from") ?? "2000-01-01";
+  const dateTo = searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
 
   const chartData = data.map((r) => ({
     id: r.categoryId,
@@ -32,6 +39,14 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
       : []),
   ];
 
+  function handleDrillDown(item: { id: string | null; name: string }) {
+    setDrillDown({
+      categoryId: item.id ?? undefined,
+      categoryName: item.name,
+      tabContext: "Spending",
+    });
+  }
+
   return (
     <div className="space-y-4">
       <ReportSummaryBar items={summaryItems} />
@@ -42,7 +57,7 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
       </div>
 
       <div className="h-[300px]">
-        <SpendingChart data={chartData} viewMode={view} />
+        <SpendingChart data={chartData} viewMode={view} onItemClick={handleDrillDown} />
       </div>
 
       <div className="border rounded-lg">
@@ -56,7 +71,11 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
           </thead>
           <tbody>
             {data.map((row) => (
-              <tr key={row.categoryId ?? "uncategorized"} className="border-b last:border-0">
+              <tr
+                key={row.categoryId ?? "uncategorized"}
+                className="border-b last:border-0 cursor-pointer hover:bg-muted/50"
+                onClick={() => handleDrillDown({ id: row.categoryId, name: row.categoryName })}
+              >
                 <td className="px-3 py-2">
                   <div className="text-sm">{row.categoryName}</div>
                   {row.groupName && (
@@ -80,6 +99,13 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
           </tbody>
         </table>
       </div>
+
+      <DrillDownSheet
+        filter={drillDown}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onClose={() => setDrillDown(null)}
+      />
     </div>
   );
 }

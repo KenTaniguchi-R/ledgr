@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
+import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
+import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import type { IncomeExpenseRow } from "@/queries/reports";
 
 interface ReportIncomeExpenseProps {
@@ -9,6 +12,12 @@ interface ReportIncomeExpenseProps {
 }
 
 export function ReportIncomeExpense({ data }: ReportIncomeExpenseProps) {
+  const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
+  const { searchParams } = useSearchParamFilters();
+
+  const dateFrom = searchParams.get("from") ?? "2000-01-01";
+  const dateTo = searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
+
   const chartData = data.map((r) => ({
     month: r.period,
     income: r.income,
@@ -33,6 +42,12 @@ export function ReportIncomeExpense({ data }: ReportIncomeExpenseProps) {
       <div className="h-[300px]">
         <CashFlowBarChart data={chartData} />
       </div>
+      <DrillDownSheet
+        filter={drillDown}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onClose={() => setDrillDown(null)}
+      />
     </div>
   );
 }
