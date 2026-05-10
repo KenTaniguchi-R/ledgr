@@ -120,4 +120,147 @@ export const plaidHandlers = [
   ),
 ];
 
+// Shared test constants for transaction IDs
+export const TEST_TXN_IDS = {
+  added1: "txn-added-1",
+  added2: "txn-added-2",
+  pending1: "txn-pending-1",
+  posted1: "txn-posted-1",
+  modified1: "txn-modified-1",
+  removed1: "txn-removed-1",
+} as const;
+
+export const syncPageOneHandler = http.post(
+  "https://sandbox.plaid.com/transactions/sync",
+  () =>
+    HttpResponse.json({
+      added: [
+        {
+          transaction_id: TEST_TXN_IDS.added1,
+          account_id: "plaid-acc-checking",
+          amount: 12.5,
+          iso_currency_code: "USD",
+          date: "2026-05-01",
+          name: "AMAZON.COM*1A2B3C",
+          merchant_name: "Amazon",
+          logo_url: "https://plaid-merchant-logos.plaid.com/amazon.png",
+          pending: false,
+          pending_transaction_id: null,
+          personal_finance_category: { primary: "GENERAL_MERCHANDISE", detailed: "GENERAL_MERCHANDISE_ONLINE_MARKETPLACES" },
+        },
+        {
+          transaction_id: TEST_TXN_IDS.added2,
+          account_id: "plaid-acc-checking",
+          amount: -500.0,
+          iso_currency_code: "USD",
+          date: "2026-05-02",
+          name: "DIRECT DEPOSIT - EMPLOYER",
+          merchant_name: null,
+          logo_url: null,
+          pending: false,
+          pending_transaction_id: null,
+          personal_finance_category: { primary: "INCOME", detailed: "INCOME_WAGES" },
+        },
+        {
+          transaction_id: TEST_TXN_IDS.pending1,
+          account_id: "plaid-acc-checking",
+          amount: 35.99,
+          iso_currency_code: "USD",
+          date: "2026-05-03",
+          name: "UBER *TRIP",
+          merchant_name: "Uber",
+          logo_url: null,
+          pending: true,
+          pending_transaction_id: null,
+          personal_finance_category: { primary: "TRANSPORTATION", detailed: "TRANSPORTATION_TAXIS_AND_RIDE_SHARES" },
+        },
+      ],
+      modified: [],
+      removed: [],
+      has_more: true,
+      next_cursor: "cursor_page2",
+      request_id: "req-sync-page1",
+    })
+);
+
+export const syncPageTwoHandler = http.post(
+  "https://sandbox.plaid.com/transactions/sync",
+  () =>
+    HttpResponse.json({
+      added: [
+        {
+          transaction_id: TEST_TXN_IDS.posted1,
+          account_id: "plaid-acc-checking",
+          amount: 35.99,
+          iso_currency_code: "USD",
+          date: "2026-05-03",
+          name: "UBER *TRIP",
+          merchant_name: "Uber",
+          logo_url: null,
+          pending: false,
+          pending_transaction_id: TEST_TXN_IDS.pending1,
+          personal_finance_category: { primary: "TRANSPORTATION", detailed: "TRANSPORTATION_TAXIS_AND_RIDE_SHARES" },
+        },
+      ],
+      modified: [],
+      removed: [],
+      has_more: false,
+      next_cursor: "cursor_final",
+      request_id: "req-sync-page2",
+    })
+);
+
+export const syncWithModifiedHandler = http.post(
+  "https://sandbox.plaid.com/transactions/sync",
+  () =>
+    HttpResponse.json({
+      added: [],
+      modified: [
+        {
+          transaction_id: TEST_TXN_IDS.modified1,
+          account_id: "plaid-acc-checking",
+          amount: 25.0,
+          iso_currency_code: "USD",
+          date: "2026-05-01",
+          name: "AMAZON.COM REFUND",
+          merchant_name: "Amazon",
+          logo_url: null,
+          pending: false,
+          pending_transaction_id: null,
+          personal_finance_category: null,
+        },
+      ],
+      removed: [],
+      has_more: false,
+      next_cursor: "cursor_modified",
+      request_id: "req-sync-modified",
+    })
+);
+
+export const syncWithRemovedHandler = http.post(
+  "https://sandbox.plaid.com/transactions/sync",
+  () =>
+    HttpResponse.json({
+      added: [],
+      modified: [],
+      removed: [{ transaction_id: TEST_TXN_IDS.removed1 }],
+      has_more: false,
+      next_cursor: "cursor_removed",
+      request_id: "req-sync-removed",
+    })
+);
+
+export const syncEmptyHandler = http.post(
+  "https://sandbox.plaid.com/transactions/sync",
+  () =>
+    HttpResponse.json({
+      added: [],
+      modified: [],
+      removed: [],
+      has_more: false,
+      next_cursor: "cursor_empty",
+      request_id: "req-sync-empty",
+    })
+);
+
 export const allHandlers = [...plaidHandlers];
