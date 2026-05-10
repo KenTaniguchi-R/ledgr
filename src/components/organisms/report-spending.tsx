@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChartViewToggle } from "@/components/atoms/chart-view-toggle";
 import { SpendingChart } from "@/components/atoms/spending-chart";
+import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { ComparisonBadge } from "@/components/molecules/comparison-badge";
 import { centsToDisplay } from "@/lib/money";
 import type { SpendingRow } from "@/queries/reports";
@@ -21,8 +22,20 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
     value: r.total,
   }));
 
+  const totalSpent = data.reduce((s, r) => s + r.total, 0);
+  const topCategory = data.length > 0 ? data[0] : null;
+  const summaryItems: SummaryItem[] = [
+    { label: "Total Spent", value: totalSpent, color: "expense" },
+    { label: "Categories", value: data.length, format: "number" },
+    ...(topCategory
+      ? [{ label: `Top: ${topCategory.categoryName}`, value: topCategory.total } as SummaryItem]
+      : []),
+  ];
+
   return (
     <div className="space-y-4">
+      <ReportSummaryBar items={summaryItems} />
+
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Spending by Category</h3>
         <ChartViewToggle value={view} onChange={setView} />

@@ -45,7 +45,7 @@ export function buildCsvString(
 
   const header = "Date,Account,Merchant,Amount,Category,Category Group,Notes,Original Description";
   const dataRows = rows.map((row: (typeof rows)[0]) => {
-    const amount = (-(row.normalizedAmount ?? 0) / 100).toFixed(2);
+    const amount = ((row.normalizedAmount ?? 0) / 100).toFixed(2);
     return [
       row.date,
       csvEscape(row.accountName ?? ""),

@@ -32,15 +32,15 @@ beforeEach(() => {
   const incGroup = insertCategoryGroup(db, householdId, { name: "Income" });
   ({ categoryId: incomeCatId } = insertCategory(db, householdId, incGroup.groupId, { name: "Salary", isIncome: true }));
 
-  // Food transactions in March
-  insertTransaction(db, householdId, accountId, { date: "2026-03-05", normalizedAmount: 5000, amount: -5000, categoryId: foodCatId, name: "Grocery" });
-  insertTransaction(db, householdId, accountId, { date: "2026-03-15", normalizedAmount: 3000, amount: -3000, categoryId: foodCatId, name: "Restaurant" });
+  // Food transactions in March (negative = expense)
+  insertTransaction(db, householdId, accountId, { date: "2026-03-05", normalizedAmount: -5000, amount: 5000, categoryId: foodCatId, name: "Grocery" });
+  insertTransaction(db, householdId, accountId, { date: "2026-03-15", normalizedAmount: -3000, amount: 3000, categoryId: foodCatId, name: "Restaurant" });
   // Rent in March
-  insertTransaction(db, householdId, accountId, { date: "2026-03-01", normalizedAmount: 100000, amount: -100000, categoryId: rentCatId, name: "Rent" });
-  // Income in March (positive normalizedAmount after sign-flip from Plaid credit)
+  insertTransaction(db, householdId, accountId, { date: "2026-03-01", normalizedAmount: -100000, amount: 100000, categoryId: rentCatId, name: "Rent" });
+  // Income in March (positive = income)
   insertTransaction(db, householdId, accountId, { date: "2026-03-01", normalizedAmount: 500000, amount: -500000, categoryId: incomeCatId, name: "Salary" });
   // Food in February (prior period)
-  insertTransaction(db, householdId, accountId, { date: "2026-02-10", normalizedAmount: 4000, amount: -4000, categoryId: foodCatId, name: "Grocery Feb" });
+  insertTransaction(db, householdId, accountId, { date: "2026-02-10", normalizedAmount: -4000, amount: 4000, categoryId: foodCatId, name: "Grocery Feb" });
 });
 
 afterEach(() => close());
@@ -76,7 +76,7 @@ describe("getSpendingByCategory", () => {
 
 describe("getIncomeVsExpense", () => {
   test("classifies by category isIncome flag, not by sign", async () => {
-    insertTransaction(db, householdId, accountId, { date: "2026-03-20", normalizedAmount: 2000, amount: -2000, categoryId: null, name: "Unknown" });
+    insertTransaction(db, householdId, accountId, { date: "2026-03-20", normalizedAmount: -2000, amount: 2000, categoryId: null, name: "Unknown" });
 
     const { getIncomeVsExpense } = await import("../../src/queries/reports");
     const result = getIncomeVsExpense(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
@@ -115,8 +115,8 @@ describe("guards", () => {
   test("transfers excluded", async () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-03-10",
-      normalizedAmount: 50000,
-      amount: -50000,
+      normalizedAmount: -50000,
+      amount: 50000,
       categoryId: foodCatId,
       name: "Transfer",
       isTransfer: true,
@@ -131,8 +131,8 @@ describe("guards", () => {
   test("pending transactions excluded", async () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-03-10",
-      normalizedAmount: 9999,
-      amount: -9999,
+      normalizedAmount: -9999,
+      amount: 9999,
       categoryId: foodCatId,
       name: "Pending",
       pending: true,
@@ -148,8 +148,8 @@ describe("guards", () => {
     const { accountId: otherAcctId } = insertAccount(db, householdId, { name: "Savings", type: "savings" });
     insertTransaction(db, householdId, otherAcctId, {
       date: "2026-03-10",
-      normalizedAmount: 7000,
-      amount: -7000,
+      normalizedAmount: -7000,
+      amount: 7000,
       categoryId: foodCatId,
       name: "Other Acct Food",
     });
@@ -175,8 +175,8 @@ describe("guards", () => {
     // Create a split parent
     const { transactionId: splitParentId } = insertTransaction(db, householdId, accountId, {
       date: "2026-03-25",
-      normalizedAmount: 10000,
-      amount: -10000,
+      normalizedAmount: -10000,
+      amount: 10000,
       categoryId: foodCatId,
       name: "Split Purchase",
     });

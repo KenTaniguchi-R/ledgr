@@ -52,19 +52,19 @@ describe("getBudgetForMonth", () => {
     const { budgetId } = insertBudget(db, householdId, { month });
     insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 20000 });
 
-    // Two expense transactions in same month and category
+    // Two expense transactions in same month and category (negative = expense)
     insertTransaction(db, householdId, accountId, {
       date: "2026-02-05",
       name: "Whole Foods",
-      amount: -3500,
-      normalizedAmount: 3500,
+      amount: 3500,
+      normalizedAmount: -3500,
       categoryId: groceriesCatId,
     });
     insertTransaction(db, householdId, accountId, {
       date: "2026-02-15",
       name: "Trader Joes",
-      amount: -1500,
-      normalizedAmount: 1500,
+      amount: 1500,
+      normalizedAmount: -1500,
       categoryId: groceriesCatId,
     });
 
@@ -93,8 +93,8 @@ describe("getBudgetForMonth", () => {
     const { transactionId } = insertTransaction(db, householdId, accountId, {
       date: "2026-03-10",
       name: "Costco Run",
-      amount: -5000,
-      normalizedAmount: 5000,
+      amount: 5000,
+      normalizedAmount: -5000,
       categoryId: groceriesCatId, // parent category ignored when splits exist
     });
     insertTransactionSplit(db, transactionId, groceriesCatId, 3000);
@@ -118,8 +118,8 @@ describe("getBudgetForMonth", () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-04-01",
       name: "Transfer Out",
-      amount: -2000,
-      normalizedAmount: 2000,
+      amount: 2000,
+      normalizedAmount: -2000,
       categoryId: groceriesCatId,
       isTransfer: true,
     });
@@ -128,8 +128,8 @@ describe("getBudgetForMonth", () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-04-02",
       name: "Pending Charge",
-      amount: -1000,
-      normalizedAmount: 1000,
+      amount: 1000,
+      normalizedAmount: -1000,
       categoryId: groceriesCatId,
       pending: true,
     });
@@ -138,8 +138,8 @@ describe("getBudgetForMonth", () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-04-03",
       name: "Deleted Txn",
-      amount: -500,
-      normalizedAmount: 500,
+      amount: 500,
+      normalizedAmount: -500,
       categoryId: groceriesCatId,
       deletedAt: new Date().toISOString(),
     });
@@ -148,8 +148,8 @@ describe("getBudgetForMonth", () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-04-04",
       name: "Valid Expense",
-      amount: -800,
-      normalizedAmount: 800,
+      amount: 800,
+      normalizedAmount: -800,
       categoryId: groceriesCatId,
     });
 
@@ -158,17 +158,17 @@ describe("getBudgetForMonth", () => {
     expect(grocRow.spent).toBe(800);
   });
 
-  it("excludes income (negative normalizedAmount)", () => {
+  it("excludes income (positive normalizedAmount)", () => {
     const month = "2026-05";
     const { budgetId } = insertBudget(db, householdId, { month });
     insertBudgetCategory(db, budgetId, salaryCatId, { limitAmount: 0 });
 
-    // Income transaction (negative normalizedAmount)
+    // Income transaction (positive normalizedAmount)
     insertTransaction(db, householdId, accountId, {
       date: "2026-05-01",
       name: "Paycheck",
-      amount: 500000,
-      normalizedAmount: -500000,
+      amount: -500000,
+      normalizedAmount: 500000,
       categoryId: salaryCatId,
     });
 
@@ -187,8 +187,8 @@ describe("getBudgetForMonth", () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-06-05",
       name: "Restaurant",
-      amount: -3000,
-      normalizedAmount: 3000,
+      amount: 3000,
+      normalizedAmount: -3000,
       categoryId: diningCatId,
     });
 
@@ -196,8 +196,8 @@ describe("getBudgetForMonth", () => {
     insertTransaction(db, householdId, accountId, {
       date: "2026-06-10",
       name: "Mystery Charge",
-      amount: -1200,
-      normalizedAmount: 1200,
+      amount: 1200,
+      normalizedAmount: -1200,
       categoryId: null,
     });
 

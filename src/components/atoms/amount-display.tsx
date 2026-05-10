@@ -14,7 +14,7 @@ export function AmountDisplay({
   pending = false,
   className,
 }: AmountDisplayProps) {
-  const isIncome = amount < 0;
+  const isIncome = amount > 0;
   const formatted = centsToDisplay(Math.abs(amount), currency);
   const prefix = isIncome ? "+" : "-";
 

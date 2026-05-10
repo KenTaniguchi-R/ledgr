@@ -181,25 +181,25 @@ describe("getCashFlow", () => {
       isIncome: true,
     });
 
-    // May expense (no income category — positive normalizedAmount = expense)
+    // May expense (negative normalizedAmount = expense)
     insertTransaction(db, householdId, accountId, {
       date: "2026-05-05",
-      normalizedAmount: 4000, // expense
-      amount: -4000,
+      normalizedAmount: -4000,
+      amount: 4000,
     });
     // May income (categorized with isIncome category)
     insertTransaction(db, householdId, accountId, {
       date: "2026-05-15",
-      normalizedAmount: -150000, // income (negative normalizedAmount in Plaid convention)
-      amount: 150000,
+      normalizedAmount: 150000,
+      amount: -150000,
       categoryId: incomeCatId,
     });
 
     // April expense
     insertTransaction(db, householdId, accountId, {
       date: "2026-04-10",
-      normalizedAmount: 2500, // expense
-      amount: -2500,
+      normalizedAmount: -2500,
+      amount: 2500,
     });
 
     const result = getCashFlow(householdId, 3, db);
@@ -227,14 +227,14 @@ describe("getCashFlow", () => {
     // Normal expense
     insertTransaction(db, householdId, accountId, {
       date: "2026-05-05",
-      normalizedAmount: 3000,
-      amount: -3000,
+      normalizedAmount: -3000,
+      amount: 3000,
     });
     // Transfer — should be excluded
     insertTransaction(db, householdId, accountId, {
       date: "2026-05-10",
-      normalizedAmount: 50000,
-      amount: -50000,
+      normalizedAmount: -50000,
+      amount: 50000,
       isTransfer: true,
     });
 

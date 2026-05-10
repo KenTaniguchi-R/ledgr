@@ -20,7 +20,7 @@ beforeAll(() => {
 
   insertTransaction(db, householdId, accountId, {
     date: "2026-03-15",
-    normalizedAmount: 1250,
+    normalizedAmount: -1250,
     amount: -1250,
     categoryId,
     name: "Test Store",
@@ -28,7 +28,7 @@ beforeAll(() => {
   });
   insertTransaction(db, householdId, accountId, {
     date: "2026-04-01",
-    normalizedAmount: 2000,
+    normalizedAmount: -2000,
     amount: -2000,
     categoryId,
     name: "Other Store",

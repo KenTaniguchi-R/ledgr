@@ -67,9 +67,11 @@ export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<
     }
 
     // 4. Walk backward from currentBalance on today's date
-    // For each date with transactions (newest to oldest), the balance *before* that
-    // day's transactions is: runningBalance - dayNet
-    // We record the "end of previous day" balance at each date step.
+    // For depository (checking/savings): balance decreases with outflows, so undo = subtract normalizedAmount
+    // For credit/loan: balance increases with charges, so undo = add normalizedAmount
+    const isLiability = acct.type === "credit" || acct.type === "loan";
+    const undoSign = isLiability ? 1 : -1;
+
     const sortedDates = [...dailyNetMap.keys()].sort((a, b) => b.localeCompare(a)); // newest first
 
     let runningBalance = currentBalance;
@@ -79,15 +81,11 @@ export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<
       const dayNet = dailyNetMap.get(date)!;
 
       if (date >= today) {
-        // Today or future: remove those transactions from running balance but don't record
-        runningBalance = runningBalance - dayNet;
+        runningBalance = runningBalance + undoSign * dayNet;
         continue;
       }
 
-      // Walking backward: subtract this day's net to get the balance *before* this date's transactions.
-      // That "before" balance represents the EOD balance for the *previous* day,
-      // but we record it as the snapshot for `date` (i.e., "what was balance going into this date").
-      runningBalance = runningBalance - dayNet;
+      runningBalance = runningBalance + undoSign * dayNet;
 
       rowsToInsert.push({
         id: uuid(),

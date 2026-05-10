@@ -18,17 +18,17 @@ describe("backfillAccountBalances", () => {
         type: "checking",
       });
 
-      // Transaction on 2026-05-08: spent 3000 (normalizedAmount = 3000, positive = expense)
+      // Transaction on 2026-05-08: spent 3000 (normalizedAmount = -3000, negative = expense)
       insertTransaction(db, householdId, accountId, {
         date: "2026-05-08",
-        normalizedAmount: 3000,
+        normalizedAmount: -3000,
         pending: false,
       });
 
       // Transaction on 2026-05-07: spent 2000
       insertTransaction(db, householdId, accountId, {
         date: "2026-05-07",
-        normalizedAmount: 2000,
+        normalizedAmount: -2000,
         pending: false,
       });
 
@@ -40,17 +40,16 @@ describe("backfillAccountBalances", () => {
         .all()
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Today (2026-05-09): 10000
-      // 2026-05-08: 10000 - 3000 = 7000
-      // 2026-05-07: 7000 - 2000 = 5000
+      // Today (2026-05-10): 10000
+      // Checking: undoSign = -1. runningBalance + (-1 * dayNet)
+      // 2026-05-08: 10000 + (-1 * -3000) = 13000
+      // 2026-05-07: 13000 + (-1 * -2000) = 15000
       expect(rows.length).toBeGreaterThanOrEqual(2);
 
       const byDate = Object.fromEntries(rows.map((r) => [r.date, r.balance]));
-      // Walking back from today:
-      // Before 2026-05-08 txn: balance was 10000 - 3000 = 7000
-      expect(byDate["2026-05-08"]).toBe(7000);
-      // Before 2026-05-07 txn: balance was 7000 - 2000 = 5000
-      expect(byDate["2026-05-07"]).toBe(5000);
+      // Walking back from today (checking: undo expense by adding absolute value):
+      expect(byDate["2026-05-08"]).toBe(13000);
+      expect(byDate["2026-05-07"]).toBe(15000);
 
       // All rows should be for this account
       for (const row of rows) {
@@ -72,7 +71,7 @@ describe("backfillAccountBalances", () => {
 
       insertTransaction(db, householdId, accountId, {
         date: "2026-05-07",
-        normalizedAmount: 1000,
+        normalizedAmount: -1000,
         pending: false,
       });
 
@@ -96,7 +95,7 @@ describe("backfillAccountBalances", () => {
 
       insertTransaction(db, householdId, accountId, {
         date: "2026-05-08",
-        normalizedAmount: 1000,
+        normalizedAmount: -1000,
         pending: false,
       });
 
@@ -126,26 +125,26 @@ describe("backfillAccountBalances", () => {
   test.prop([
     fc.array(fc.integer({ min: -100000, max: 100000 }), { minLength: 1, maxLength: 20 }),
     fc.integer({ min: -1000000, max: 1000000 }),
+    fc.constantFrom(-1, 1),
   ])(
     "walking back then forward preserves the original balance",
-    (amounts, currentBalance) => {
+    (amounts, currentBalance, undoSign) => {
       // Simulate the backfill algorithm: walk backward from currentBalance
-      // Each amount represents a day's normalizedAmount sum (positive = expense)
-      // To get yesterday's balance: yesterdayBalance = todayBalance - todayNormalized
-      // (expense increases balance walking forward, so we subtract walking backward)
+      // undoSign = -1 for depository (checking/savings), 1 for liability (credit/loan)
+      // negative normalizedAmount = expense, positive = income
 
       let balance = currentBalance;
       const historicalBalances: number[] = [balance];
 
       for (const amount of amounts) {
-        balance = balance - amount;
+        balance = balance + undoSign * amount;
         historicalBalances.push(balance);
       }
 
-      // Now walk forward: each step adds the normalizedAmount back
+      // Walk forward: reverse the undo
       let reconstructed = historicalBalances[historicalBalances.length - 1];
       for (let i = amounts.length - 1; i >= 0; i--) {
-        reconstructed = reconstructed + amounts[i];
+        reconstructed = reconstructed - undoSign * amounts[i];
       }
 
       expect(reconstructed).toBe(currentBalance);

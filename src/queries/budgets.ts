@@ -1,4 +1,4 @@
-import { eq, gt, gte, lt, sql, inArray, notInArray, desc } from "drizzle-orm";
+import { eq, gte, lt, sql, inArray, notInArray, desc } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   budgets,
@@ -79,7 +79,7 @@ function getBudgetSpending(
         notDeleted(transactions),
         gte(transactions.date, startDate),
         lt(transactions.date, endDate),
-        gt(transactions.normalizedAmount, 0),
+        lt(transactions.normalizedAmount, 0),
         eq(transactions.isTransfer, false),
         eq(transactions.pending, false),
       ),
@@ -94,7 +94,7 @@ function getBudgetSpending(
     notDeleted(transactions),
     gte(transactions.date, startDate),
     lt(transactions.date, endDate),
-    gt(transactions.normalizedAmount, 0),
+    lt(transactions.normalizedAmount, 0),
     eq(transactions.isTransfer, false),
     eq(transactions.pending, false),
   ];
@@ -107,7 +107,7 @@ function getBudgetSpending(
   const nonSplitRows = db
     .select({
       categoryId: transactions.categoryId,
-      total: sql<number>`COALESCE(SUM(${transactions.normalizedAmount}), 0)`,
+      total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
     })
     .from(transactions)
     .where(scoped.where(transactions, ...nonSplitConditions))
