@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, plaidItems, ACCOUNT_TYPES } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -34,10 +33,11 @@ export function getAccountsByInstitution(
 ): InstitutionGroup[] {
   const allAccounts = getAccounts(householdId, db);
 
+  const scoped = scopedQuery(householdId, db);
   const items = db
     .select()
     .from(plaidItems)
-    .where(eq(plaidItems.householdId, householdId))
+    .where(scoped.where(plaidItems))
     .all();
 
   const itemMap = new Map(items.map((i) => [i.id, i]));

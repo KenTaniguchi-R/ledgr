@@ -15,15 +15,12 @@ import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 
 export async function createLinkToken() {
-  await getHouseholdId();
+  const householdId = await getHouseholdId();
   const session = await getSession();
-  if (!session) {
-    return { error: "Not authenticated" };
-  }
 
   try {
     const response = await getPlaidClient().linkTokenCreate({
-      user: { client_user_id: session.user.id },
+      user: { client_user_id: session!.user.id },
       client_name: "Ledgr",
       products: [Products.Transactions],
       country_codes: [CountryCode.Us],
@@ -186,7 +183,7 @@ type CreateManualAccountInput = {
   balance: number;
 };
 
-export async function createManualAccount(data: CreateManualAccountInput) {
+export async function createManualAccount(data: CreateManualAccountInput, db: LedgrDb = defaultDb) {
   const householdId = await getHouseholdId();
 
   const parsed = createManualAccountSchema.safeParse(data);
@@ -197,7 +194,7 @@ export async function createManualAccount(data: CreateManualAccountInput) {
   const accountId = uuid();
   const today = todayISO();
 
-  defaultDb.transaction((tx) => {
+  db.transaction((tx) => {
     tx.insert(accounts)
       .values({
         id: accountId,
