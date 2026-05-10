@@ -1,8 +1,9 @@
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
-import { transactions, merchants, categoryRules, accounts } from "@/db/schema";
+import { transactions, merchants, categoryRules, accounts, categories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
+import { PFC_DETAILED_TO_CATEGORY } from "./pfc-map";
 
 export interface CategorizableTransaction {
   id: string;
@@ -97,6 +98,18 @@ export function categorizeSyncedTransactions(
     .where(scoped.where(categoryRules))
     .all() as CategoryRule[];
 
+  const allCategories = db
+    .select({ id: categories.id, name: categories.name })
+    .from(categories)
+    .where(eq(categories.householdId, householdId))
+    .all();
+  const catNameToId = new Map(allCategories.map((c) => [c.name, c.id]));
+  const pfcCategoryMap = new Map<string, string>();
+  for (const [pfcCode, catName] of Object.entries(PFC_DETAILED_TO_CATEGORY)) {
+    const catId = catNameToId.get(catName);
+    if (catId) pfcCategoryMap.set(pfcCode, catId);
+  }
+
   const itemAccounts = db
     .select({ id: accounts.id })
     .from(accounts)
@@ -117,6 +130,7 @@ export function categorizeSyncedTransactions(
       id: transactions.id,
       name: transactions.name,
       merchantId: transactions.merchantId,
+      pfcDetailed: transactions.pfcDetailed,
     })
     .from(transactions)
     .where(
@@ -154,18 +168,22 @@ export function categorizeSyncedTransactions(
       merchantId: txn.merchantId,
       merchantName: merchant?.name ?? null,
       merchantCategoryId: merchant?.categoryId ?? null,
-      pfcDetailed: null,
+      pfcDetailed: txn.pfcDetailed ?? null,
     };
   });
 
-  const assignments = categorizeTransactions(categorizableTxns, rules);
+  const assignments = categorizeTransactions(categorizableTxns, rules, pfcCategoryMap);
   if (assignments.length === 0) return;
 
   const now = new Date().toISOString();
   db.transaction((tx) => {
     for (const assignment of assignments) {
       tx.update(transactions)
-        .set({ categoryId: assignment.categoryId, updatedAt: now })
+        .set({
+          categoryId: assignment.categoryId,
+          categorySource: assignment.source,
+          updatedAt: now,
+        })
         .where(eq(transactions.id, assignment.transactionId))
         .run();
     }
