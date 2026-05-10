@@ -36,6 +36,8 @@ export const transactions = sqliteTable(
     deletedAt: text("deleted_at"),
     createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
     updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    externalId: text("external_id"),
+    aiCategorizationAttemptedAt: text("ai_categorization_attempted_at"),
   },
   (table) => [
     index("idx_txn_account_date").on(table.accountId, table.date),
@@ -45,6 +47,7 @@ export const transactions = sqliteTable(
     uniqueIndex("idx_txn_plaid_id_unique").on(table.plaidTransactionId),
     index("idx_txn_merchant").on(table.merchantId),
     index("idx_txn_transfer").on(table.transferPairId),
+    index("idx_txn_external_id").on(table.accountId, table.externalId),
   ]
 );
 

@@ -1,4 +1,4 @@
-import { sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 export const households = sqliteTable("households", {
@@ -30,10 +30,13 @@ export const userSettings = sqliteTable("user_settings", {
   theme: text("theme").default("system"),
   currency: text("currency").default("USD"),
   aiProvider: text("ai_provider", {
-    enum: ["openai", "anthropic", "google"],
+    enum: ["openai", "anthropic", "google", "custom"],
   }),
   aiModel: text("ai_model"),
   aiApiKey: text("ai_api_key"),
+  aiBaseUrl: text("ai_base_url"),
+  aiConfidenceThreshold: text("ai_confidence_threshold").default("0.7"),
+  toolCallingSupported: integer("tool_calling_supported", { mode: "boolean" }),
   dashboardLayout: text("dashboard_layout"),
   createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
   updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
