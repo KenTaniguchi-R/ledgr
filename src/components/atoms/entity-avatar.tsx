@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { resolveEntityLogo } from "@/lib/logos";
+import { resolveEntityLogo, getInitials } from "@/lib/logos";
 import { cn } from "@/lib/utils";
 
 interface EntityAvatarProps {
@@ -26,11 +26,8 @@ export function EntityAvatar({
   pfcPrimary,
   size = "md",
 }: EntityAvatarProps) {
-  const resolved = resolveEntityLogo({ logoUrl, logoBase64, name, primaryColor, pfcPrimary });
   const [imgError, setImgError] = useState(false);
-
-  const fallback = resolveEntityLogo({ name, primaryColor });
-  const initials = fallback.type === "initials" ? fallback : { initial: name.charAt(0).toUpperCase() || "?", backgroundColor: "#9CA3AF" };
+  const resolved = resolveEntityLogo({ logoUrl, logoBase64, name, primaryColor, pfcPrimary });
 
   if (resolved.type === "image" && !imgError) {
     return (
@@ -43,13 +40,17 @@ export function EntityAvatar({
     );
   }
 
+  const { initial, backgroundColor } = resolved.type === "initials"
+    ? resolved
+    : getInitials(name, primaryColor);
+
   return (
     <div
       aria-hidden="true"
       className={cn("rounded-full flex items-center justify-center font-medium text-white shrink-0", sizeClasses[size])}
-      style={{ backgroundColor: initials.backgroundColor }}
+      style={{ backgroundColor }}
     >
-      {initials.initial}
+      {initial}
     </div>
   );
 }

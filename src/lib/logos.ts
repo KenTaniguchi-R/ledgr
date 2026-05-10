@@ -32,6 +32,12 @@ export function resolveEntityLogo(options: ResolveLogoOptions): LogoProps {
   return { type: "initials", initial, backgroundColor };
 }
 
+export function getInitials(name: string, primaryColor?: string | null): { initial: string; backgroundColor: string } {
+  const initial = name.charAt(0).toUpperCase() || "?";
+  const backgroundColor = primaryColor || PALETTE[name.charCodeAt(0) % PALETTE.length];
+  return { initial, backgroundColor };
+}
+
 export function getCategoryIconUrl(pfcPrimary: string): string {
   return `https://plaid-category-icons.plaid.com/PFC_${pfcPrimary}.png`;
 }

@@ -28,7 +28,8 @@ import type { PlaidItemStatus } from "@/db/schema";
 
 interface InstitutionHeaderProps {
   institutionName: string;
-  logo?: { base64: string; primaryColor: string | null } | null;
+  logoBase64?: string | null;
+  primaryColor?: string | null;
   status: PlaidItemStatus | null;
   accountCount: number;
   plaidItemId: string | null;
@@ -54,7 +55,8 @@ function formatRelativeTime(dateStr: string): string {
 
 export function InstitutionHeader({
   institutionName,
-  logo,
+  logoBase64,
+  primaryColor,
   status,
   accountCount,
   plaidItemId,
@@ -73,9 +75,9 @@ export function InstitutionHeader({
       <div className="group flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-3">
           <EntityAvatar
-            logoBase64={logo?.base64}
+            logoBase64={logoBase64}
             name={institutionName}
-            primaryColor={logo?.primaryColor}
+            primaryColor={primaryColor}
             size="md"
           />
           <div>
