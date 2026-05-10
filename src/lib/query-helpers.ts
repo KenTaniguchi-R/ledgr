@@ -8,6 +8,16 @@ export function notDeleted(table: { deletedAt: SQLiteColumn }) {
   return isNull(table.deletedAt);
 }
 
+export function getIncomeCategoryIds(db: LedgrDb): Set<string> {
+  const ids = db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.isIncome, true))
+    .all()
+    .map((r) => r.id);
+  return new Set(ids);
+}
+
 export function notIncome(db: LedgrDb): SQL {
   const ids = db
     .select({ id: categories.id })

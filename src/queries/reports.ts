@@ -1,4 +1,4 @@
-import { eq, gt, gte, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
+import { eq, gt, gte, lt, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -9,7 +9,7 @@ import {
   balanceHistory,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, notIncome } from "@/lib/query-helpers";
+import { notDeleted, notIncome, getIncomeCategoryIds } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 
 export interface ReportFilters {
@@ -47,7 +47,7 @@ export interface CategoryTrendRow {
 function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
   const conditions = [
     notDeleted(transactions),
-    gt(transactions.normalizedAmount, 0),
+    lt(transactions.normalizedAmount, 0),
     eq(transactions.pending, false),
     eq(transactions.isTransfer, false),
     isNull(transactions.transferPairId),
@@ -99,7 +99,7 @@ function aggregateSpending(
   const nonSplitRows = db
     .select({
       categoryId: transactions.categoryId,
-      total: sql<number>`COALESCE(SUM(${transactions.normalizedAmount}), 0)`,
+      total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
     })
     .from(transactions)
     .where(scoped.where(transactions, ...nonSplitConditions))
@@ -227,14 +227,7 @@ export function getIncomeVsExpense(
     .where(scoped.where(transactions, ...conditions))
     .all();
 
-  const incomeCatIds = new Set(
-    db
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.isIncome, true))
-      .all()
-      .map((r) => r.id),
-  );
+  const incomeCatIds = getIncomeCategoryIds(db);
 
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const txn of txns) {
@@ -244,9 +237,9 @@ export function getIncomeVsExpense(
     }
     const entry = byMonth.get(month)!;
     if (txn.categoryId && incomeCatIds.has(txn.categoryId)) {
-      entry.income += Math.abs(txn.normalizedAmount);
+      entry.income += txn.normalizedAmount;
     } else {
-      entry.expenses += txn.normalizedAmount;
+      entry.expenses += Math.abs(txn.normalizedAmount);
     }
   }
 
@@ -285,7 +278,7 @@ export function getCategoryTrends(
       month: sql<string>`substr(${transactions.date}, 1, 7)`,
       categoryId: transactions.categoryId,
       categoryName: categories.name,
-      total: sql<number>`COALESCE(SUM(${transactions.normalizedAmount}), 0)`,
+      total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))

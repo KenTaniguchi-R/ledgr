@@ -43,23 +43,23 @@ describe("getDashboardSummary", () => {
     });
 
     const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-    // Expense: normalizedAmount > 0
+    // Expense: normalizedAmount < 0
     insertTransaction(db, householdId, checkingId, {
       date: `${thisMonth}-05`,
-      normalizedAmount: 3000, // $30 expense
-      amount: -3000,
+      normalizedAmount: -3000, // $30 expense
+      amount: 3000,
     });
-    // Income: normalizedAmount < 0
+    // Income: normalizedAmount > 0
     insertTransaction(db, householdId, checkingId, {
       date: `${thisMonth}-10`,
-      normalizedAmount: -200000, // $2000 income
-      amount: 200000,
+      normalizedAmount: 200000, // $2000 income
+      amount: -200000,
     });
     // Last month's transaction — should not be included
     insertTransaction(db, householdId, checkingId, {
       date: "2024-01-15",
-      normalizedAmount: 5000,
-      amount: -5000,
+      normalizedAmount: -5000,
+      amount: 5000,
     });
 
     const result = getDashboardSummary(householdId, db);
@@ -128,31 +128,31 @@ describe("getMonthlySpending", () => {
 
     const thisMonth = new Date().toISOString().slice(0, 7);
 
-    // Expense with category
+    // Expense with category (negative normalizedAmount)
     insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-05`,
-      normalizedAmount: 5000,
-      amount: -5000,
+      normalizedAmount: -5000,
+      amount: 5000,
       categoryId,
     });
     insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-10`,
-      normalizedAmount: 3000,
-      amount: -3000,
+      normalizedAmount: -3000,
+      amount: 3000,
       categoryId,
     });
-    // Income (negative normalizedAmount) — should be excluded
+    // Income (positive normalizedAmount) — should be excluded
     insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-15`,
-      normalizedAmount: -10000,
-      amount: 10000,
+      normalizedAmount: 10000,
+      amount: -10000,
       categoryId,
     });
     // Pending transaction — should be excluded
     insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-20`,
-      normalizedAmount: 2000,
-      amount: -2000,
+      normalizedAmount: -2000,
+      amount: 2000,
       categoryId,
       pending: true,
     });
@@ -169,24 +169,33 @@ describe("getMonthlySpending", () => {
 });
 
 describe("getCashFlow", () => {
-  it("separates income and expenses by month", () => {
+  it("separates income and expenses by month using isIncome category flag", () => {
     const { db } = testDb;
     const { householdId } = insertHousehold(db);
     const { accountId } = insertAccount(db, householdId);
 
-    // May expenses and income
+    // Set up an income category (isIncome = true)
+    const { groupId } = insertCategoryGroup(db, householdId);
+    const { categoryId: incomeCatId } = insertCategory(db, householdId, groupId, {
+      name: "Salary",
+      isIncome: true,
+    });
+
+    // May expense (no income category — positive normalizedAmount = expense)
     insertTransaction(db, householdId, accountId, {
       date: "2026-05-05",
       normalizedAmount: 4000, // expense
       amount: -4000,
     });
+    // May income (categorized with isIncome category)
     insertTransaction(db, householdId, accountId, {
       date: "2026-05-15",
-      normalizedAmount: -150000, // income
+      normalizedAmount: -150000, // income (negative normalizedAmount in Plaid convention)
       amount: 150000,
+      categoryId: incomeCatId,
     });
 
-    // April expenses
+    // April expense
     insertTransaction(db, householdId, accountId, {
       date: "2026-04-10",
       normalizedAmount: 2500, // expense
@@ -208,6 +217,32 @@ describe("getCashFlow", () => {
     expect(mayData!.expenses).toBe(4000);
     expect(mayData!.income).toBe(150000);
     expect(mayData!.net).toBe(150000 - 4000);
+  });
+
+  it("excludes transfer transactions", () => {
+    const { db } = testDb;
+    const { householdId } = insertHousehold(db);
+    const { accountId } = insertAccount(db, householdId);
+
+    // Normal expense
+    insertTransaction(db, householdId, accountId, {
+      date: "2026-05-05",
+      normalizedAmount: 3000,
+      amount: -3000,
+    });
+    // Transfer — should be excluded
+    insertTransaction(db, householdId, accountId, {
+      date: "2026-05-10",
+      normalizedAmount: 50000,
+      amount: -50000,
+      isTransfer: true,
+    });
+
+    const result = getCashFlow(householdId, 3, db);
+
+    const mayData = result.find((r) => r.month === "2026-05");
+    expect(mayData).toBeDefined();
+    expect(mayData!.expenses).toBe(3000); // only the non-transfer expense
   });
 });
 
@@ -247,8 +282,8 @@ describe("household isolation", () => {
     const thisMonth = new Date().toISOString().slice(0, 7);
     insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-01`,
-      normalizedAmount: 1000,
-      amount: -1000,
+      normalizedAmount: -1000,
+      amount: 1000,
     });
 
     // Query with wrong household

@@ -1,4 +1,4 @@
-import { eq, gt, gte, lte, and, desc, inArray } from "drizzle-orm";
+import { eq, gt, gte, lt, lte, and, desc, inArray, isNull } from "drizzle-orm";
 export { getInvestmentsSummary } from "./investments";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
@@ -9,7 +9,7 @@ import {
   categoryGroups,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, notIncome } from "@/lib/query-helpers";
+import { notDeleted, notIncome, getIncomeCategoryIds } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 import { todayDateString, rangeToDateBounds, monthBounds, getCurrentMonth } from "@/lib/date-utils";
 import { baseTransactionQuery, type TransactionRow } from "./transactions";
@@ -69,10 +69,10 @@ export function getDashboardSummary(
   let monthlyIncome = 0;
   let monthlyExpenses = 0;
   for (const txn of monthlyTxns) {
-    if (txn.normalizedAmount > 0) {
-      monthlyExpenses += txn.normalizedAmount;
+    if (txn.normalizedAmount < 0) {
+      monthlyExpenses += Math.abs(txn.normalizedAmount);
     } else {
-      monthlyIncome += Math.abs(txn.normalizedAmount);
+      monthlyIncome += txn.normalizedAmount;
     }
   }
 
@@ -201,7 +201,7 @@ export function getMonthlySpending(
   const targetMonth = month ?? getCurrentMonth();
   const { from: dateFrom, to: dateTo } = monthBounds(targetMonth);
 
-  // Get expense transactions (positive normalizedAmount, non-pending, non-deleted)
+  // Get expense transactions (negative normalizedAmount, non-pending, non-deleted)
   const expenseTxns = db
     .select({
       categoryId: transactions.categoryId,
@@ -215,17 +215,17 @@ export function getMonthlySpending(
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
         eq(transactions.pending, false),
-        gt(transactions.normalizedAmount, 0),
+        lt(transactions.normalizedAmount, 0),
         notIncome(db)
       )
     )
     .all();
 
-  // Aggregate by categoryId
+  // Aggregate by categoryId (store as positive for display)
   const byCategory = new Map<string | null, number>();
   for (const txn of expenseTxns) {
     const key = txn.categoryId;
-    byCategory.set(key, (byCategory.get(key) ?? 0) + txn.normalizedAmount);
+    byCategory.set(key, (byCategory.get(key) ?? 0) + Math.abs(txn.normalizedAmount));
   }
 
   if (byCategory.size === 0) return [];
@@ -299,10 +299,13 @@ export function getCashFlow(
   d.setDate(1);
   const dateFrom = d.toISOString().slice(0, 10);
 
+  const incomeCatIds = getIncomeCategoryIds(db);
+
   const txns = db
     .select({
       date: transactions.date,
       normalizedAmount: transactions.normalizedAmount,
+      categoryId: transactions.categoryId,
     })
     .from(transactions)
     .where(
@@ -310,22 +313,24 @@ export function getCashFlow(
         transactions,
         notDeleted(transactions),
         gte(transactions.date, dateFrom),
-        eq(transactions.pending, false)
+        eq(transactions.pending, false),
+        eq(transactions.isTransfer, false),
+        isNull(transactions.transferPairId)
       )
     )
     .all();
 
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const txn of txns) {
-    const month = txn.date.slice(0, 7); // YYYY-MM
+    const month = txn.date.slice(0, 7);
     if (!byMonth.has(month)) {
       byMonth.set(month, { income: 0, expenses: 0 });
     }
     const entry = byMonth.get(month)!;
-    if (txn.normalizedAmount > 0) {
-      entry.expenses += txn.normalizedAmount;
-    } else {
+    if (txn.categoryId && incomeCatIds.has(txn.categoryId)) {
       entry.income += Math.abs(txn.normalizedAmount);
+    } else if (txn.normalizedAmount > 0) {
+      entry.expenses += txn.normalizedAmount;
     }
   }
 
