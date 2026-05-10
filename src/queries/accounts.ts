@@ -1,5 +1,5 @@
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { accounts, plaidItems, ACCOUNT_TYPES, type PlaidItemStatus } from "@/db/schema";
+import { accounts, plaidItems, institutionLogos, ACCOUNT_TYPES, type PlaidItemStatus } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
@@ -26,6 +26,8 @@ export interface InstitutionGroup {
   plaidItemId: string | null;
   status: PlaidItemStatus | null;
   lastSyncedAt: string | null;
+  logoBase64: string | null;
+  primaryColor: string | null;
   accounts: AccountRow[];
 }
 
@@ -43,6 +45,12 @@ export function getAccountsByInstitution(
     .all();
 
   const itemMap = new Map(items.map((i) => [i.id, i]));
+
+  const logos = db
+    .select()
+    .from(institutionLogos)
+    .all();
+  const logoMap = new Map(logos.map((l) => [l.plaidItemId, l.logo]));
   const groups = new Map<string, InstitutionGroup>();
 
   for (const account of allAccounts) {
@@ -55,6 +63,8 @@ export function getAccountsByInstitution(
           plaidItemId: account.plaidItemId,
           status: (item?.status as InstitutionGroup["status"]) ?? null,
           lastSyncedAt: item?.updatedAt ?? null,
+          logoBase64: logoMap.get(account.plaidItemId!) ?? null,
+          primaryColor: item?.primaryColor ?? null,
           accounts: [],
         });
       }
@@ -67,6 +77,8 @@ export function getAccountsByInstitution(
           plaidItemId: null,
           status: null,
           lastSyncedAt: null,
+          logoBase64: null,
+          primaryColor: null,
           accounts: [],
         });
       }

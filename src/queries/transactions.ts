@@ -32,6 +32,7 @@ export interface TransactionRow {
   categoryName: string | null;
   categoryGroupName: string | null;
   categoryIcon: string | null;
+  pfcPrimary: string | null;
   notes: string | null;
   hasSplits: boolean;
 }
@@ -60,6 +61,7 @@ export const transactionSelectFields = {
   categoryName: categories.name,
   categoryGroupName: categoryGroups.name,
   categoryIcon: categories.icon,
+  pfcPrimary: transactions.pfcPrimary,
   notes: transactions.notes,
 };
 
