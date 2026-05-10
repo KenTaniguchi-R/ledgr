@@ -16,8 +16,10 @@ import { INCOME_COLOR, EXPENSE_COLOR, PRIMARY_COLOR } from "@/lib/chart-colors";
 import type { NetWorthPoint } from "@/queries/dashboard";
 
 interface NetWorthAreaChartProps {
-  data: NetWorthPoint[];
+  data: NetWorthPoint[] | { date: string; value: number }[];
   height?: number;
+  mode?: "multi" | "single";
+  seriesName?: string;
 }
 
 interface TooltipEntry {
@@ -40,18 +42,51 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
+export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }: NetWorthAreaChartProps) {
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        Net worth history will appear after your accounts sync.
+        {mode === "single" ? "Portfolio history will appear after your accounts sync." : "Net worth history will appear after your accounts sync."}
       </div>
+    );
+  }
+
+  if (mode === "single") {
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <ComposedChart data={data as any[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+          <defs>
+            <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} />
+          <YAxis
+            tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
+            tick={{ fontSize: 11 }}
+            width={60}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Area
+            type="monotone"
+            dataKey="value"
+            name={seriesName}
+            fill="url(#portfolioGradient)"
+            stroke={PRIMARY_COLOR}
+            strokeWidth={2}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
     );
   }
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <ComposedChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <ComposedChart data={data as any[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} />
         <YAxis

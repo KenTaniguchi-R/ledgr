@@ -5,25 +5,34 @@ import { centsToDisplay } from "@/lib/money";
 import { CHART_COLORS } from "@/lib/chart-colors";
 import type { MonthlySpendingRow } from "@/queries/dashboard";
 
+export interface ChartDataItem {
+  name: string;
+  value: number;
+}
+
 interface SpendingChartProps {
-  data: MonthlySpendingRow[];
+  data: MonthlySpendingRow[] | ChartDataItem[];
   viewMode: "donut" | "bar";
 }
 
 export function SpendingChart({ data, viewMode }: SpendingChartProps) {
-  const total = data.reduce((sum, d) => sum + d.total, 0);
-  const top8 = data.slice(0, 8);
-  const otherTotal = data.slice(8).reduce((sum, d) => sum + d.total, 0);
-  const chartData =
+  const normalizedData: ChartDataItem[] = data.map((item) => {
+    if ("categoryName" in item) {
+      return { name: item.categoryName, value: item.total };
+    }
+    return item;
+  });
+
+  const total = normalizedData.reduce((sum, d) => sum + d.value, 0);
+  const top8 = normalizedData.slice(0, 8);
+  const otherTotal = normalizedData.slice(8).reduce((sum, d) => sum + d.value, 0);
+  const chartData: ChartDataItem[] =
     otherTotal > 0
       ? [
           ...top8,
           {
-            categoryId: null,
-            categoryName: "Other",
-            categoryIcon: "📦",
-            groupName: "Other",
-            total: otherTotal,
+            name: "Other",
+            value: otherTotal,
           },
         ]
       : top8;
@@ -36,8 +45,8 @@ export function SpendingChart({ data, viewMode }: SpendingChartProps) {
             <PieChart>
               <Pie
                 data={chartData}
-                dataKey="total"
-                nameKey="categoryName"
+                dataKey="value"
+                nameKey="name"
                 cx="50%"
                 cy="50%"
                 innerRadius="55%"
@@ -54,11 +63,10 @@ export function SpendingChart({ data, viewMode }: SpendingChartProps) {
         <div className="w-1/2 overflow-y-auto">
           {chartData.map((row, i) => (
             <SpendingLegendRow
-              key={row.categoryId ?? "other"}
-              name={row.categoryName}
-              icon={row.categoryIcon ?? "📦"}
-              amount={row.total}
-              percentage={total > 0 ? (row.total / total) * 100 : 0}
+              key={row.name}
+              name={row.name}
+              amount={row.value}
+              percentage={total > 0 ? (row.value / total) * 100 : 0}
               color={CHART_COLORS[i % CHART_COLORS.length]}
             />
           ))}
@@ -75,9 +83,9 @@ export function SpendingChart({ data, viewMode }: SpendingChartProps) {
           tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
           tick={{ fontSize: 11 }}
         />
-        <YAxis type="category" dataKey="categoryName" tick={{ fontSize: 11 }} width={75} />
+        <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
         <Tooltip formatter={(v) => centsToDisplay(Number(v))} />
-        <Bar dataKey="total">
+        <Bar dataKey="value">
           {chartData.map((_, i) => (
             <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
           ))}
@@ -95,7 +103,7 @@ function SpendingLegendRow({
   color,
 }: {
   name: string;
-  icon: string;
+  icon?: string;
   amount: number;
   percentage: number;
   color: string;
@@ -104,7 +112,7 @@ function SpendingLegendRow({
     <div className="flex items-center gap-2 py-1 text-sm">
       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
       <span className="truncate flex-1">
-        {icon} {name}
+        {icon ? `${icon} ` : ""}{name}
       </span>
       <span className="font-medium tabular-nums">{centsToDisplay(amount)}</span>
       <span className="text-muted-foreground text-xs w-10 text-right">{percentage.toFixed(0)}%</span>

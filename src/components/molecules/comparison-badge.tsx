@@ -2,12 +2,22 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface ComparisonBadgeProps {
   current: number;
-  previous: number;
-  periodLabel: string;
+  previous: number | null;
+  periodLabel?: string;
+  pill?: boolean;
 }
 
-export function ComparisonBadge({ current, previous, periodLabel }: ComparisonBadgeProps) {
-  if (previous === 0) return null;
+export function ComparisonBadge({ current, previous, periodLabel, pill }: ComparisonBadgeProps) {
+  if (previous === null || previous === 0) {
+    if (pill) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground rounded-full bg-muted px-2 py-0.5">
+          —
+        </span>
+      );
+    }
+    return null;
+  }
 
   const change = ((current - previous) / previous) * 100;
   const isUp = change > 0;
@@ -21,7 +31,7 @@ export function ComparisonBadge({ current, previous, periodLabel }: ComparisonBa
           : isUp
             ? "text-destructive"
             : "text-green-600"
-      }`}
+      }${pill ? " rounded-full bg-muted px-2 py-0.5" : ""}`}
     >
       {isFlat ? (
         <Minus className="size-3" />
@@ -31,7 +41,7 @@ export function ComparisonBadge({ current, previous, periodLabel }: ComparisonBa
         <TrendingDown className="size-3" />
       )}
       {isFlat ? "0%" : `${change > 0 ? "+" : ""}${change.toFixed(0)}%`}
-      <span className="text-muted-foreground">{periodLabel}</span>
+      {periodLabel && <span className="text-muted-foreground">{periodLabel}</span>}
     </span>
   );
 }
