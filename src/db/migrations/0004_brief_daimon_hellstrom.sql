@@ -1,0 +1,1 @@
+CREATE INDEX `idx_splits_category` ON `transaction_splits` (`category_id`);

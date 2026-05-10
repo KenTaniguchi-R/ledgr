@@ -61,7 +61,10 @@ export const transactionSplits = sqliteTable(
     notes: text("notes"),
     createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
   },
-  (table) => [index("idx_splits_txn").on(table.transactionId)]
+  (table) => [
+    index("idx_splits_txn").on(table.transactionId),
+    index("idx_splits_category").on(table.categoryId),
+  ]
 );
 
 export const transactionAttachments = sqliteTable(
