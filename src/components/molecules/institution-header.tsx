@@ -16,6 +16,7 @@ interface InstitutionHeaderProps {
   syncError?: string;
   onSync: () => void;
   onReAuthSuccess?: () => void;
+  onReAuthError?: (error: string) => void;
   reAuthError?: string | null;
 }
 
@@ -40,6 +41,7 @@ export function InstitutionHeader({
   syncError,
   onSync,
   onReAuthSuccess,
+  onReAuthError,
   reAuthError,
 }: InstitutionHeaderProps) {
   return (
@@ -72,6 +74,7 @@ export function InstitutionHeader({
               variant="reconnect-inline"
               plaidItemId={plaidItemId}
               onReAuthSuccess={onReAuthSuccess}
+              onError={onReAuthError}
             />
           ) : plaidItemId ? (
             <Button

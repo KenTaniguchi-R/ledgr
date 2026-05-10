@@ -79,6 +79,11 @@ export function AccountList({ groups }: AccountListProps) {
     router.refresh();
   }, [router]);
 
+  const handleReAuthError = useCallback((itemId: string, error: string) => {
+    setReAuthingItemId(itemId);
+    setReAuthError(error);
+  }, []);
+
   const isSyncing = plaidItemIds.some((id) => getSyncState(id).status === "syncing");
 
   return (
@@ -112,6 +117,7 @@ export function AccountList({ groups }: AccountListProps) {
                 syncError={state.error}
                 onSync={() => group.plaidItemId && handleSync(group.plaidItemId)}
                 onReAuthSuccess={handleReAuthSuccess}
+                onReAuthError={group.plaidItemId ? (err) => handleReAuthError(group.plaidItemId!, err) : undefined}
                 reAuthError={group.plaidItemId === reAuthingItemId ? reAuthError : null}
               />
               <Separator />

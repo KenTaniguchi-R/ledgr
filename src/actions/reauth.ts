@@ -72,11 +72,15 @@ export async function completeReAuthDirect(
 
   try {
     const accessToken = decrypt(item.accessToken);
-    await getPlaidClient().itemGet({ access_token: accessToken });
+    const itemRes = await getPlaidClient().itemGet({ access_token: accessToken });
+
+    if (itemRes.data.item.error) {
+      return { error: "Bank connection still requires re-authentication" };
+    }
 
     db.update(plaidItems)
       .set({ status: "active", errorCode: null, updatedAt: new Date().toISOString() })
-      .where(eq(plaidItems.id, plaidItemId))
+      .where(and(eq(plaidItems.id, plaidItemId), eq(plaidItems.householdId, householdId)))
       .run();
 
     await syncInstitution(plaidItemId, householdId, db);
