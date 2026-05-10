@@ -38,6 +38,7 @@ export const transactions = sqliteTable(
     updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
     externalId: text("external_id"),
     aiCategorizationAttemptedAt: text("ai_categorization_attempted_at"),
+    pfcPrimary: text("pfc_primary"),
   },
   (table) => [
     index("idx_txn_account_date").on(table.accountId, table.date),

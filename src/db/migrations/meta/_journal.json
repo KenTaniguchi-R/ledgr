@@ -64,6 +64,13 @@
       "when": 1778402480615,
       "tag": "0008_thin_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1778405584225,
+      "tag": "0009_silent_thor_girl",
+      "breakpoints": true
     }
   ]
 }

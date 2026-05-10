@@ -18,6 +18,7 @@ export const plaidItems = sqliteTable("plaid_items", {
     enum: ["active", "error", "reauth_required", "revoked"],
   }).default("active"),
   errorCode: text("error_code"),
+  primaryColor: text("primary_color"),
   createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
   updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
 }, (table) => [
@@ -40,4 +41,14 @@ export const syncLog = sqliteTable("sync_log", {
   error: text("error"),
 }, (table) => [
   index("idx_sync_log_plaid_item_id").on(table.plaidItemId),
+]);
+
+export const institutionLogos = sqliteTable("institution_logos", {
+  id: text("id").primaryKey(),
+  plaidItemId: text("plaid_item_id")
+    .notNull()
+    .references(() => plaidItems.id, { onDelete: "cascade" }),
+  logo: text("logo").notNull(),
+}, (table) => [
+  uniqueIndex("idx_institution_logos_plaid_item").on(table.plaidItemId),
 ]);
