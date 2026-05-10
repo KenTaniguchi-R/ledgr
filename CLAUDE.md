@@ -31,6 +31,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Ownership enforcement:** Use `scopedQuery(householdId)` wrapper to auto-inject `household_id` filtering on all queries. Never write manual WHERE clauses for tenant isolation.
 - **Encryption:** Plaid access tokens and AI API keys encrypted at app layer (aes-256-gcm, key from `ENCRYPTION_KEY` env var).
 - **Plaid is the primary feature.** Bank sync via Plaid is the core experience. CSV/OFX import is available as a supplementary option for accounts not supported by Plaid.
+- **Timestamps:** Use `nowISO()` from `@/lib/date-utils` for all server-side timestamps. Never use `new Date().toISOString()` directly.
 - **No serverless.** SQLite requires persistent filesystem. Deployment target is Docker on VPS.
 
 ## Commands (New App)
@@ -101,12 +102,14 @@ ledgr/
 │   │   └── index.ts            # Drizzle client + SQLite PRAGMAs
 │   ├── lib/
 │   │   ├── plaid/              # Plaid client, sync logic
+│   │   ├── categorization/     # Rule engine, PFC mapping, orchestrator
 │   │   ├── ai/                 # AI categorization, chat
 │   │   ├── auth/               # Better Auth config + adapter
 │   │   ├── import/             # CSV/OFX parsers
 │   │   ├── jobs/               # node-cron scheduler
 │   │   ├── scoped-query.ts     # Household-scoped query wrapper
 │   │   ├── encryption.ts       # AES encrypt/decrypt
+│   │   ├── date-utils.ts       # Timestamp and date helpers (nowISO, todayDateString)
 │   │   └── money.ts            # Cents ↔ display helpers
 │   ├── actions/                # Server Actions
 │   └── queries/                # Server-side data fetching
@@ -169,7 +172,10 @@ See the design spec for full schema with indexes and constraints.
 
 ## Auto-Categorization Pipeline
 
-1. User's manual category rules (pattern match, ordered by priority)
-2. Merchant default category
-3. LLM fallback (batch uncategorized → user's AI provider)
-4. Uncategorized (flagged for review)
+1. **User rules** — pattern matching on transaction name or merchant (ordered by priority)
+2. **Merchant default** — if `merchant.categoryId` is set by user
+3. **PFC mapping** — Plaid's `personal_finance_category.detailed` code mapped to seed categories via static map in `lib/categorization/pfc-map.ts`
+4. **AI fallback** — batch uncategorized transactions → user's AI provider (confidence-gated)
+5. Uncategorized — flagged for manual review
+
+Each tier sets `categorySource` on the transaction (`"rule"` | `"merchant_default"` | `"pfc"` | `"ai"` | `"manual"`) to track provenance. Manual user edits always set `"manual"` and are never overwritten by lower tiers.
