@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import type { PlaidLinkError } from "react-plaid-link";
 import { Button } from "@/components/ui/button";
@@ -75,10 +75,11 @@ export function PlaidLinkFlow({
     }
   };
 
-  // Open Plaid Link once the token is set and the hook is ready
-  if (linkToken && ready && !exchanging) {
-    open();
-  }
+  useEffect(() => {
+    if (linkToken && ready && !exchanging) {
+      open();
+    }
+  }, [linkToken, ready, exchanging, open]);
 
   const isLoading = loading || exchanging;
 
