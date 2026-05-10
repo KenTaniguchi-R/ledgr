@@ -237,8 +237,6 @@ export function getIncomeVsExpense(
     const entry = byMonth.get(month)!;
     if (txn.categoryId && incomeCatIds.has(txn.categoryId)) {
       entry.income += Math.abs(txn.normalizedAmount);
-    } else if (txn.normalizedAmount > 0) {
-      entry.expenses += txn.normalizedAmount;
     } else {
       entry.expenses += txn.normalizedAmount;
     }
