@@ -282,4 +282,89 @@ export const webhookKeyHandler = http.post(
     })
 );
 
-export const allHandlers = [...plaidHandlers, webhookKeyHandler];
+export const TEST_STREAM_IDS = {
+  netflix: "stream-netflix-1",
+  salary: "stream-salary-1",
+  gym: "stream-gym-1",
+} as const;
+
+export const recurringGetHandler = http.post(
+  "https://sandbox.plaid.com/transactions/recurring/get",
+  () =>
+    HttpResponse.json({
+      inflow_streams: [
+        {
+          stream_id: TEST_STREAM_IDS.salary,
+          account_id: "plaid-acc-checking",
+          description: "DIRECT DEPOSIT EMPLOYER",
+          merchant_name: null,
+          first_date: "2025-01-15",
+          last_date: "2026-04-15",
+          predicted_next_date: "2026-05-15",
+          average_amount: { amount: -3000.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          last_amount: { amount: -3000.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          frequency: "MONTHLY",
+          is_active: true,
+          transaction_ids: [TEST_TXN_IDS.added2],
+          personal_finance_category: { primary: "INCOME", detailed: "INCOME_WAGES", confidence_level: "VERY_HIGH" },
+          status: "MATURE",
+        },
+      ],
+      outflow_streams: [
+        {
+          stream_id: TEST_STREAM_IDS.netflix,
+          account_id: "plaid-acc-checking",
+          description: "NETFLIX.COM",
+          merchant_name: "Netflix",
+          first_date: "2025-06-01",
+          last_date: "2026-04-01",
+          predicted_next_date: "2026-05-01",
+          average_amount: { amount: 15.99, iso_currency_code: "USD", unofficial_currency_code: null },
+          last_amount: { amount: 15.99, iso_currency_code: "USD", unofficial_currency_code: null },
+          frequency: "MONTHLY",
+          is_active: true,
+          transaction_ids: [],
+          personal_finance_category: { primary: "ENTERTAINMENT", detailed: "ENTERTAINMENT_TV_AND_MOVIES", confidence_level: "VERY_HIGH" },
+          status: "MATURE",
+        },
+        {
+          stream_id: TEST_STREAM_IDS.gym,
+          account_id: "plaid-acc-checking",
+          description: "PLANET FITNESS",
+          merchant_name: "Planet Fitness",
+          first_date: "2025-03-01",
+          last_date: "2026-04-01",
+          predicted_next_date: "2026-05-01",
+          average_amount: { amount: 25.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          last_amount: { amount: 25.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          frequency: "MONTHLY",
+          is_active: true,
+          transaction_ids: [],
+          personal_finance_category: null,
+          status: "MATURE",
+        },
+      ],
+      request_id: "req-recurring-test",
+    })
+);
+
+export const recurringEmptyHandler = http.post(
+  "https://sandbox.plaid.com/transactions/recurring/get",
+  () =>
+    HttpResponse.json({
+      inflow_streams: [],
+      outflow_streams: [],
+      request_id: "req-recurring-empty",
+    })
+);
+
+export const recurringErrorHandler = http.post(
+  "https://sandbox.plaid.com/transactions/recurring/get",
+  () =>
+    HttpResponse.json(
+      { error_type: "INVALID_REQUEST", error_code: "PRODUCT_NOT_READY", error_message: "Recurring not ready" },
+      { status: 400 }
+    )
+);
+
+export const allHandlers = [...plaidHandlers, webhookKeyHandler, recurringGetHandler];

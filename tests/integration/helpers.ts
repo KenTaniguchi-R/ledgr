@@ -11,7 +11,10 @@ import {
   categoryRules,
   budgets,
   budgetCategories,
+  plaidItems,
+  recurringTransactions,
 } from "../../src/db/schema";
+import { encrypt } from "../../src/lib/encryption";
 
 export function insertHousehold(db: LedgrDb, name = "Test Household") {
   const id = uuid();
@@ -197,4 +200,50 @@ export function insertTransactionSplit(
     })
     .run();
   return { splitId: id };
+}
+
+export function insertPlaidItem(
+  db: LedgrDb,
+  householdId: string,
+  overrides: Partial<typeof plaidItems.$inferInsert> = {},
+) {
+  const id = uuid();
+  const now = new Date().toISOString();
+  db.insert(plaidItems)
+    .values({
+      id,
+      householdId,
+      accessToken: encrypt("access-sandbox-test-token"),
+      plaidInstitutionId: "ins_1",
+      plaidItemId: `plaid-item-${id.slice(0, 8)}`,
+      institutionName: "Test Bank",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    })
+    .run();
+  return { plaidItemId: id };
+}
+
+export function insertRecurringTransaction(
+  db: LedgrDb,
+  householdId: string,
+  overrides: Partial<typeof recurringTransactions.$inferInsert> = {},
+) {
+  const id = uuid();
+  const now = new Date().toISOString();
+  db.insert(recurringTransactions)
+    .values({
+      id,
+      householdId,
+      name: "Test Recurring",
+      isActive: true,
+      isIncome: false,
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    })
+    .run();
+  return { recurringId: id };
 }
