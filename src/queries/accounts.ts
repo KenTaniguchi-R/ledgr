@@ -2,6 +2,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, plaidItems, ACCOUNT_TYPES, type PlaidItemStatus } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
+import { classifyAccountType } from "@/lib/account-utils";
 
 export function getAccounts(householdId: string, db: LedgrDb = defaultDb) {
   const scoped = scopedQuery(householdId, db);
@@ -83,9 +84,6 @@ export function getAccountsByInstitution(
   return result;
 }
 
-const ASSET_TYPES = new Set(["checking", "savings", "investment"]);
-const LIABILITY_TYPES = new Set(["credit", "loan"]);
-
 export function getAccountSummary(
   householdId: string,
   db: LedgrDb = defaultDb
@@ -99,9 +97,9 @@ export function getAccountSummary(
 
   for (const account of allAccounts) {
     if (account.currentBalance === null) continue;
-    if (ASSET_TYPES.has(account.type)) {
+    if (classifyAccountType(account.type) === "asset") {
       totalAssets += account.currentBalance;
-    } else if (LIABILITY_TYPES.has(account.type)) {
+    } else {
       totalLiabilities += account.currentBalance;
     }
   }

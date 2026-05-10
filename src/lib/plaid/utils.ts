@@ -18,13 +18,7 @@ export function mapPlaidAccountType(
   }
 }
 
-export function todayISO(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
-export function nowISO(): string {
-  return new Date().toISOString();
-}
+export { todayDateString as todayISO, nowISO } from "@/lib/date-utils";
 
 export function extractPlaidErrorCode(err: unknown): string | null {
   if (
