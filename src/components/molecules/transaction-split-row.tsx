@@ -50,23 +50,19 @@ export function TransactionSplitRow({
   return (
     <div className="grid grid-cols-[1fr_100px_32px] items-center gap-1.5 py-1">
       <div className="min-w-0">
-        {split.isDraft && !split.categoryId ? (
-          <span className="text-xs text-destructive italic px-1">Select a category</span>
-        ) : (
-          <CategoryPill
-            transactionId={transactionId}
-            currentCategoryId={split.categoryId}
-            currentCategoryName={split.categoryName}
-            categories={categories}
-          />
-        )}
+        <CategoryPill
+          transactionId={transactionId}
+          currentCategoryId={split.categoryId || null}
+          currentCategoryName={split.categoryName}
+          categories={categories}
+        />
       </div>
 
       <CurrencyInput
         value={amount}
         onChange={setAmount}
         onBlur={handleAmountBlur}
-        disabled={isPending || !split.categoryId}
+        disabled={isPending}
         className="h-7 text-xs"
       />
 
