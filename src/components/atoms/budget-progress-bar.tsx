@@ -4,12 +4,13 @@ import { budgetProgressPercent } from "@/lib/budget-utils";
 import { cn } from "@/lib/utils";
 
 interface BudgetProgressBarProps {
+  label?: string;
   spent: number;
   limit: number;
   className?: string;
 }
 
-export function BudgetProgressBar({ spent, limit, className }: BudgetProgressBarProps) {
+export function BudgetProgressBar({ label, spent, limit, className }: BudgetProgressBarProps) {
   const percent = budgetProgressPercent(spent, limit);
   const remaining = limit - spent;
   const displayValue = Math.min(percent, 100);
@@ -22,7 +23,14 @@ export function BudgetProgressBar({ spent, limit, className }: BudgetProgressBar
         : "[&>div]:bg-emerald-500";
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("space-y-1", className)}>
+      {label && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="truncate">{label}</span>
+          <span className="text-muted-foreground tabular-nums">{percent}%</span>
+        </div>
+      )}
+      <div className="flex items-center gap-2">
       <Progress value={displayValue} className={cn("h-2 flex-1", colorClass)} />
       <span
         className={cn(
@@ -32,6 +40,7 @@ export function BudgetProgressBar({ spent, limit, className }: BudgetProgressBar
       >
         {centsToDisplay(remaining)}
       </span>
+      </div>
     </div>
   );
 }

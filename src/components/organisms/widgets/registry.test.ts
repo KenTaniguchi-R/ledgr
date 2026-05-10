@@ -7,11 +7,11 @@ describe("widget registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("default layout includes all active widget IDs", () => {
+  it("default layout only contains active widget IDs", () => {
     const layout = getDefaultLayout();
-    const layoutIds = new Set(layout.desktop.map((item) => item.i));
-    for (const widget of ACTIVE_WIDGETS) {
-      expect(layoutIds.has(widget.id)).toBe(true);
+    const activeIds = new Set(ACTIVE_WIDGETS.map((w) => w.id));
+    for (const item of layout.desktop) {
+      expect(activeIds.has(item.i)).toBe(true);
     }
   });
 });

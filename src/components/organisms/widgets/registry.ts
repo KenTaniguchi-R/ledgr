@@ -27,7 +27,7 @@ export const DASHBOARD_WIDGETS: WidgetConfig[] = [
   { id: "spending", title: "Spending", defaultSize: { w: 2, h: 2 } },
   { id: "cash-flow", title: "Cash Flow", defaultSize: { w: 2, h: 1 } },
   { id: "recent-txns", title: "Recent Transactions", defaultSize: { w: 2, h: 2 } },
-  { id: "budgets", title: "Budget Progress", defaultSize: { w: 2, h: 1 }, isPlaceholder: true, placeholderText: "Dashboard widget coming soon" },
+  { id: "budgets", title: "Budget Progress", defaultSize: { w: 2, h: 1 } },
   { id: "bills", title: "Upcoming Bills", defaultSize: { w: 2, h: 1 }, isPlaceholder: true, placeholderText: "Coming in Phase 9" },
   { id: "goals", title: "Goals", defaultSize: { w: 2, h: 1 }, isPlaceholder: true, placeholderText: "Coming in Phase 12" },
 ];

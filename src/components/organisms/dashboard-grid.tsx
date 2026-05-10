@@ -6,6 +6,7 @@ import "react-grid-layout/css/styles.css";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { GripVertical } from "lucide-react";
 
+import { BudgetProgressWidget } from "./widgets/budget-progress";
 import { NetWorthChart } from "./widgets/net-worth-chart";
 import { SpendingByCategory } from "./widgets/spending-by-category";
 import { CashFlowChart } from "./widgets/cash-flow-chart";
@@ -18,6 +19,7 @@ import { saveLayout } from "@/actions/dashboard";
 import type { DashboardSummary, NetWorthPoint, MonthlySpendingRow, CashFlowRow } from "@/queries/dashboard";
 import type { TransactionRow } from "@/queries/transactions";
 import type { AccountType } from "@/db/schema/accounts";
+import type { BudgetMonth } from "@/queries/budgets";
 
 export interface DashboardData {
   summary: DashboardSummary;
@@ -26,6 +28,7 @@ export interface DashboardData {
   cashFlow: CashFlowRow[];
   recentTransactions: TransactionRow[];
   accounts: { id: string; name: string; type: AccountType; currentBalance: number | null; currency: string | null }[];
+  budgetData?: BudgetMonth;
 }
 
 interface DashboardGridProps {
@@ -109,6 +112,12 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
         return <AccountBalancesWidget data={data.accounts} />;
       case "summary":
         return <DashboardSummaryCards data={data.summary} />;
+      case "budgets":
+        return data.budgetData ? (
+          <BudgetProgressWidget data={data.budgetData} />
+        ) : (
+          <WidgetPlaceholder title="Budget Progress" description="No budget data" />
+        );
       default:
         return null;
     }
