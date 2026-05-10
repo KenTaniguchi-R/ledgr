@@ -1,0 +1,108 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createTestDb } from "./setup";
+import {
+  insertHousehold,
+  insertAccount,
+  insertTransaction,
+  insertCategoryGroup,
+  insertCategory,
+} from "./helpers";
+import { getTransactions } from "../../src/queries/transactions";
+import type { LedgrDb } from "../../src/db";
+
+describe("getTransactions", () => {
+  let db: LedgrDb;
+  let close: () => void;
+  let householdId: string;
+  let accountId: string;
+  let categoryId: string;
+
+  beforeAll(() => {
+    const testDb = createTestDb();
+    db = testDb.db;
+    close = testDb.close;
+
+    ({ householdId } = insertHousehold(db));
+    ({ accountId } = insertAccount(db, householdId, { name: "Chase Checking" }));
+    const { groupId } = insertCategoryGroup(db, householdId, { name: "Food" });
+    ({ categoryId } = insertCategory(db, householdId, groupId, { name: "Groceries" }));
+
+    // Insert 5 transactions with varying dates
+    insertTransaction(db, householdId, accountId, { name: "Whole Foods", date: "2026-05-01", amount: -4500, normalizedAmount: 4500 });
+    insertTransaction(db, householdId, accountId, { name: "Target", date: "2026-05-02", amount: -2300, normalizedAmount: 2300, categoryId });
+    insertTransaction(db, householdId, accountId, { name: "Payroll", date: "2026-05-03", amount: 320000, normalizedAmount: -320000, reviewed: true });
+    insertTransaction(db, householdId, accountId, { name: "Amazon", date: "2026-05-04", amount: -1500, normalizedAmount: 1500 });
+    insertTransaction(db, householdId, accountId, { name: "Spotify", date: "2026-05-05", amount: -999, normalizedAmount: 999, pending: true });
+  });
+
+  afterAll(() => close());
+
+  it("returns non-deleted transactions for the household", () => {
+    const page = getTransactions(householdId, {}, 50, null, db);
+    expect(page.rows).toHaveLength(5);
+    expect(page.rows[0].date).toBe("2026-05-05");
+  });
+
+  it("filters by date range", () => {
+    const page = getTransactions(householdId, { dateFrom: "2026-05-02", dateTo: "2026-05-04" }, 50, null, db);
+    expect(page.rows).toHaveLength(3);
+  });
+
+  it("filters by categoryId", () => {
+    const page = getTransactions(householdId, { categoryId }, 50, null, db);
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0].name).toBe("Target");
+  });
+
+  it("filters by categoryId null (uncategorized)", () => {
+    const page = getTransactions(householdId, { categoryId: null }, 50, null, db);
+    expect(page.rows).toHaveLength(4);
+  });
+
+  it("filters by reviewed status", () => {
+    const page = getTransactions(householdId, { reviewed: true }, 50, null, db);
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0].name).toBe("Payroll");
+  });
+
+  it("filters by search substring (case-insensitive)", () => {
+    const page = getTransactions(householdId, { search: "whole" }, 50, null, db);
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0].name).toBe("Whole Foods");
+  });
+
+  it("paginates with cursor — no overlap", () => {
+    const page1 = getTransactions(householdId, {}, 2, null, db);
+    expect(page1.rows).toHaveLength(2);
+    expect(page1.nextCursor).not.toBeNull();
+
+    const page2 = getTransactions(householdId, {}, 2, page1.nextCursor, db);
+    expect(page2.rows).toHaveLength(2);
+
+    const page1Ids = new Set(page1.rows.map((r) => r.id));
+    for (const row of page2.rows) {
+      expect(page1Ids.has(row.id)).toBe(false);
+    }
+  });
+
+  it("handles malformed cursor by returning first page", () => {
+    const page = getTransactions(householdId, {}, 50, "not-valid-base64!!", db);
+    expect(page.rows).toHaveLength(5);
+  });
+
+  it("enforces household isolation", () => {
+    const { householdId: otherId } = insertHousehold(db, "Other Household");
+    const { accountId: otherAcct } = insertAccount(db, otherId);
+    insertTransaction(db, otherId, otherAcct, { name: "Other's Transaction" });
+
+    const page = getTransactions(householdId, {}, 50, null, db);
+    expect(page.rows.every((r) => r.name !== "Other's Transaction")).toBe(true);
+  });
+
+  it("joins category name and account name", () => {
+    const page = getTransactions(householdId, { categoryId }, 50, null, db);
+    expect(page.rows[0].categoryName).toBe("Groceries");
+    expect(page.rows[0].categoryGroupName).toBe("Food");
+    expect(page.rows[0].accountName).toBe("Chase Checking");
+  });
+});
