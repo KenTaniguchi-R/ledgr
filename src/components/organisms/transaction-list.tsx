@@ -1,11 +1,14 @@
+// src/components/organisms/transaction-list.tsx
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { TransactionRow, TRANSACTION_GRID_COLS } from "@/components/molecules/transaction-row";
+import { TransactionDateHeader } from "@/components/molecules/transaction-date-header";
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
 import { loadMoreTransactions } from "@/actions/transactions";
+import { groupByDate } from "@/lib/transactions";
 import type { TransactionRow as TxnRow, TransactionFilters } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 
@@ -27,6 +30,8 @@ export function TransactionList({
   const [cursor, setCursor] = useState(nextCursor);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const groups = useMemo(() => groupByDate(rows), [rows]);
 
   const handleSelect = useCallback((id: string, checked: boolean) => {
     setSelected((prev) => {
@@ -62,9 +67,14 @@ export function TransactionList({
     router.refresh();
   }
 
+  const hasBulkSelection = selected.size > 0;
+
   return (
-    <div>
-      {selected.size > 0 && (
+    <div
+      className="group/list"
+      data-bulk-active={hasBulkSelection ? "" : undefined}
+    >
+      {hasBulkSelection && (
         <BulkActionBar
           selectedIds={Array.from(selected)}
           categories={categories}
@@ -73,6 +83,7 @@ export function TransactionList({
       )}
 
       <div className={`grid ${TRANSACTION_GRID_COLS} items-center h-8 px-2 border-b text-xs font-medium text-muted-foreground`}>
+        <div />
         <div className="flex items-center justify-center">
           <input
             type="checkbox"
@@ -81,23 +92,32 @@ export function TransactionList({
             className="h-3.5 w-3.5 rounded border-muted-foreground/30"
           />
         </div>
-        <span>Date</span>
         <span>Description</span>
-        <span>Account</span>
         <span>Category</span>
         <span className="text-right">Amount</span>
-        <span className="text-center">Rev</span>
       </div>
 
-      {rows.map((txn) => (
-        <TransactionRow
-          key={txn.id}
-          transaction={txn}
-          categories={categories}
-          isSelected={selected.has(txn.id)}
-          onSelect={handleSelect}
-        />
-      ))}
+      {groups.map((group) => {
+        const netAmount = group.rows.reduce((sum, r) => sum + r.normalizedAmount, 0);
+        return (
+          <div key={group.date}>
+            <TransactionDateHeader
+              date={group.date}
+              transactionCount={group.rows.length}
+              netAmount={netAmount}
+            />
+            {group.rows.map((txn) => (
+              <TransactionRow
+                key={txn.id}
+                transaction={txn}
+                categories={categories}
+                isSelected={selected.has(txn.id)}
+                onSelect={handleSelect}
+              />
+            ))}
+          </div>
+        );
+      })}
 
       {cursor && (
         <div className="flex justify-center py-4">
