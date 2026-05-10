@@ -1,5 +1,6 @@
 import { v4 as uuid } from "uuid";
 import { eq, and, isNull } from "drizzle-orm";
+import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import type { PlaidApi } from "plaid";
 import {
   PlaidSyncResponseSchema,
@@ -653,6 +654,13 @@ async function doSync(
       householdId,
       fetchResult.nextCursor,
     );
+
+    // Auto-categorize newly synced transactions (non-fatal)
+    try {
+      categorizeSyncedTransactions(itemId, householdId, db);
+    } catch (catError) {
+      console.error(`Categorization failed for item ${itemId}:`, catError);
+    }
 
     return {
       success: true,
