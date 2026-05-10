@@ -11,7 +11,7 @@ test.describe("accounts page", () => {
   // 1. Set PLAID_CLIENT_ID and PLAID_SECRET in .env
   // 2. Set PLAID_ENV=sandbox
   // 3. Use Plaid sandbox credentials: user_good / pass_good
-  test.skip("full Plaid Link flow", async ({ page }) => {
+  test.skip("full Plaid Link flow", async () => {
     // Sign up / sign in
     // Navigate to /accounts
     // Click "Connect Bank"

@@ -18,7 +18,7 @@ export function AccountList({ groups }: AccountListProps) {
   return (
     <>
       <div className="space-y-6">
-        {groups.map((group, i) => (
+        {groups.map((group) => (
           <Card key={group.plaidItemId ?? "__manual__"}>
             <InstitutionHeader
               institutionName={group.institutionName}

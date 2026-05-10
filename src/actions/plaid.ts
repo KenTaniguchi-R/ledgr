@@ -8,6 +8,7 @@ import { Products, CountryCode } from "plaid";
 import { plaidClient } from "@/lib/plaid/client";
 import { encryptAccessToken } from "@/lib/plaid/token";
 import { plaidAmountToCents } from "@/lib/money";
+import { mapPlaidAccountType, todayISO } from "@/lib/plaid/utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { db as defaultDb } from "@/db";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
@@ -16,28 +17,9 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type * as schema from "@/db/schema";
 
 type LedgrDb = BetterSQLite3Database<typeof schema>;
-type AccountType = "checking" | "savings" | "credit" | "loan" | "investment" | "other";
-
-export function mapPlaidAccountType(
-  plaidType: string,
-  plaidSubtype: string | null
-): AccountType {
-  switch (plaidType) {
-    case "depository":
-      return plaidSubtype === "savings" ? "savings" : "checking";
-    case "credit":
-      return "credit";
-    case "loan":
-      return "loan";
-    case "investment":
-      return "investment";
-    default:
-      return "other";
-  }
-}
 
 export async function createLinkToken() {
-  const householdId = await getHouseholdId();
+  await getHouseholdId();
   const session = await getSession();
   if (!session) {
     return { error: "Not authenticated" };
@@ -66,10 +48,6 @@ export async function createLinkToken() {
   }
 }
 
-function todayISO(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
 export async function exchangeAndStoreAccounts(
   publicToken: string,
   householdId: string,
@@ -83,7 +61,6 @@ export async function exchangeAndStoreAccounts(
       public_token: publicToken,
     });
     const accessToken = exchangeRes.data.access_token;
-    const itemId = exchangeRes.data.item_id;
 
     const itemRes = await plaidClient.itemGet({ access_token: accessToken });
     const institutionId = itemRes.data.item.institution_id ?? null;

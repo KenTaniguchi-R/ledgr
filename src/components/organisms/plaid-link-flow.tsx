@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { usePlaidLink } from "react-plaid-link";
-import type { PlaidLinkError, PlaidLinkOnExitMetadata } from "react-plaid-link";
+import type { PlaidLinkError } from "react-plaid-link";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, Building2 } from "lucide-react";
 import { createLinkToken, exchangePublicToken } from "@/actions/plaid";
@@ -40,7 +40,7 @@ export function PlaidLinkFlow({
   }, []);
 
   const onExit = useCallback(
-    (err: PlaidLinkError | null, _metadata: PlaidLinkOnExitMetadata) => {
+    (err: PlaidLinkError | null) => {
       setLinkToken(null);
       if (err) {
         setError(err.display_message || err.error_message || "Connection was interrupted");

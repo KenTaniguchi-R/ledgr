@@ -1,13 +1,13 @@
 import { describe, it, expect, afterEach, beforeAll, afterAll } from "vitest";
-import { v4 as uuid } from "uuid";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
 import { provisionHousehold } from "@/lib/auth/provision";
-import { encryptAccessToken, decryptAccessToken } from "@/lib/plaid/token";
+import { decryptAccessToken } from "@/lib/plaid/token";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { mapPlaidAccountType, exchangeAndStoreAccounts } from "@/actions/plaid";
+import { exchangeAndStoreAccounts } from "@/actions/plaid";
+import { mapPlaidAccountType } from "@/lib/plaid/utils";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterAll(() => server.close());

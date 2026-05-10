@@ -1,6 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { v4 as uuid } from "uuid";
-import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { provisionHousehold } from "@/lib/auth/provision";
 import {
