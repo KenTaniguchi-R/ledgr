@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useCallback, useTransition } from "react";
-// @ts-expect-error -- react-grid-layout does not ship type declarations
-import { Responsive, WidthProvider } from "react-grid-layout";
+import { Responsive, useContainerWidth } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GripVertical } from "lucide-react";
@@ -20,8 +19,6 @@ import type { DashboardSummary, NetWorthPoint, MonthlySpendingRow, CashFlowRow }
 import type { TransactionRow } from "@/queries/transactions";
 import type { AccountType } from "@/db/schema/accounts";
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
-
 export interface DashboardData {
   summary: DashboardSummary;
   netWorthHistory: NetWorthPoint[];
@@ -38,6 +35,7 @@ interface DashboardGridProps {
 }
 
 export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
+  const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 1200 });
   const [layouts, setLayouts] = useState({
     lg: layout.desktop,
     md: layout.tablet,
@@ -51,11 +49,11 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
   const [spendLoading, startSpendTransition] = useTransition();
 
   const handleLayoutChange = useCallback(
-    (_: unknown, allLayouts: Record<string, GridItem[]>) => {
+    (_layout: readonly unknown[], allLayouts: Partial<Record<string, readonly GridItem[]>>) => {
       const newLayout = {
-        desktop: allLayouts.lg ?? layouts.lg,
-        tablet: allLayouts.md ?? layouts.md,
-        mobile: allLayouts.sm ?? layouts.sm,
+        desktop: [...(allLayouts.lg ?? layouts.lg)],
+        tablet: [...(allLayouts.md ?? layouts.md)],
+        mobile: [...(allLayouts.sm ?? layouts.sm)],
       };
       setLayouts({ lg: newLayout.desktop, md: newLayout.tablet, sm: newLayout.mobile });
       saveLayout(userId, newLayout);
@@ -117,32 +115,36 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
   }
 
   return (
-    <ResponsiveGridLayout
-      layouts={layouts}
-      breakpoints={{ lg: 1200, md: 768, sm: 0 }}
-      cols={{ lg: 4, md: 2, sm: 1 }}
-      rowHeight={160}
-      onLayoutChange={handleLayoutChange}
-      isDraggable
-      isResizable={false}
-      draggableHandle=".drag-handle"
-      margin={[16, 16]}
-    >
-      {layouts.lg.map((item) => (
-        <div key={item.i}>
-          <Card className="h-full flex flex-col">
-            <CardHeader className="pb-2 pt-3 px-4 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">
-                {DASHBOARD_WIDGETS.find((w) => w.id === item.i)?.title ?? item.i}
-              </CardTitle>
-              <GripVertical className="size-4 text-muted-foreground cursor-grab drag-handle" />
-            </CardHeader>
-            <CardContent className="flex-1 min-h-0 pb-3 px-4">
-              {renderWidget(item.i)}
-            </CardContent>
-          </Card>
-        </div>
-      ))}
-    </ResponsiveGridLayout>
+    <div ref={containerRef}>
+      {mounted && (
+        <Responsive
+          width={width}
+          layouts={layouts}
+          breakpoints={{ lg: 1200, md: 768, sm: 0 }}
+          cols={{ lg: 4, md: 2, sm: 1 }}
+          rowHeight={160}
+          onLayoutChange={handleLayoutChange}
+          dragConfig={{ enabled: true, handle: ".drag-handle", bounded: false, threshold: 3 }}
+          resizeConfig={{ enabled: false }}
+          margin={[16, 16]}
+        >
+          {layouts.lg.map((item) => (
+            <div key={item.i}>
+              <Card className="h-full flex flex-col">
+                <CardHeader className="pb-2 pt-3 px-4 flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium">
+                    {DASHBOARD_WIDGETS.find((w) => w.id === item.i)?.title ?? item.i}
+                  </CardTitle>
+                  <GripVertical className="size-4 text-muted-foreground cursor-grab drag-handle" />
+                </CardHeader>
+                <CardContent className="flex-1 min-h-0 pb-3 px-4">
+                  {renderWidget(item.i)}
+                </CardContent>
+              </Card>
+            </div>
+          ))}
+        </Responsive>
+      )}
+    </div>
   );
 }
