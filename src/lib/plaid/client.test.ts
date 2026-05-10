@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 describe("plaid client", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
+    vi.resetModules();
   });
 
   it("throws if PLAID_CLIENT_ID is missing", async () => {
@@ -10,8 +11,8 @@ describe("plaid client", () => {
     vi.stubEnv("PLAID_SECRET", "test-secret");
     vi.stubEnv("PLAID_ENV", "sandbox");
 
-    vi.resetModules();
-    await expect(() => import("./client")).rejects.toThrow("PLAID_CLIENT_ID");
+    const { getPlaidClient } = await import("./client");
+    expect(() => getPlaidClient()).toThrow("PLAID_CLIENT_ID");
   });
 
   it("throws if PLAID_SECRET is missing", async () => {
@@ -19,8 +20,8 @@ describe("plaid client", () => {
     vi.stubEnv("PLAID_SECRET", "");
     vi.stubEnv("PLAID_ENV", "sandbox");
 
-    vi.resetModules();
-    await expect(() => import("./client")).rejects.toThrow("PLAID_SECRET");
+    const { getPlaidClient } = await import("./client");
+    expect(() => getPlaidClient()).toThrow("PLAID_SECRET");
   });
 
   it("throws if PLAID_ENV is invalid", async () => {
@@ -28,8 +29,8 @@ describe("plaid client", () => {
     vi.stubEnv("PLAID_SECRET", "test-secret");
     vi.stubEnv("PLAID_ENV", "invalid");
 
-    vi.resetModules();
-    await expect(() => import("./client")).rejects.toThrow("PLAID_ENV");
+    const { getPlaidClient } = await import("./client");
+    expect(() => getPlaidClient()).toThrow("PLAID_ENV");
   });
 
   it("creates client for valid sandbox config", async () => {
@@ -37,8 +38,16 @@ describe("plaid client", () => {
     vi.stubEnv("PLAID_SECRET", "test-secret");
     vi.stubEnv("PLAID_ENV", "sandbox");
 
-    vi.resetModules();
-    const { plaidClient } = await import("./client");
-    expect(plaidClient).toBeDefined();
+    const { getPlaidClient } = await import("./client");
+    expect(getPlaidClient()).toBeDefined();
+  });
+
+  it("creates client for development config", async () => {
+    vi.stubEnv("PLAID_CLIENT_ID", "test-id");
+    vi.stubEnv("PLAID_SECRET", "test-secret");
+    vi.stubEnv("PLAID_ENV", "development");
+
+    const { getPlaidClient } = await import("./client");
+    expect(getPlaidClient()).toBeDefined();
   });
 });

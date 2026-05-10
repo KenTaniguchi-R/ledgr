@@ -1,20 +1,16 @@
 import { v4 as uuid } from "uuid";
 import { eq } from "drizzle-orm";
-import { db as defaultDb } from "@/db";
+import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   households,
   householdMembers,
   userSettings,
 } from "@/db/schema";
 import { seedDefaultCategories } from "@/db/seed/categories";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "@/db/schema";
-
-type Db = BetterSQLite3Database<typeof schema>;
 
 export function provisionHousehold(
   userId: string,
-  db: Db = defaultDb
+  db: LedgrDb = defaultDb
 ): string {
   const existing = db
     .select({ householdId: householdMembers.householdId })

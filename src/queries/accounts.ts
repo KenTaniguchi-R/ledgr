@@ -1,14 +1,8 @@
 import { eq } from "drizzle-orm";
-import { db as defaultDb } from "@/db";
-import { accounts, plaidItems } from "@/db/schema";
+import { db as defaultDb, type LedgrDb } from "@/db";
+import { accounts, plaidItems, ACCOUNT_TYPES } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "@/db/schema";
-
-type LedgrDb = BetterSQLite3Database<typeof schema>;
-
-const TYPE_ORDER = ["checking", "savings", "credit", "loan", "investment", "other"] as const;
 
 export function getAccounts(householdId: string, db: LedgrDb = defaultDb) {
   const scoped = scopedQuery(householdId, db);
@@ -18,8 +12,8 @@ export function getAccounts(householdId: string, db: LedgrDb = defaultDb) {
     .where(scoped.where(accounts, notDeleted(accounts)))
     .all()
     .sort((a, b) => {
-      const ai = TYPE_ORDER.indexOf(a.type as (typeof TYPE_ORDER)[number]);
-      const bi = TYPE_ORDER.indexOf(b.type as (typeof TYPE_ORDER)[number]);
+      const ai = ACCOUNT_TYPES.indexOf(a.type as (typeof ACCOUNT_TYPES)[number]);
+      const bi = ACCOUNT_TYPES.indexOf(b.type as (typeof ACCOUNT_TYPES)[number]);
       if (ai !== bi) return ai - bi;
       return a.name.localeCompare(b.name);
     });

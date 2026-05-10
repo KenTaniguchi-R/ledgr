@@ -1,20 +1,34 @@
-import { describe, it, expect, afterEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
 import { provisionHousehold } from "@/lib/auth/provision";
-import { decryptAccessToken } from "@/lib/plaid/token";
+import { decrypt } from "@/lib/encryption";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { exchangeAndStoreAccounts } from "@/actions/plaid";
 import { mapPlaidAccountType } from "@/lib/plaid/utils";
+import { resetPlaidClient } from "@/lib/plaid/client";
 
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterAll(() => server.close());
+beforeAll(() => {
+  vi.stubEnv("PLAID_CLIENT_ID", "test-id");
+  vi.stubEnv("PLAID_SECRET", "test-secret");
+  vi.stubEnv("PLAID_ENV", "sandbox");
+  vi.stubEnv("ENCRYPTION_KEY", "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2");
+  server.listen({ onUnhandledRequest: "error" });
+});
+afterAll(() => {
+  server.close();
+  vi.unstubAllEnvs();
+});
 
 describe("plaid exchange flow", () => {
   let db: ReturnType<typeof createTestDb>["db"];
   let close: () => void;
+
+  beforeEach(() => {
+    resetPlaidClient();
+  });
 
   afterEach(() => {
     server.resetHandlers();
@@ -42,7 +56,7 @@ describe("plaid exchange flow", () => {
     expect(items[0].institutionName).toBe("Chase");
     expect(items[0].plaidInstitutionId).toBe("ins_1");
 
-    const decrypted = decryptAccessToken(items[0].accessToken);
+    const decrypted = decrypt(items[0].accessToken);
     expect(decrypted).toBe("access-sandbox-test-token-abc123");
 
     const accts = testDb.select().from(accounts).where(eq(accounts.householdId, hh)).all();

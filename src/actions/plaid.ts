@@ -5,18 +5,14 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Products, CountryCode } from "plaid";
-import { plaidClient } from "@/lib/plaid/client";
-import { encryptAccessToken } from "@/lib/plaid/token";
+import { getPlaidClient } from "@/lib/plaid/client";
+import { encrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
 import { mapPlaidAccountType, todayISO } from "@/lib/plaid/utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
-import { db as defaultDb } from "@/db";
+import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "@/db/schema";
-
-type LedgrDb = BetterSQLite3Database<typeof schema>;
 
 export async function createLinkToken() {
   await getHouseholdId();
@@ -26,7 +22,7 @@ export async function createLinkToken() {
   }
 
   try {
-    const response = await plaidClient.linkTokenCreate({
+    const response = await getPlaidClient().linkTokenCreate({
       user: { client_user_id: session.user.id },
       client_name: "Ledgr",
       products: [Products.Transactions],
@@ -35,16 +31,15 @@ export async function createLinkToken() {
       ...(process.env.PLAID_WEBHOOK_URL
         ? { webhook: process.env.PLAID_WEBHOOK_URL }
         : {}),
-      ...(process.env.NEXT_PUBLIC_APP_URL
-        ? {
-            redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/oauth-return`,
-          }
+      ...(process.env.PLAID_OAUTH_REDIRECT_URI
+        ? { redirect_uri: process.env.PLAID_OAUTH_REDIRECT_URI }
         : {}),
     });
     return { linkToken: response.data.link_token };
-  } catch (e) {
-    console.error("Failed to create link token:", e);
-    return { error: "Failed to initialize bank connection" };
+  } catch (e: unknown) {
+    const plaidErr = e as { response?: { data?: { error_code?: string; error_message?: string } } };
+    console.error("Failed to create link token:", plaidErr?.response?.data ?? e);
+    return { error: plaidErr?.response?.data?.error_message ?? "Failed to initialize bank connection" };
   }
 }
 
@@ -57,18 +52,18 @@ export async function exchangeAndStoreAccounts(
   | { success: false; error: string; accountCount?: never }
 > {
   try {
-    const exchangeRes = await plaidClient.itemPublicTokenExchange({
+    const exchangeRes = await getPlaidClient().itemPublicTokenExchange({
       public_token: publicToken,
     });
     const accessToken = exchangeRes.data.access_token;
 
-    const itemRes = await plaidClient.itemGet({ access_token: accessToken });
+    const itemRes = await getPlaidClient().itemGet({ access_token: accessToken });
     const institutionId = itemRes.data.item.institution_id ?? null;
 
     let institutionName = "Unknown Institution";
     if (institutionId) {
       try {
-        const instRes = await plaidClient.institutionsGetById({
+        const instRes = await getPlaidClient().institutionsGetById({
           institution_id: institutionId,
           country_codes: [CountryCode.Us],
         });
@@ -94,7 +89,7 @@ export async function exchangeAndStoreAccounts(
       }
     }
 
-    const accountsRes = await plaidClient.accountsGet({
+    const accountsRes = await getPlaidClient().accountsGet({
       access_token: accessToken,
     });
     const plaidAccounts = accountsRes.data.accounts;
@@ -107,7 +102,7 @@ export async function exchangeAndStoreAccounts(
         .values({
           id: plaidItemId,
           householdId,
-          accessToken: encryptAccessToken(accessToken),
+          accessToken: encrypt(accessToken),
           plaidInstitutionId: institutionId,
           institutionName,
           status: "active",

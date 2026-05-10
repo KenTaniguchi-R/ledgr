@@ -9,6 +9,9 @@ import { sql } from "drizzle-orm";
 import { households } from "./households";
 import { plaidItems } from "./plaid";
 
+export const ACCOUNT_TYPES = ["checking", "savings", "credit", "loan", "investment", "other"] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+
 export const accounts = sqliteTable(
   "accounts",
   {
@@ -20,9 +23,7 @@ export const accounts = sqliteTable(
     plaidAccountId: text("plaid_account_id"),
     name: text("name").notNull(),
     officialName: text("official_name"),
-    type: text("type", {
-      enum: ["checking", "savings", "credit", "loan", "investment", "other"],
-    }).notNull(),
+    type: text("type", { enum: ACCOUNT_TYPES }).notNull(),
     subtype: text("subtype"),
     currentBalance: integer("current_balance"),
     availableBalance: integer("available_balance"),

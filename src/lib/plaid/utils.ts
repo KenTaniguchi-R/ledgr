@@ -1,4 +1,4 @@
-type AccountType = "checking" | "savings" | "credit" | "loan" | "investment" | "other";
+import type { AccountType } from "@/db/schema/accounts";
 
 export function mapPlaidAccountType(
   plaidType: string,

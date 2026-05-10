@@ -1,10 +1,6 @@
 import { eq, and, type SQL } from "drizzle-orm";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { db as defaultDb } from "@/db";
-import type * as schema from "@/db/schema";
-
-type LedgrDb = BetterSQLite3Database<typeof schema>;
+import { db as defaultDb, type LedgrDb } from "@/db";
 
 export function scopedQuery(householdId: string, db: LedgrDb = defaultDb) {
   return {

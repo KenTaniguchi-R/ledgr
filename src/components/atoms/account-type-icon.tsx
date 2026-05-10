@@ -7,8 +7,7 @@ import {
   CircleDot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type AccountType = "checking" | "savings" | "credit" | "loan" | "investment" | "other";
+import type { AccountType } from "@/db/schema/accounts";
 
 interface AccountTypeIconProps {
   type: AccountType;

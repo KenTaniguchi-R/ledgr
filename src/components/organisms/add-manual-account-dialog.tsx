@@ -20,15 +20,16 @@ import {
 } from "@/components/ui/select";
 import { displayToCents } from "@/lib/money";
 import { createManualAccount } from "@/actions/plaid";
+import { ACCOUNT_TYPES, type AccountType } from "@/db/schema/accounts";
 
-const ACCOUNT_TYPES = [
-  { value: "checking", label: "Checking" },
-  { value: "savings", label: "Savings" },
-  { value: "credit", label: "Credit Card" },
-  { value: "loan", label: "Loan" },
-  { value: "investment", label: "Investment" },
-  { value: "other", label: "Other" },
-] as const;
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  checking: "Checking",
+  savings: "Savings",
+  credit: "Credit Card",
+  loan: "Loan",
+  investment: "Investment",
+  other: "Other",
+};
 
 interface AddManualAccountDialogProps {
   open: boolean;
@@ -40,7 +41,7 @@ export function AddManualAccountDialog({
   onOpenChange,
 }: AddManualAccountDialogProps) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<string>("checking");
+  const [type, setType] = useState<AccountType>("checking");
   const [balanceStr, setBalanceStr] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -58,7 +59,7 @@ export function AddManualAccountDialog({
     startTransition(async () => {
       const result = await createManualAccount({
         name,
-        type: type as "checking",
+        type,
         balance: displayToCents(balanceNum),
       });
 
@@ -94,14 +95,14 @@ export function AddManualAccountDialog({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="manual-type">Type</Label>
-            <Select value={type} onValueChange={(v) => { if (v !== null) setType(v); }}>
+            <Select value={type} onValueChange={(v) => { if (v !== null) setType(v as AccountType); }}>
               <SelectTrigger id="manual-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {ACCOUNT_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
+                  <SelectItem key={t} value={t}>
+                    {ACCOUNT_TYPE_LABELS[t]}
                   </SelectItem>
                 ))}
               </SelectContent>

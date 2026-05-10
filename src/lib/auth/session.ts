@@ -2,13 +2,9 @@ import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
-import { db as defaultDb } from "@/db";
+import { db as defaultDb, type LedgrDb } from "@/db";
 import { householdMembers } from "@/db/schema";
 import { provisionHousehold } from "./provision";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "@/db/schema";
-
-type LedgrDb = BetterSQLite3Database<typeof schema>;
 
 export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });

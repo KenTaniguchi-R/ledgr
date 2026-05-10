@@ -2,9 +2,11 @@ import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 
 const VALID_ENVS: Record<string, string> = {
   sandbox: PlaidEnvironments.sandbox,
-  development: PlaidEnvironments.development,
+  development: "https://development.plaid.com",
   production: PlaidEnvironments.production,
 };
+
+let _client: PlaidApi | null = null;
 
 function createPlaidClient(): PlaidApi {
   const clientId = process.env.PLAID_CLIENT_ID;
@@ -38,4 +40,13 @@ function createPlaidClient(): PlaidApi {
   return new PlaidApi(configuration);
 }
 
-export const plaidClient = createPlaidClient();
+export function getPlaidClient(): PlaidApi {
+  if (!_client) {
+    _client = createPlaidClient();
+  }
+  return _client;
+}
+
+export function resetPlaidClient(): void {
+  _client = null;
+}

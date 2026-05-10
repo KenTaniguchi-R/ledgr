@@ -13,7 +13,3 @@ export function plaidAmountToCents(plaidAmount: number | null | undefined): numb
   if (plaidAmount === null || plaidAmount === undefined) return null;
   return Math.round(plaidAmount * 100);
 }
-
-export function normalizeAmount(plaidCents: number): number {
-  return -plaidCents;
-}

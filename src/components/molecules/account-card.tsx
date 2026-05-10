@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AccountTypeIcon } from "@/components/atoms/account-type-icon";
 import { BalanceDisplay } from "@/components/atoms/balance-display";
 import { Pencil } from "lucide-react";
+import type { AccountType } from "@/db/schema/accounts";
 import type { AccountRow } from "@/queries/accounts";
 
 interface AccountCardProps {
@@ -19,7 +20,7 @@ export function AccountCard({ account, onEdit }: AccountCardProps) {
   return (
     <div className="group/card flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
-        <AccountTypeIcon type={account.type as Parameters<typeof AccountTypeIcon>[0]["type"]} />
+        <AccountTypeIcon type={account.type as AccountType} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">{account.name}</span>
