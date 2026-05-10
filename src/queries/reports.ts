@@ -92,6 +92,9 @@ export function getIncomeVsExpense(
   if (filters.accountIds?.length) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
   }
+  if (filters.categoryIds?.length) {
+    conditions.push(inArray(transactions.categoryId, filters.categoryIds));
+  }
 
   const txns = db
     .select({
