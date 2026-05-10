@@ -121,3 +121,81 @@ export const PlaidRecurringResponseSchema = z.object({
 export type PlaidRecurringResponse = z.infer<
   typeof PlaidRecurringResponseSchema
 >;
+
+// ─── Investment Schemas ─────────────────────────────────────────────────────
+
+export const SECURITY_TYPE_MAP: Record<string, string> = {
+  equity: "stock",
+  etf: "etf",
+  "mutual fund": "mutual_fund",
+  "fixed income": "bond",
+  cryptocurrency: "crypto",
+  cash: "cash",
+};
+
+export function mapSecurityType(plaidType: string | null): string {
+  if (!plaidType) return "other";
+  return SECURITY_TYPE_MAP[plaidType.toLowerCase()] ?? "other";
+}
+
+export const PlaidSecuritySchema = z.object({
+  security_id: z.string(),
+  name: z.string().nullable(),
+  ticker_symbol: z.string().nullable(),
+  type: z.string().nullable(),
+  iso_currency_code: z.string().nullable(),
+  close_price: z.number().nullable(),
+  sector: z.string().nullable().optional(),
+  industry: z.string().nullable().optional(),
+  is_cash_equivalent: z.boolean().nullable().optional(),
+});
+
+export type PlaidSecurity = z.infer<typeof PlaidSecuritySchema>;
+
+export const PlaidHoldingSchema = z.object({
+  account_id: z.string(),
+  security_id: z.string(),
+  quantity: z.number(),
+  institution_price: z.number().nullable(),
+  institution_price_as_of: z.string().nullable().optional(),
+  institution_value: z.number(),
+  cost_basis: z.number().nullable(),
+  iso_currency_code: z.string().nullable(),
+});
+
+export type PlaidHolding = z.infer<typeof PlaidHoldingSchema>;
+
+export const PlaidInvestmentTxnSchema = z.object({
+  investment_transaction_id: z.string(),
+  account_id: z.string(),
+  security_id: z.string().nullable(),
+  date: z.string(),
+  name: z.string(),
+  quantity: z.number(),
+  amount: z.number(),
+  price: z.number(),
+  fees: z.number().nullable(),
+  type: z.string(),
+  subtype: z.string().nullable().optional(),
+  iso_currency_code: z.string().nullable(),
+});
+
+export type PlaidInvestmentTxn = z.infer<typeof PlaidInvestmentTxnSchema>;
+
+export const PlaidHoldingsResponseSchema = z.object({
+  holdings: z.array(PlaidHoldingSchema),
+  securities: z.array(PlaidSecuritySchema),
+  accounts: z.array(PlaidAccountBalancesSchema),
+  request_id: z.string().optional(),
+});
+
+export type PlaidHoldingsResponse = z.infer<typeof PlaidHoldingsResponseSchema>;
+
+export const PlaidInvestmentTxnsResponseSchema = z.object({
+  investment_transactions: z.array(PlaidInvestmentTxnSchema),
+  securities: z.array(PlaidSecuritySchema),
+  total_investment_transactions: z.number(),
+  request_id: z.string().optional(),
+});
+
+export type PlaidInvestmentTxnsResponse = z.infer<typeof PlaidInvestmentTxnsResponseSchema>;
