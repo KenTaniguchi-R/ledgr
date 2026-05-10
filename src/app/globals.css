@@ -130,3 +130,12 @@
     @apply font-sans;
   }
 }
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.18);
+  }
+}

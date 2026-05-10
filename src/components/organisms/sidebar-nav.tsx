@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, ArrowLeftRight, TrendingUp, Wallet, BarChart3, Receipt, LogOut, Upload, Settings, MessageCircle } from "lucide-react";
+import { LayoutDashboard, Building2, ArrowLeftRight, TrendingUp, Wallet, BarChart3, Receipt, LogOut, Upload, Settings } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { useChatPanel } from "@/components/providers/chat-panel-provider";
 
 interface SidebarNavProps {
   userName: string;
@@ -29,7 +28,6 @@ const NAV_ITEMS = [
 export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { toggle } = useChatPanel();
 
   async function handleSignOut() {
     await authClient.signOut();
@@ -67,16 +65,6 @@ export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
           );
         })}
       </nav>
-
-      <div className="px-3 py-2">
-        <button
-          onClick={toggle}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
-        >
-          <MessageCircle className="size-4" />
-          AI Assistant
-        </button>
-      </div>
 
       <Separator />
 

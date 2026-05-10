@@ -3,12 +3,8 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useEffect, useRef } from "react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { MessageCircle, X, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useChatPanel } from "@/components/providers/chat-panel-provider";
 import { ChatMessage } from "@/components/molecules/chat-message";
 import { ChatInput } from "@/components/molecules/chat-input";
@@ -19,7 +15,7 @@ interface Props {
 }
 
 export function ChatPanel({ hasAiConfigured }: Props) {
-  const { isOpen, close } = useChatPanel();
+  const { isOpen, toggle, close } = useChatPanel();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, sendMessage, status } = useChat({
@@ -39,20 +35,58 @@ export function ChatPanel({ hasAiConfigured }: Props) {
   }
 
   return (
-    <Sheet
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) close();
-      }}
-    >
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col p-0 sm:w-[400px]"
+    <>
+      {/* Floating Action Button */}
+      <button
+        onClick={toggle}
+        aria-label={isOpen ? "Close AI assistant" : "Open AI assistant"}
+        className={cn(
+          "fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full shadow-lg transition-all duration-300 ease-out",
+          "bg-primary text-primary-foreground hover:scale-105 hover:shadow-xl active:scale-95",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          isOpen && "rotate-0",
+          !isOpen && "animate-[pulse-subtle_3s_ease-in-out_infinite]",
+        )}
       >
-        <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle className="text-base">AI Assistant</SheetTitle>
-        </SheetHeader>
+        {isOpen ? (
+          <X className="size-5 transition-transform duration-200" />
+        ) : (
+          <Sparkles className="size-5 transition-transform duration-200" />
+        )}
+      </button>
 
+      {/* Floating Chat Dialog */}
+      <div
+        role="dialog"
+        aria-label="AI Assistant"
+        aria-hidden={!isOpen}
+        className={cn(
+          "fixed bottom-24 right-6 z-50 flex w-[400px] flex-col overflow-hidden rounded-2xl border bg-background/95 shadow-2xl backdrop-blur-sm transition-all duration-300 ease-out",
+          "max-h-[min(560px,calc(100vh-120px))]",
+          isOpen
+            ? "translate-y-0 scale-100 opacity-100"
+            : "pointer-events-none translate-y-4 scale-95 opacity-0",
+          "max-sm:inset-x-4 max-sm:bottom-24 max-sm:w-auto",
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-full bg-primary/10">
+              <Sparkles className="size-3.5 text-primary" />
+            </div>
+            <h2 className="text-sm font-semibold">Ledgr AI</h2>
+          </div>
+          <button
+            onClick={close}
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Messages */}
         {messages.length === 0 ? (
           <ChatEmptyState onSuggest={handleSend} hasAiConfigured={hasAiConfigured} />
         ) : (
@@ -66,16 +100,21 @@ export function ChatPanel({ hasAiConfigured }: Props) {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  Thinking...
+                <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+                  <span className="inline-flex gap-0.5">
+                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
+                  </span>
                 </div>
               </div>
             )}
           </div>
         )}
 
+        {/* Input */}
         <ChatInput onSend={handleSend} isLoading={isLoading} />
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
 }

@@ -1,10 +1,12 @@
-import { streamText } from "ai";
+import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { getSession, resolveHouseholdId } from "@/lib/auth/session";
 import { getUserAiSettings } from "@/queries/settings";
 import { createUserModel, type AiProvider } from "@/lib/ai/provider";
 import { decrypt } from "@/lib/encryption";
 import { financialTools } from "@/lib/ai/chat/tools";
 import { buildSystemPrompt } from "@/lib/ai/chat/system-prompt";
+
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -17,7 +19,7 @@ export async function POST(request: Request) {
   if (!settings?.aiProvider || !settings?.aiModel || !settings.hasKey) {
     return Response.json(
       { error: "AI not configured. Go to Settings to add your API key." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -28,16 +30,17 @@ export async function POST(request: Request) {
     aiBaseUrl: settings.aiBaseUrl ?? undefined,
   });
 
-  const { messages } = await request.json();
+  const { messages }: { messages: UIMessage[] } = await request.json();
   const householdId = resolveHouseholdId(session.user.id);
 
   const useTools = settings.toolCallingSupported !== false;
+  const tools = useTools ? financialTools(householdId) : undefined;
 
   const result = streamText({
     model,
     system: buildSystemPrompt(householdId),
-    messages,
-    ...(useTools ? { tools: financialTools(householdId), maxSteps: 5 } : {}),
+    messages: await convertToModelMessages(messages),
+    ...(tools ? { tools, stopWhen: stepCountIs(5) } : {}),
     abortSignal: request.signal,
   });
 
