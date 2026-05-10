@@ -3,15 +3,17 @@
 import { useState } from "react";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
+import { IncomeExpenseCategoryTable } from "@/components/molecules/income-expense-category-table";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
-import type { IncomeExpenseRow } from "@/queries/reports";
+import type { IncomeExpenseRow, IncomeExpenseCategoryRow } from "@/queries/reports";
 
 interface ReportIncomeExpenseProps {
   data: IncomeExpenseRow[];
+  categoryData?: IncomeExpenseCategoryRow[];
 }
 
-export function ReportIncomeExpense({ data }: ReportIncomeExpenseProps) {
+export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseProps) {
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
   const { searchParams } = useSearchParamFilters();
 
@@ -35,13 +37,29 @@ export function ReportIncomeExpense({ data }: ReportIncomeExpenseProps) {
     { label: "Net", value: totalNet, color: "dynamic" },
   ];
 
+  function handleCategoryDrillDown(categoryId: string, isIncome: boolean) {
+    const cat = categoryData?.find((c) => c.categoryId === categoryId);
+    setDrillDown({
+      categoryId,
+      categoryName: cat?.categoryName ?? "Unknown",
+      type: isIncome ? "income" : "expense",
+      tabContext: "Income vs Expense",
+    });
+  }
+
   return (
     <div className="space-y-4">
       <ReportSummaryBar items={summaryItems} />
       <h3 className="text-lg font-medium">Income vs Expense</h3>
       <div className="h-[300px]">
-        <CashFlowBarChart data={chartData} />
+        <CashFlowBarChart data={chartData} showTrendline />
       </div>
+      {categoryData && (
+        <IncomeExpenseCategoryTable
+          data={categoryData}
+          onCategoryClick={handleCategoryDrillDown}
+        />
+      )}
       <DrillDownSheet
         filter={drillDown}
         dateFrom={dateFrom}

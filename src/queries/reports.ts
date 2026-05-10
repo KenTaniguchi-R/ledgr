@@ -228,6 +228,94 @@ export function getCategoryTrends(
   return result.sort((a, b) => a.period.localeCompare(b.period) || b.total - a.total);
 }
 
+export interface IncomeExpenseCategoryRow {
+  categoryId: string;
+  categoryName: string;
+  isIncome: boolean;
+  total: number;
+  monthlyAverage: number;
+  percentOfTotal: number;
+}
+
+export function getIncomeExpenseByCategory(
+  householdId: string,
+  filters: ReportFilters,
+  db: LedgrDb = defaultDb,
+): IncomeExpenseCategoryRow[] {
+  const scoped = scopedQuery(householdId, db);
+  const incomeCatIds = getIncomeCategoryIds(db);
+
+  const conditions = [
+    notDeleted(transactions),
+    eq(transactions.pending, false),
+    eq(transactions.isTransfer, false),
+    isNull(transactions.transferPairId),
+    gte(transactions.date, filters.dateFrom),
+    lte(transactions.date, filters.dateTo),
+  ];
+
+  if (filters.accountIds?.length) {
+    conditions.push(inArray(transactions.accountId, filters.accountIds));
+  }
+  if (filters.categoryIds?.length) {
+    conditions.push(inArray(transactions.categoryId, filters.categoryIds));
+  }
+
+  const txns = db
+    .select({
+      categoryId: transactions.categoryId,
+      categoryName: categories.name,
+      normalizedAmount: transactions.normalizedAmount,
+      date: transactions.date,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(scoped.where(transactions, ...conditions))
+    .all();
+
+  const months = new Set(txns.map((t) => t.date.slice(0, 7)));
+  const monthCount = Math.max(months.size, 1);
+
+  const byCat = new Map<string, { name: string; isIncome: boolean; total: number }>();
+  for (const txn of txns) {
+    if (!txn.categoryId) continue;
+    const isIncome = incomeCatIds.has(txn.categoryId);
+    const existing = byCat.get(txn.categoryId);
+    const amount = isIncome ? Math.abs(txn.normalizedAmount) : txn.normalizedAmount;
+    if (existing) {
+      existing.total += amount;
+    } else {
+      byCat.set(txn.categoryId, {
+        name: txn.categoryName ?? "Unknown",
+        isIncome,
+        total: amount,
+      });
+    }
+  }
+
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  for (const cat of byCat.values()) {
+    if (cat.isIncome) totalIncome += cat.total;
+    else totalExpenses += cat.total;
+  }
+
+  const result: IncomeExpenseCategoryRow[] = [];
+  for (const [categoryId, cat] of byCat.entries()) {
+    const denominator = cat.isIncome ? totalIncome : totalExpenses;
+    result.push({
+      categoryId,
+      categoryName: cat.name,
+      isIncome: cat.isIncome,
+      total: cat.total,
+      monthlyAverage: Math.round(cat.total / monthCount),
+      percentOfTotal: denominator > 0 ? (cat.total / denominator) * 100 : 0,
+    });
+  }
+
+  return result.sort((a, b) => b.total - a.total);
+}
+
 export function getReportNetWorthHistory(
   householdId: string,
   filters: ReportFilters,

@@ -4,6 +4,7 @@ import { getAccounts } from "@/queries/accounts";
 import {
   getSpendingByCategory,
   getIncomeVsExpense,
+  getIncomeExpenseByCategory,
   getCategoryTrends,
   getReportNetWorthHistory,
   type ReportFilters,
@@ -59,6 +60,7 @@ export default async function ReportsPage({
   // Only fetch data for active tab
   let spendingData;
   let incomeExpenseData;
+  let incomeExpenseCategoryData;
   let trendsData;
   let netWorthData;
 
@@ -68,6 +70,7 @@ export default async function ReportsPage({
       break;
     case "income-expense":
       incomeExpenseData = getIncomeVsExpense(householdId, filters);
+      incomeExpenseCategoryData = getIncomeExpenseByCategory(householdId, filters);
       break;
     case "trends":
       trendsData = getCategoryTrends(householdId, filters);
@@ -95,6 +98,7 @@ export default async function ReportsPage({
         activeTab={tab}
         spendingData={spendingData}
         incomeExpenseData={incomeExpenseData}
+        incomeExpenseCategoryData={incomeExpenseCategoryData}
         trendsData={trendsData}
         netWorthData={netWorthData}
         comparisonLabel={compLabel}

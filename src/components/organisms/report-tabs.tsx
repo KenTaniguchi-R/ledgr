@@ -6,13 +6,14 @@ import { ReportSpending } from "./report-spending";
 import { ReportIncomeExpense } from "./report-income-expense";
 import { ReportTrends } from "./report-trends";
 import { ReportNetWorth } from "./report-net-worth";
-import type { SpendingRow, IncomeExpenseRow, CategoryTrendRow } from "@/queries/reports";
+import type { SpendingRow, IncomeExpenseRow, CategoryTrendRow, IncomeExpenseCategoryRow } from "@/queries/reports";
 import type { NetWorthPoint } from "@/queries/dashboard";
 
 interface ReportTabsProps {
   activeTab: string;
   spendingData?: SpendingRow[];
   incomeExpenseData?: IncomeExpenseRow[];
+  incomeExpenseCategoryData?: IncomeExpenseCategoryRow[];
   trendsData?: CategoryTrendRow[];
   netWorthData?: NetWorthPoint[];
   comparisonLabel: string | null;
@@ -22,6 +23,7 @@ export function ReportTabs({
   activeTab,
   spendingData,
   incomeExpenseData,
+  incomeExpenseCategoryData,
   trendsData,
   netWorthData,
   comparisonLabel,
@@ -44,7 +46,7 @@ export function ReportTabs({
         {spendingData && <ReportSpending data={spendingData} comparisonLabel={comparisonLabel} />}
       </TabsContent>
       <TabsContent value="income-expense" className="mt-4">
-        {incomeExpenseData && <ReportIncomeExpense data={incomeExpenseData} />}
+        {incomeExpenseData && <ReportIncomeExpense data={incomeExpenseData} categoryData={incomeExpenseCategoryData} />}
       </TabsContent>
       <TabsContent value="trends" className="mt-4">
         {trendsData && <ReportTrends data={trendsData} />}
