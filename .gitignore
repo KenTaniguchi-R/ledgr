@@ -42,7 +42,7 @@ pnpm-debug.log*
 .vercel
 
 # Test reports
-reports/
+/reports/
 playwright-report/
 test-results/
 .stryker-tmp/
