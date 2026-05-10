@@ -30,7 +30,21 @@ Full investment portfolio tracking with Monarch Money-level parity. Syncs holdin
 - Benchmark comparison (future enhancement)
 - Time-weighted returns calculation (future enhancement)
 
+## Schema Migration
+
+Before any implementation, apply a schema migration to add missing columns and constraints:
+
+1. **Add `sector` column** to `investment_holdings`: `sector text("sector")` — needed for allocation breakdown by sector.
+2. **Add unique index** on `holdings_history`: `UNIQUE(account_id, plaid_security_id, date)` — required for `INSERT OR IGNORE` to work correctly. Without this, every snapshot duplicates rows.
+3. **Add unique index** on `investment_transactions`: `UNIQUE(plaid_investment_transaction_id)` — required for `INSERT OR IGNORE` deduplication. Without this, every sync re-inserts 24 months of transactions.
+
+Run `pnpm db:generate` + `pnpm db:migrate` after schema changes.
+
 ## Backend Architecture
+
+### Plaid Link Update
+
+The existing Plaid Link token creation must include `investments` in the `products` array. Without this, investment accounts will link successfully but `investmentsHoldingsGet` will always return `PRODUCTS_NOT_SUPPORTED`. Update the Link token creation action/route to request `["transactions", "investments"]`.
 
 ### Shared Plaid Utilities Extraction
 
@@ -39,7 +53,7 @@ Before building the investments module, extract shared utilities from `src/lib/p
 - `retryWithBackoff<T>(fn, maxAttempts): Promise<T>` — exponential backoff with jitter
 - `REAUTH_ERROR_CODES: Set<string>` — 7 codes that trigger reauth_required status
 - `TRANSIENT_ERROR_CODES: Set<string>` — 6 codes for temporary failures
-- `SKIP_ERROR_CODES: Set<string>` — new set containing `PRODUCTS_NOT_SUPPORTED` for non-fatal skips
+- `SKIP_ERROR_CODES: Set<string>` — new set containing `PRODUCTS_NOT_SUPPORTED` and `PRODUCT_NOT_READY` for non-fatal skips. `PRODUCT_NOT_READY` fires during the initial sync window when Plaid hasn't finished fetching historical investment data (can take minutes to hours after Link completion).
 
 Update `sync.ts` to import from `utils.ts` instead of defining locally.
 
@@ -72,7 +86,7 @@ export async function fetchHoldings(
 ): Promise<{ holdings: PlaidHolding[]; securities: PlaidSecurity[] }>
 ```
 
-Single Plaid call, no pagination. Zod-validates the response.
+Single Plaid call. Plaid returns up to 500 holdings per call with no pagination mechanism and no `total_holdings` count. For typical retail portfolios this is a non-issue; households with 500+ positions could silently lose data. Document this limit but don't over-engineer a workaround for a rare edge case. Zod-validates the response.
 
 ```typescript
 export async function fetchAllInvestmentTransactionPages(
@@ -83,7 +97,7 @@ export async function fetchAllInvestmentTransactionPages(
 ): Promise<{ transactions: PlaidInvestmentTxn[]; securities: PlaidSecurity[] }>
 ```
 
-Offset-based pagination loop. Increments offset by `response.investment_transactions.length` until `offset >= total_investment_transactions`. Safety cap at 50 pages (5,000 transactions) to prevent infinite loops.
+Offset-based pagination loop. Increments offset by `response.investment_transactions.length` until `offset >= total_investment_transactions`. Safety cap at 50 iterations to prevent infinite loops on API bugs. (Default page size is 100; Plaid accepts a `count` parameter up to 500, so actual transaction count at cap varies.)
 
 #### Stage 2: Process (Pure Functions)
 
@@ -126,11 +140,12 @@ export async function applyInvestmentsToDb(
 ): Promise<{ holdingsUpserted: number; txnsInserted: number }>
 ```
 
+The `plaidToInternalAccount` map is built by the orchestrator before calling Stage 2, and passed to both `processHoldings`/`processInvestmentTransactions` (Stage 2) and `applyInvestmentsToDb` (Stage 3). This matches the existing pattern in `sync.ts` where `doSync` builds the map pre-process.
+
 Inside a single `db.transaction()`:
-1. Build plaid→internal account ID lookup
-2. **Holdings: full replace** — `DELETE FROM investment_holdings WHERE account_id IN (item's accounts)` then bulk INSERT. Holdings are a point-in-time snapshot; there is no "modified" concept.
-3. **Investment transactions: INSERT OR IGNORE** on `plaid_investment_transaction_id`. Never delete — Plaid doesn't send removals for investment transactions.
-4. **Snapshot: INSERT OR IGNORE** into `holdings_history` for today's date.
+1. **Holdings: full replace** — `DELETE FROM investment_holdings WHERE account_id IN (item's accounts)` then bulk INSERT. Holdings are a point-in-time snapshot; there is no "modified" concept.
+2. **Investment transactions: INSERT OR IGNORE** on `plaid_investment_transaction_id` (requires unique index). Never delete — Plaid doesn't send removals for investment transactions.
+3. **Snapshot: INSERT OR IGNORE** into `holdings_history` for today's date (requires unique index on `(accountId, plaidSecurityId, date)`).
 
 #### Orchestrator
 
@@ -140,13 +155,15 @@ const activeInvestmentSyncs = new Map<string, Promise<InvestmentSyncResult>>();
 export async function syncInvestments(
   itemId: string,
   householdId: string,
-  db?: LedgrDb,
+  db: LedgrDb,
 ): Promise<InvestmentSyncResult>
 ```
 
+- `db` is required (not optional) — matches `syncInstitution` pattern; caller (scheduler) always has a db reference
 - Per-item in-process locking (same pattern as transaction sync)
+- Builds `plaidToInternalAccount` map before calling Stage 2, passes to both process and apply stages
 - Decrypts access token, calls fetch → process → apply
-- `PRODUCTS_NOT_SUPPORTED` → non-fatal skip (returns `{ skipped: true }`)
+- `PRODUCTS_NOT_SUPPORTED` or `PRODUCT_NOT_READY` → non-fatal skip (returns `{ skipped: true }`)
 - Reauth/transient errors → update item status (reuses shared error classification)
 
 ### Critical Amount Convention
@@ -157,9 +174,21 @@ Investment transaction amounts must **NOT** go through `normalizeAmount()`. That
 
 Store raw cents directly. Negate only for UI display of "proceeds."
 
+### Fees Convention
+
+`fees` in Plaid investment transactions are typically non-negative (costs), but some institutions report negative values for fee reversals/rebates. Store the raw value as-is (do not `Math.abs`). A fee rebate of `-5.00` becomes `-500` cents — this is semantically correct as a cost reduction.
+
 ### Cost Basis
 
 `cost_basis` is nullable in Plaid responses. Store `null`, never default to 0. Zero and null have different semantics for tax calculations.
+
+### Investment Webhooks (Deferred)
+
+Plaid fires `HOLDINGS: DEFAULT_UPDATE` and `INVESTMENTS_TRANSACTIONS: DEFAULT_UPDATE` webhooks when investment data refreshes. These are **not handled in Phase 10** — the existing webhook handler will silently ignore them. The 4-hour cron provides a fallback, but holdings can be stale for up to 4 hours after an institution reports a trade. This is an acceptable tradeoff for Phase 10; webhook handling for investments can be added alongside the Phase 5 webhook infrastructure.
+
+### Securities Data Drift
+
+Historical `investment_transactions` use `INSERT OR IGNORE` and are never updated. If a security undergoes a name/ticker change (e.g., FB → META), old transaction rows retain the old ticker. This is technically correct for historical records but means filtering by current ticker may miss old transactions. Document this as a known limitation; a future enhancement could add a `security_aliases` lookup.
 
 ### Scheduler Integration
 
@@ -184,7 +213,7 @@ New file: `src/queries/investments.ts`
 Returns: `{ totalValue: number, dayChange: number | null, totalGainLoss: number, totalCostBasis: number }`
 
 - `totalValue`: SUM of `currentValue` from `investment_holdings` joined through accounts
-- `dayChange`: compare total value from latest `holdings_history` date vs second-latest date. If only one date exists, returns `null`.
+- `dayChange`: compare total value from today's `holdings_history` vs yesterday's (specific calendar dates, not "latest two arbitrary dates"). If either date has no rows, returns `null`. Using specific dates avoids mixed-date comparisons when accounts sync at different times.
 - `totalGainLoss`: `totalValue - totalCostBasis`
 - `totalCostBasis`: SUM of `costBasis` (excluding nulls)
 
@@ -209,6 +238,8 @@ Returns: `HoldingRow[]`
 - Optional `accountId` filter for drilling into a specific account.
 
 Each row includes: ticker, securityName, type, sector, quantity, currentPrice, currentValue, costBasis, gainLoss, gainLossPercent.
+
+**No pagination** — `getHoldings` returns all rows unbounded. Typical retail portfolios have <100 holdings; even large portfolios cap at ~500 (Plaid's limit). Client-side sorting is safe because the full dataset is always present.
 
 ### getInvestmentTransactions(householdId, filters, cursor?)
 
@@ -266,34 +297,41 @@ const [summary, history, allocation, holdings, transactions] = await Promise.all
 
 ### Component Hierarchy
 
-#### Atoms (4 new)
+#### Existing Components to Extend (3 refactors)
 
-**`portfolio-value-history-chart.tsx`**
-- Recharts `AreaChart` with single `Area`
-- `linearGradient` SVG fill (primary color, 30% top opacity → 0% bottom)
-- Time axis: `formatDateShort`, Y-axis: `centsToDisplay`
-- Brokerage-quality gradient differentiates from generic area chart
+**`net-worth-area-chart.tsx` → generalize**
+- Currently tied to `NetWorthPoint[]` and multi-series layout
+- Refactor to accept generic `{ date: string; value: number }[]` data with configurable series name
+- Reuse for portfolio value history (single-series AreaChart with gradient)
+- Avoids creating a duplicate `portfolio-value-history-chart.tsx`
 
-**`asset-allocation-chart.tsx`**
-- Recharts `PieChart`/`Pie` with `innerRadius` (donut)
-- Same structure as existing `spending-chart.tsx`
-- Right-panel CSS grid: color swatch | type name | value | %
-- Toggle between "By Type" and "By Sector" via prop
+**`spending-chart.tsx` → generalize**
+- Currently tied to spending category data
+- Refactor to accept generic `{ name: string; value: number }[]` interface
+- Reuse for asset allocation donut (same PieChart/donut + legend structure)
+- Add "By Type" / "By Sector" toggle via prop
+- Avoids creating a duplicate `asset-allocation-chart.tsx`
 
-**`holding-change-badge.tsx`**
-- Green/red pill with triangle up/down + percentage
-- `tabular-nums` font variant for alignment
-- Handles null (renders "—")
+**`comparison-badge.tsx` → extend**
+- Already does percentage change with up/down indicator and color coding
+- Add optional `pill?: boolean` prop for pill shape variant
+- Add explicit `null` handling (renders "—")
+- Reuse for holding gain/loss display
+- Avoids creating a duplicate `holding-change-badge.tsx`
+
+#### Atoms (1 new)
 
 **`investment-type-badge.tsx`**
 - Maps security type enum to colored shadcn `Badge`
 - Types: Stock, ETF, Mutual Fund, Bond, Crypto, Cash, Other
+- No existing analog — genuinely new
 
-#### Molecules (4 new)
+#### Organisms (4 new — includes reclassified `portfolio-summary-header`)
 
-**`portfolio-summary-header.tsx`**
-- Three `SummaryCard`s: Total Value, Day Change (with `HoldingChangeBadge`), Total Gain/Loss
+**`portfolio-summary-header.tsx`** (organism, not molecule)
+- Three `SummaryCard`s: Total Value, Day Change (with `ComparisonBadge`), Total Gain/Loss
 - Responsive: 3-col on desktop, stacked on mobile
+- Classified as organism because it aggregates multiple molecules in a layout (same level as `dashboard-grid.tsx`)
 
 **`holding-row.tsx`**
 - Dense grid row: ticker | name | type badge | shares | price | value | cost basis | gain/loss %
@@ -309,13 +347,11 @@ const [summary, history, allocation, holdings, transactions] = await Promise.all
 - Date range picker + type multi-select (buy/sell/dividend/fee/transfer/cash) + account select
 - URL-driven (pushes searchParams)
 
-#### Organisms (3 new)
-
 **`holdings-table.tsx`** (`"use client"`)
 - `ToggleGroup` for Consolidated | By Account → `router.push` with `?view=` param
 - Optional account filter dropdown in per-account view
 - Renders `HoldingRow[]` with sticky header
-- Sort by value, gain/loss, name (client-side)
+- Sort by value, gain/loss, name (client-side — safe because `getHoldings` returns all rows unbounded)
 
 **`investment-transaction-list.tsx`** (`"use client"`)
 - Cursor-based load-more (structural clone of `transaction-list.tsx`)
@@ -323,8 +359,8 @@ const [summary, history, allocation, holdings, transactions] = await Promise.all
 - `InvestmentFilters` at top
 
 **`investment-page-layout.tsx`** (`"use client"`)
-- Top-level client shell
-- Owns shadcn `Tabs` component driven by `?tab=` URL param
+- Receives `activeTab` and all pre-fetched data as props from `page.tsx` (server component reads `searchParams` and passes resolved values — follows reports page pattern exactly)
+- Does NOT own URL routing — tab switching calls `router.push` only for the view toggle within holdings
 - Renders: PortfolioSummaryHeader → charts row → Tabs (Holdings | Transactions)
 
 #### Dashboard Widget
@@ -358,62 +394,81 @@ Data-dense but clean brokerage aesthetic:
 
 ## Testing Strategy
 
+### Test Data Factories
+
+Add to `tests/integration/helpers.ts`:
+- `insertInvestmentHolding(db, accountId, overrides)` — note: takes `accountId` (not `householdId`) as the relational param, since investment tables use FK chain isolation
+- `insertHoldingsSnapshot(db, accountId, date, overrides)`
+- `insertInvestmentTransaction(db, accountId, overrides)`
+
+The existing `insertAccount` factory works with `{ type: 'investment' }` override.
+
 ### Unit Tests (colocated)
 
-**`src/lib/plaid/investments.test.ts`** (8-10 tests):
-- `processHoldings`: type mapping, cents conversion, null cost basis handling, skip unknown accounts
-- `processInvestmentTransactions`: amount/price/fees conversion, type mapping
+**`src/lib/plaid/investments.test.ts`** (10-12 tests):
+- `processHoldings`: type mapping, cents conversion, null cost basis preserved as null, skip unknown accounts, holding with missing security_id in lookup (edge case)
+- `processInvestmentTransactions`: amount/price/fees conversion, type mapping, negative fees preserved
 - Property-based tests (fast-check) for `processHoldings` on arbitrary quantity/price inputs
+- Property-based test asserting `processInvestmentTransactions` never produces `-0` in any field for zero-valued inputs
 
 ### Integration Tests
 
-**`tests/integration/investment-sync.test.ts`** (6-8 tests):
+**`tests/integration/investment-sync.test.ts`** (8-10 tests):
 - Full pipeline: holdings upsert, transaction insert-or-ignore
-- Holdings full-replace (old holdings deleted)
-- Snapshot writing to holdings_history
-- Household isolation via FK chain
-- PRODUCTS_NOT_SUPPORTED skip behavior
+- Holdings full-replace (old holdings deleted on re-sync)
+- Snapshot writing to holdings_history (unique constraint prevents duplicates)
+- `snapshotHoldings` idempotency: calling twice on same date writes one row
+- Household isolation via FK chain: insert two households with separate accounts + holdings, assert query for household 1 excludes household 2's data (must join through accounts, not use shortcut)
+- PRODUCTS_NOT_SUPPORTED skip behavior (non-fatal, item status unchanged)
+- PRODUCT_NOT_READY skip behavior
+- Pagination safety cap (mock 51 pages, assert loop terminates at 50 iterations)
+- `triggerInvestmentSync` action: ownership verification (reject sync for item not owned by household)
 
 **`tests/integration/investment-queries.test.ts`** (6-8 tests):
 - Consolidated vs per-account holdings
 - Allocation grouping by type
-- Day change calculation (two dates, one date, no dates)
+- Day change calculation: today vs yesterday (both present), only today (returns null), neither (returns null)
 - Portfolio history aggregation
 - Investment transaction pagination + filters
 
 ### MSW Mocks
 
 Add to `tests/mocks/handlers.ts`:
-- `investmentsHoldingsGet` — returns fixture with 3 accounts, 5 holdings, 4 securities
+- `investmentsHoldingsGet` — returns fixture with 3 accounts, 5 holdings, 4 securities. Must include: one holding with `cost_basis: null`, one security with unmapped type (e.g., `"warrant"` → `"other"`)
+- `investmentsHoldingsEmptyHandler` — returns `{ holdings: [], securities: [], accounts: [] }`
 - `investmentsTransactionsGet` — returns fixture with offset pagination (2 pages)
+- `investmentsProductsNotSupportedHandler` — returns `PRODUCTS_NOT_SUPPORTED` error response
 
 ### Test Budget
 
-~20-25 tests total. No tests for Zod schemas, UI atoms/molecules, or loading/error pages.
+~28-32 tests total. No tests for Zod schemas, UI atoms/molecules, or loading/error pages.
 
 ## Build Sequence
 
 | Step | What | Dependencies |
 |------|------|-------------|
-| 1 | Extract shared Plaid utils to `utils.ts`, update `sync.ts` imports | None |
-| 2 | Add Zod schemas for investment responses to `schemas.ts` | None |
-| 3 | `processHoldings` + `processInvestmentTransactions` (pure) + unit tests | Step 2 |
-| 4 | Fetch functions + MSW mock handlers | Steps 1, 2 |
-| 5 | `applyInvestmentsToDb` + integration tests | Steps 3, 4 |
-| 6 | `syncInvestments` orchestrator + scheduler wiring + `snapshotHoldings` | Step 5 |
-| 7 | Query layer (`queries/investments.ts`) + integration tests | Step 5 |
-| 8 | Server action (`triggerInvestmentSync`) | Steps 6, 7 |
-| 9 | Atoms (4 chart/badge components) | None |
-| 10 | Molecules (4 row/header/filter components) | Step 9 |
-| 11 | Organisms (3 — holdings table, transaction list, page layout) | Steps 10, 7 |
-| 12 | Page + loading + error + sidebar nav | Steps 8, 11 |
-| 13 | Dashboard widget + registry | Step 7 |
+| 0 | Schema migration: add `sector` column, unique indexes on `holdings_history` and `investment_transactions` | None |
+| 1 | Update Plaid Link token creation to include `investments` product | None |
+| 2 | Extract shared Plaid utils to `utils.ts`, update `sync.ts` imports | None |
+| 3 | Add Zod schemas for investment responses to `schemas.ts` | None |
+| 4 | `processHoldings` + `processInvestmentTransactions` (pure) + unit tests + test factories | Step 3 |
+| 5 | Fetch functions + MSW mock handlers | Steps 2, 3 |
+| 6 | `applyInvestmentsToDb` + integration tests | Steps 4, 5 |
+| 7 | `syncInvestments` orchestrator + scheduler wiring + `snapshotHoldings` | Step 6 |
+| 8 | Query layer (`queries/investments.ts`) + integration tests | Step 6 |
+| 9 | Server action (`triggerInvestmentSync`) | Steps 7, 8 |
+| 10 | Refactor existing atoms: generalize `net-worth-area-chart`, `spending-chart`, extend `comparison-badge` | None |
+| 11 | New atom: `investment-type-badge` | None |
+| 12 | Molecules (3 row/filter components) | Steps 10, 11 |
+| 13 | Organisms (4 — summary header, holdings table, transaction list, page layout) | Steps 12, 8 |
+| 14 | Page + loading + error + sidebar nav | Steps 9, 13 |
+| 15 | Dashboard widget + registry | Step 8 |
 
-Backend-first (steps 1-8), then UI (steps 9-13). Each step is independently testable.
+Backend-first (steps 0-9), then UI (steps 10-15). Each step is independently testable.
 
 ## Files Summary
 
-### New Files (22)
+### New Files (16)
 - `src/lib/plaid/utils.ts`
 - `src/lib/plaid/investments.ts`
 - `src/lib/plaid/investments.test.ts`
@@ -422,14 +477,11 @@ Backend-first (steps 1-8), then UI (steps 9-13). Each step is independently test
 - `src/app/(dashboard)/investments/page.tsx`
 - `src/app/(dashboard)/investments/loading.tsx`
 - `src/app/(dashboard)/investments/error.tsx`
-- `src/components/atoms/portfolio-value-history-chart.tsx`
-- `src/components/atoms/asset-allocation-chart.tsx`
-- `src/components/atoms/holding-change-badge.tsx`
 - `src/components/atoms/investment-type-badge.tsx`
-- `src/components/molecules/portfolio-summary-header.tsx`
 - `src/components/molecules/holding-row.tsx`
 - `src/components/molecules/investment-transaction-row.tsx`
 - `src/components/molecules/investment-filters.tsx`
+- `src/components/organisms/portfolio-summary-header.tsx`
 - `src/components/organisms/holdings-table.tsx`
 - `src/components/organisms/investment-transaction-list.tsx`
 - `src/components/organisms/investment-page-layout.tsx`
@@ -437,11 +489,17 @@ Backend-first (steps 1-8), then UI (steps 9-13). Each step is independently test
 - `tests/integration/investment-sync.test.ts`
 - `tests/integration/investment-queries.test.ts`
 
-### Modified Files (7)
+### Modified Files (11)
+- `src/db/schema/investments.ts` — add `sector` column, unique indexes
 - `src/lib/plaid/sync.ts` — import shared utils from `utils.ts`
 - `src/lib/plaid/schemas.ts` — add investment Zod schemas
 - `src/lib/jobs/scheduler.ts` — add investment sync to 4h cron + daily snapshot job
+- `src/components/atoms/net-worth-area-chart.tsx` — generalize to accept generic data interface
+- `src/components/atoms/spending-chart.tsx` — generalize to accept generic data interface
+- `src/components/molecules/comparison-badge.tsx` — add `pill` prop + null handling
 - `src/components/organisms/sidebar-nav.tsx` — add Investments nav item
 - `src/components/organisms/widgets/registry.ts` — register investments widget
 - `src/queries/dashboard.ts` — add `getInvestmentsSummary()`
 - `tests/mocks/handlers.ts` — add investment MSW mock handlers
+- `tests/integration/helpers.ts` — add investment test data factories
+- Plaid Link token creation action/route — add `investments` to products array
