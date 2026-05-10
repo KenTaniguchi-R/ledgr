@@ -3,7 +3,7 @@
 import { useState, useCallback, useTransition } from "react";
 import { Responsive, useContainerWidth } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { GripVertical } from "lucide-react";
 
 import { NetWorthChart } from "./widgets/net-worth-chart";
@@ -131,12 +131,12 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
           {layouts.lg.map((item) => (
             <div key={item.i}>
               <Card className="h-full flex flex-col">
-                <CardHeader className="pb-2 pt-3 px-4 flex-row items-center justify-between space-y-0">
+                <div className="flex items-center justify-between pb-2 pt-3 px-4">
                   <CardTitle className="text-sm font-medium">
                     {DASHBOARD_WIDGETS.find((w) => w.id === item.i)?.title ?? item.i}
                   </CardTitle>
                   <GripVertical className="size-4 text-muted-foreground cursor-grab drag-handle" />
-                </CardHeader>
+                </div>
                 <CardContent className="flex-1 min-h-0 pb-3 px-4">
                   {renderWidget(item.i)}
                 </CardContent>
