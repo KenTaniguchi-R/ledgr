@@ -23,7 +23,8 @@ interface BulkActionBarProps {
 export function BulkActionBar({ selectedIds, categories, onComplete }: BulkActionBarProps) {
   const [isPending, startTransition] = useTransition();
 
-  function handleCategorize(categoryId: string) {
+  function handleCategorize(categoryId: string | null) {
+    if (!categoryId) return;
     const resolvedId = categoryId === "uncategorized" ? null : categoryId;
     startTransition(async () => {
       await bulkUpdateCategory(selectedIds, resolvedId);

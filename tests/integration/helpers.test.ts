@@ -10,12 +10,8 @@ import {
   insertCategoryRule,
 } from "./helpers";
 import {
-  households,
-  accounts,
   transactions,
   merchants,
-  categoryGroups,
-  categories,
   categoryRules,
 } from "../../src/db/schema";
 import { eq } from "drizzle-orm";

@@ -1,4 +1,4 @@
-import { eq, and, like, gte, lte, isNull, desc, sql, type SQL } from "drizzle-orm";
+import { eq, like, gte, lte, isNull, desc, sql, type SQL } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";

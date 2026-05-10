@@ -31,7 +31,8 @@ export function CategoryPicker({
   const [value, setValue] = useState(currentCategoryId ?? "uncategorized");
   const [isPending, startTransition] = useTransition();
 
-  function handleChange(newValue: string) {
+  function handleChange(newValue: string | null) {
+    if (!newValue) return;
     const prevValue = value;
     const categoryId = newValue === "uncategorized" ? null : newValue;
     setValue(newValue);

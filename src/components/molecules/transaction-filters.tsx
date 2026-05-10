@@ -34,7 +34,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
   const searchParams = useSearchParams();
 
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const updateFilter = useCallback(
     (key: string, value: string | null) => {
