@@ -9,7 +9,7 @@ import {
   balanceHistory,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, notIncome } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 
 export interface ReportFilters {
@@ -44,7 +44,7 @@ export interface CategoryTrendRow {
 
 // ── Shared base conditions ──────────────────────────────────────────
 
-function spendingBaseConditions(filters: ReportFilters) {
+function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
   const conditions = [
     notDeleted(transactions),
     gt(transactions.normalizedAmount, 0),
@@ -53,6 +53,7 @@ function spendingBaseConditions(filters: ReportFilters) {
     isNull(transactions.transferPairId),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
+    notIncome(db),
   ];
   if (filters.accountIds?.length) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
@@ -68,7 +69,7 @@ function aggregateSpending(
   db: LedgrDb,
 ): Map<string, number> {
   const scoped = scopedQuery(householdId, db);
-  const conditions = spendingBaseConditions(filters);
+  const conditions = spendingBaseConditions(filters, db);
 
   // Find split parents
   const splitParentRows = db
@@ -212,10 +213,20 @@ export function getIncomeVsExpense(
     .select({
       date: transactions.date,
       normalizedAmount: transactions.normalizedAmount,
+      categoryId: transactions.categoryId,
     })
     .from(transactions)
     .where(scoped.where(transactions, ...conditions))
     .all();
+
+  const incomeCatIds = new Set(
+    db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.isIncome, true))
+      .all()
+      .map((r) => r.id),
+  );
 
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const txn of txns) {
@@ -224,10 +235,12 @@ export function getIncomeVsExpense(
       byMonth.set(month, { income: 0, expenses: 0 });
     }
     const entry = byMonth.get(month)!;
-    if (txn.normalizedAmount > 0) {
+    if (txn.categoryId && incomeCatIds.has(txn.categoryId)) {
+      entry.income += Math.abs(txn.normalizedAmount);
+    } else if (txn.normalizedAmount > 0) {
       entry.expenses += txn.normalizedAmount;
     } else {
-      entry.income += Math.abs(txn.normalizedAmount);
+      entry.expenses += txn.normalizedAmount;
     }
   }
 
@@ -247,7 +260,7 @@ export function getCategoryTrends(
   db: LedgrDb = defaultDb,
 ): CategoryTrendRow[] {
   const scoped = scopedQuery(householdId, db);
-  const conditions = spendingBaseConditions(filters);
+  const conditions = spendingBaseConditions(filters, db);
 
   if (filters.categoryIds?.length) {
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
