@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { TransactionRow } from "@/components/molecules/transaction-row";
+import { TransactionRow, TRANSACTION_GRID_COLS } from "@/components/molecules/transaction-row";
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
 import { loadMoreTransactions } from "@/actions/transactions";
 import type { TransactionRow as TxnRow, TransactionFilters } from "@/queries/transactions";
@@ -72,8 +72,7 @@ export function TransactionList({
         />
       )}
 
-      {/* Header row */}
-      <div className="grid grid-cols-[32px_90px_1fr_140px_160px_100px_40px] items-center h-8 px-2 border-b text-xs font-medium text-muted-foreground">
+      <div className={`grid ${TRANSACTION_GRID_COLS} items-center h-8 px-2 border-b text-xs font-medium text-muted-foreground`}>
         <div className="flex items-center justify-center">
           <input
             type="checkbox"
@@ -90,7 +89,6 @@ export function TransactionList({
         <span className="text-center">Rev</span>
       </div>
 
-      {/* Transaction rows */}
       {rows.map((txn) => (
         <TransactionRow
           key={txn.id}
@@ -101,7 +99,6 @@ export function TransactionList({
         />
       ))}
 
-      {/* Load more */}
       {cursor && (
         <div className="flex justify-center py-4">
           <Button

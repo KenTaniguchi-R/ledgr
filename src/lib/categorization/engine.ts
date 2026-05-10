@@ -71,7 +71,6 @@ export function categorizeSyncedTransactions(
 ): void {
   const scoped = scopedQuery(householdId, db);
 
-  // 1. Fetch rules ordered by priority DESC
   const rules = db
     .select({
       id: categoryRules.id,
@@ -84,7 +83,6 @@ export function categorizeSyncedTransactions(
     .where(scoped.where(categoryRules))
     .all() as CategoryRule[];
 
-  // 2. Fetch uncategorized transactions for this plaidItem's accounts
   const itemAccounts = db
     .select({ id: accounts.id })
     .from(accounts)
@@ -119,37 +117,35 @@ export function categorizeSyncedTransactions(
 
   if (uncategorized.length === 0) return;
 
-  // 3. Hydrate merchant data
-  const categorizableTxns: CategorizableTransaction[] = uncategorized.map((txn) => {
-    let merchantName: string | null = null;
-    let merchantCategoryId: string | null = null;
-
-    if (txn.merchantId) {
-      const merchant = db
-        .select({ name: merchants.name, categoryId: merchants.categoryId })
-        .from(merchants)
-        .where(eq(merchants.id, txn.merchantId))
-        .get();
-      if (merchant) {
-        merchantName = merchant.name;
-        merchantCategoryId = merchant.categoryId;
-      }
+  const merchantIds = [...new Set(
+    uncategorized.map((t) => t.merchantId).filter((id): id is string => id !== null),
+  )];
+  const merchantMap = new Map<string, { name: string; categoryId: string | null }>();
+  if (merchantIds.length > 0) {
+    const merchantRows = db
+      .select({ id: merchants.id, name: merchants.name, categoryId: merchants.categoryId })
+      .from(merchants)
+      .where(inArray(merchants.id, merchantIds))
+      .all();
+    for (const m of merchantRows) {
+      merchantMap.set(m.id, { name: m.name, categoryId: m.categoryId });
     }
+  }
 
+  const categorizableTxns: CategorizableTransaction[] = uncategorized.map((txn) => {
+    const merchant = txn.merchantId ? merchantMap.get(txn.merchantId) : undefined;
     return {
       id: txn.id,
       name: txn.name,
       merchantId: txn.merchantId,
-      merchantName,
-      merchantCategoryId,
+      merchantName: merchant?.name ?? null,
+      merchantCategoryId: merchant?.categoryId ?? null,
     };
   });
 
-  // 4. Run pure categorization
   const assignments = categorizeTransactions(categorizableTxns, rules);
   if (assignments.length === 0) return;
 
-  // 5. Apply assignments
   const now = new Date().toISOString();
   db.transaction((tx) => {
     for (const assignment of assignments) {

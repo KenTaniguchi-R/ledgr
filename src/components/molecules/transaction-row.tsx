@@ -7,6 +7,9 @@ import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
 
+export const TRANSACTION_GRID_COLS =
+  "grid-cols-[32px_90px_1fr_140px_160px_100px_40px]" as const;
+
 interface TransactionRowProps {
   transaction: TxnRow;
   categories: CategoryGroup[];
@@ -23,7 +26,7 @@ export function TransactionRow({
   return (
     <div
       className={cn(
-        "group/row grid grid-cols-[32px_90px_1fr_140px_160px_100px_40px] items-center h-10 px-2 border-b text-sm hover:bg-muted/50 transition-colors",
+        `group/row grid ${TRANSACTION_GRID_COLS} items-center h-10 px-2 border-b text-sm hover:bg-muted/50 transition-colors`,
         !txn.reviewed && "border-l-2 border-l-primary/40",
         txn.pending && "opacity-60",
       )}

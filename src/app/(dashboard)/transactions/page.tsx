@@ -28,11 +28,9 @@ export default async function TransactionsPage({
     reviewed: params.reviewed === "true" ? true : undefined,
   };
 
-  const [page, allCategories, allAccounts] = await Promise.all([
-    Promise.resolve(getTransactions(householdId, filters)),
-    Promise.resolve(getCategories(householdId)),
-    Promise.resolve(getAccounts(householdId)),
-  ]);
+  const page = getTransactions(householdId, filters);
+  const allCategories = getCategories(householdId);
+  const allAccounts = getAccounts(householdId);
 
   const hasFilters = Object.values(filters).some((v) => v !== undefined);
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));

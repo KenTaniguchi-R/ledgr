@@ -13,7 +13,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <SidebarNav
         userName={session.user?.name ?? "User"}
         userEmail={session.user?.email ?? ""}

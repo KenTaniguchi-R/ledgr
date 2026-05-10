@@ -1,4 +1,4 @@
-import { eq, like, gte, lte, isNull, desc, sql, type SQL } from "drizzle-orm";
+import { eq, like, gte, lte, isNull, desc, sql, inArray, type SQL } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -130,22 +130,28 @@ export function getTransactions(
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
-  const result: TransactionRow[] = pageRows.map((row) => {
-    const splitCount = db
-      .select({ count: sql<number>`count(*)` })
-      .from(transactionSplits)
-      .where(eq(transactionSplits.transactionId, row.id))
-      .get();
+  const pageIds = pageRows.map((r) => r.id);
+  const splitRows = pageIds.length > 0
+    ? db
+        .select({
+          transactionId: transactionSplits.transactionId,
+          count: sql<number>`count(*)`,
+        })
+        .from(transactionSplits)
+        .where(inArray(transactionSplits.transactionId, pageIds))
+        .groupBy(transactionSplits.transactionId)
+        .all()
+    : [];
+  const splitSet = new Set(splitRows.filter((r) => r.count > 0).map((r) => r.transactionId));
 
-    return {
-      ...row,
-      accountName: row.accountName ?? "",
-      currency: row.currency ?? "USD",
-      pending: Boolean(row.pending),
-      reviewed: Boolean(row.reviewed),
-      hasSplits: (splitCount?.count ?? 0) > 0,
-    };
-  });
+  const result: TransactionRow[] = pageRows.map((row) => ({
+    ...row,
+    accountName: row.accountName ?? "",
+    currency: row.currency ?? "USD",
+    pending: Boolean(row.pending),
+    reviewed: Boolean(row.reviewed),
+    hasSplits: splitSet.has(row.id),
+  }));
 
   const nextCursor = hasMore
     ? encodeCursor(pageRows[pageRows.length - 1].date, pageRows[pageRows.length - 1].id)

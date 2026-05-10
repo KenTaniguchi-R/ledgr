@@ -13,9 +13,8 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
-  SelectGroup,
-  SelectLabel,
 } from "@/components/ui/select";
+import { CategorySelectItems } from "@/components/molecules/category-select-items";
 import type { CategoryGroup } from "@/queries/categories";
 
 interface AccountOption {
@@ -62,6 +61,22 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
     router.push(pathname);
   }
 
+  const selectedAccountId = searchParams.get("account");
+  const selectedAccountName = selectedAccountId
+    ? accounts.find((a) => a.id === selectedAccountId)?.name ?? "All accounts"
+    : "All accounts";
+
+  const selectedCategoryId = searchParams.get("category");
+  const selectedCategoryName = (() => {
+    if (!selectedCategoryId) return "All categories";
+    if (selectedCategoryId === "uncategorized") return "Uncategorized";
+    for (const group of categories) {
+      const cat = group.categories.find((c) => c.id === selectedCategoryId);
+      if (cat) return cat.name;
+    }
+    return "All categories";
+  })();
+
   const hasFilters =
     searchParams.has("q") ||
     searchParams.has("account") ||
@@ -72,7 +87,6 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
@@ -83,13 +97,12 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         />
       </div>
 
-      {/* Account filter */}
       <Select
         value={searchParams.get("account") ?? "all"}
         onValueChange={(v) => updateFilter("account", v === "all" ? null : v)}
       >
         <SelectTrigger className="h-8 w-[160px] text-xs">
-          <SelectValue placeholder="All accounts" />
+          <SelectValue>{selectedAccountName}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All accounts</SelectItem>
@@ -99,33 +112,19 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         </SelectContent>
       </Select>
 
-      {/* Category filter */}
       <Select
         value={searchParams.get("category") ?? "all"}
         onValueChange={(v) => updateFilter("category", v === "all" ? null : v)}
       >
         <SelectTrigger className="h-8 w-[160px] text-xs">
-          <SelectValue placeholder="All categories" />
+          <SelectValue>{selectedCategoryName}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All categories</SelectItem>
-          <SelectItem value="uncategorized">
-            <span className="italic">Uncategorized</span>
-          </SelectItem>
-          {categories.map((group) => (
-            <SelectGroup key={group.id}>
-              <SelectLabel className="text-xs font-semibold text-muted-foreground px-2 py-1">
-                {group.name}
-              </SelectLabel>
-              {group.categories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-              ))}
-            </SelectGroup>
-          ))}
+          <CategorySelectItems categories={categories} />
         </SelectContent>
       </Select>
 
-      {/* Date range */}
       <Input
         type="date"
         value={searchParams.get("from") ?? ""}
@@ -140,7 +139,6 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         className="h-8 w-[130px] text-xs"
       />
 
-      {/* Reviewed switch */}
       <div className="flex items-center gap-1.5">
         <Switch
           id="reviewed-filter"
@@ -153,7 +151,6 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         <Label htmlFor="reviewed-filter" className="text-xs">Reviewed</Label>
       </div>
 
-      {/* Clear */}
       {hasFilters && (
         <Button variant="ghost" size="xs" onClick={clearFilters} className="text-xs">
           <X className="h-3 w-3 mr-1" /> Clear
