@@ -141,7 +141,7 @@ export function getTransactions(
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
-  const pageIds = pageRows.map((r) => r.id);
+  const pageIds = pageRows.map((r: typeof pageRows[0]) => r.id);
   const splitRows = pageIds.length > 0
     ? db
         .select({
@@ -155,7 +155,7 @@ export function getTransactions(
     : [];
   const splitSet = new Set(splitRows.filter((r) => r.count > 0).map((r) => r.transactionId));
 
-  const result: TransactionRow[] = pageRows.map((row) => ({
+  const result: TransactionRow[] = pageRows.map((row: typeof pageRows[0]) => ({
     ...row,
     accountName: row.accountName ?? "",
     currency: row.currency ?? "USD",
