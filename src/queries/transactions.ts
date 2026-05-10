@@ -96,13 +96,7 @@ function decodeCursor(cursor: string): { date: string; id: string } | null {
   }
 }
 
-export function getTransactions(
-  householdId: string,
-  filters: TransactionFilters = {},
-  limit = 50,
-  cursor: string | null = null,
-  db: LedgrDb = defaultDb,
-): TransactionPage {
+export function buildTransactionConditions(filters: TransactionFilters): (SQL | undefined)[] {
   const conditions: (SQL | undefined)[] = [notDeleted(transactions)];
 
   if (filters.dateFrom) {
@@ -126,6 +120,19 @@ export function getTransactions(
     conditions.push(like(transactions.name, `%${filters.search}%`));
   }
 
+  return conditions;
+}
+
+export function getTransactions(
+  householdId: string,
+  filters: TransactionFilters = {},
+  limit = 50,
+  cursor: string | null = null,
+  db: LedgrDb = defaultDb,
+): TransactionPage {
+  const conditions = buildTransactionConditions(filters);
+
+  // Cursor conditions stay here — not in the shared builder
   const decoded = cursor ? decodeCursor(cursor) : null;
   if (decoded) {
     conditions.push(
