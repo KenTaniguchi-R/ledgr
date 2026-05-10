@@ -17,5 +17,8 @@ export const merchants = sqliteTable(
     createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
     updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
   },
-  (table) => [index("idx_merchants_household").on(table.householdId)]
+  (table) => [
+    index("idx_merchants_household").on(table.householdId),
+    index("idx_merchants_household_name").on(table.householdId, table.name),
+  ]
 );

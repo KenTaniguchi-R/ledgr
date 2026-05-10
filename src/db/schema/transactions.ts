@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { accounts } from "./accounts";
 import { households } from "./households";
@@ -41,7 +41,7 @@ export const transactions = sqliteTable(
     index("idx_txn_category_date").on(table.categoryId, table.date),
     index("idx_txn_household_date").on(table.householdId, table.date),
     index("idx_txn_date").on(table.date),
-    index("idx_txn_plaid_id").on(table.plaidTransactionId),
+    uniqueIndex("idx_txn_plaid_id_unique").on(table.plaidTransactionId),
     index("idx_txn_merchant").on(table.merchantId),
     index("idx_txn_transfer").on(table.transferPairId),
   ]
