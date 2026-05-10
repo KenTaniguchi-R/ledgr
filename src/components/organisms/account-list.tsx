@@ -116,6 +116,7 @@ export function AccountList({ groups }: AccountListProps) {
             <Card key={group.plaidItemId ?? "__manual__"}>
               <InstitutionHeader
                 institutionName={group.institutionName}
+                logo={group.logoBase64 ? { base64: group.logoBase64, primaryColor: group.primaryColor } : null}
                 status={group.status}
                 accountCount={group.accounts.length}
                 plaidItemId={group.plaidItemId}

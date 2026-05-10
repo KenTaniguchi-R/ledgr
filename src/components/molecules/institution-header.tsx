@@ -21,12 +21,14 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { EntityAvatar } from "@/components/atoms/entity-avatar";
 import { StatusBadge } from "@/components/atoms/status-badge";
 import { SyncStatusBadge, type SyncStatus } from "@/components/atoms/sync-status-badge";
 import type { PlaidItemStatus } from "@/db/schema";
 
 interface InstitutionHeaderProps {
   institutionName: string;
+  logo?: { base64: string; primaryColor: string | null } | null;
   status: PlaidItemStatus | null;
   accountCount: number;
   plaidItemId: string | null;
@@ -52,6 +54,7 @@ function formatRelativeTime(dateStr: string): string {
 
 export function InstitutionHeader({
   institutionName,
+  logo,
   status,
   accountCount,
   plaidItemId,
@@ -69,6 +72,12 @@ export function InstitutionHeader({
     <div>
       <div className="group flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-3">
+          <EntityAvatar
+            logoBase64={logo?.base64}
+            name={institutionName}
+            primaryColor={logo?.primaryColor}
+            size="md"
+          />
           <div>
             <h3 className="text-sm font-semibold">{institutionName}</h3>
             <div className="flex items-center gap-2">
