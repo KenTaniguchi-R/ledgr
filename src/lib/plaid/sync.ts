@@ -597,6 +597,14 @@ async function doSync(
       console.error(`Categorization failed for item ${itemId}:`, catError);
     }
 
+    // AI categorization (async, non-fatal, separate from sync engine)
+    try {
+      const { categorizeWithAi } = await import("@/lib/ai/categorize");
+      await categorizeWithAi(householdId, db);
+    } catch (aiError) {
+      console.error(`AI categorization failed for item ${itemId}:`, aiError);
+    }
+
     return {
       success: true,
       addedCount: counts.addedCount,
