@@ -4,6 +4,8 @@ import { v4 as uuid } from "uuid";
 import { db, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
 import { syncInstitution } from "@/lib/plaid/sync";
+import { syncRecurringTransactions } from "@/lib/plaid/recurring";
+import { decrypt } from "@/lib/encryption";
 import { todayDateString } from "@/lib/date-utils";
 
 export async function snapshotBalances(dbInstance: LedgrDb = db): Promise<void> {
@@ -52,6 +54,28 @@ export function startScheduler() {
           console.log(
             `[scheduler] Synced ${item.id}: +${result.addedCount} ~${result.modifiedCount} -${result.removedCount}`
           );
+          // Chain recurring sync after successful transaction sync
+          try {
+            const itemRow = db
+              .select({ accessToken: plaidItems.accessToken })
+              .from(plaidItems)
+              .where(eq(plaidItems.id, item.id))
+              .get();
+            if (itemRow) {
+              const accessToken = decrypt(itemRow.accessToken);
+              const recurring = await syncRecurringTransactions(
+                item.id,
+                item.householdId,
+                accessToken,
+                db,
+              );
+              console.log(
+                `[scheduler] Recurring for ${item.id}: ${recurring.upserted} upserted, ${recurring.deactivated} deactivated`
+              );
+            }
+          } catch (recurringErr) {
+            console.error(`[scheduler] Recurring sync failed for ${item.id}:`, recurringErr);
+          }
         } else {
           console.error(`[scheduler] Sync failed for ${item.id}: ${result.error}`);
         }
