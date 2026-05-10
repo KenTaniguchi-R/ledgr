@@ -1,0 +1,154 @@
+import { describe, it, expect } from "vitest";
+import { test } from "@fast-check/vitest";
+import * as fc from "fast-check";
+import { createTestDb } from "../../../tests/integration/setup";
+import { insertHousehold, insertAccount, insertTransaction } from "../../../tests/integration/helpers";
+import { backfillAccountBalances } from "./backfill-balances";
+import { balanceHistory } from "@/db/schema";
+import { v4 as uuid } from "uuid";
+
+describe("backfillAccountBalances", () => {
+  it("reconstructs daily balances from transactions", async () => {
+    const { db, close } = createTestDb();
+    try {
+      const { householdId } = insertHousehold(db);
+      // Current balance: 10000 cents ($100)
+      const { accountId } = insertAccount(db, householdId, {
+        currentBalance: 10000,
+        type: "checking",
+      });
+
+      // Transaction on 2026-05-08: spent 3000 (normalizedAmount = 3000, positive = expense)
+      insertTransaction(db, householdId, accountId, {
+        date: "2026-05-08",
+        normalizedAmount: 3000,
+        pending: false,
+      });
+
+      // Transaction on 2026-05-07: spent 2000
+      insertTransaction(db, householdId, accountId, {
+        date: "2026-05-07",
+        normalizedAmount: 2000,
+        pending: false,
+      });
+
+      await backfillAccountBalances(db);
+
+      const rows = db
+        .select()
+        .from(balanceHistory)
+        .all()
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // Today (2026-05-09): 10000
+      // 2026-05-08: 10000 - 3000 = 7000
+      // 2026-05-07: 7000 - 2000 = 5000
+      expect(rows.length).toBeGreaterThanOrEqual(2);
+
+      const byDate = Object.fromEntries(rows.map((r) => [r.date, r.balance]));
+      // Walking back from today:
+      // Before 2026-05-08 txn: balance was 10000 - 3000 = 7000
+      expect(byDate["2026-05-08"]).toBe(7000);
+      // Before 2026-05-07 txn: balance was 7000 - 2000 = 5000
+      expect(byDate["2026-05-07"]).toBe(5000);
+
+      // All rows should be for this account
+      for (const row of rows) {
+        expect(row.accountId).toBe(accountId);
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it("skips investment accounts", async () => {
+    const { db, close } = createTestDb();
+    try {
+      const { householdId } = insertHousehold(db);
+      const { accountId } = insertAccount(db, householdId, {
+        currentBalance: 50000,
+        type: "investment",
+      });
+
+      insertTransaction(db, householdId, accountId, {
+        date: "2026-05-07",
+        normalizedAmount: 1000,
+        pending: false,
+      });
+
+      await backfillAccountBalances(db);
+
+      const rows = db.select().from(balanceHistory).all();
+      expect(rows).toHaveLength(0);
+    } finally {
+      close();
+    }
+  });
+
+  it("skips dates that already have balance_history entries", async () => {
+    const { db, close } = createTestDb();
+    try {
+      const { householdId } = insertHousehold(db);
+      const { accountId } = insertAccount(db, householdId, {
+        currentBalance: 10000,
+        type: "checking",
+      });
+
+      insertTransaction(db, householdId, accountId, {
+        date: "2026-05-08",
+        normalizedAmount: 1000,
+        pending: false,
+      });
+
+      // Pre-insert a balance_history row for 2026-05-08 with a specific value
+      const existingBalance = 99999;
+      db.insert(balanceHistory)
+        .values({
+          id: uuid(),
+          accountId,
+          date: "2026-05-08",
+          balance: existingBalance,
+        })
+        .run();
+
+      await backfillAccountBalances(db);
+
+      const rows = db.select().from(balanceHistory).all();
+      const may8Row = rows.find((r) => r.date === "2026-05-08");
+      expect(may8Row).toBeDefined();
+      // The pre-existing value should NOT be overwritten
+      expect(may8Row!.balance).toBe(existingBalance);
+    } finally {
+      close();
+    }
+  });
+
+  test.prop([
+    fc.array(fc.integer({ min: -100000, max: 100000 }), { minLength: 1, maxLength: 20 }),
+    fc.integer({ min: -1000000, max: 1000000 }),
+  ])(
+    "walking back then forward preserves the original balance",
+    (amounts, currentBalance) => {
+      // Simulate the backfill algorithm: walk backward from currentBalance
+      // Each amount represents a day's normalizedAmount sum (positive = expense)
+      // To get yesterday's balance: yesterdayBalance = todayBalance - todayNormalized
+      // (expense increases balance walking forward, so we subtract walking backward)
+
+      let balance = currentBalance;
+      const historicalBalances: number[] = [balance];
+
+      for (const amount of amounts) {
+        balance = balance - amount;
+        historicalBalances.push(balance);
+      }
+
+      // Now walk forward: each step adds the normalizedAmount back
+      let reconstructed = historicalBalances[historicalBalances.length - 1];
+      for (let i = amounts.length - 1; i >= 0; i--) {
+        reconstructed = reconstructed + amounts[i];
+      }
+
+      expect(reconstructed).toBe(currentBalance);
+    }
+  );
+});
