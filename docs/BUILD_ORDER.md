@@ -111,21 +111,42 @@ Prioritized implementation roadmap. Plaid bank sync is the core feature. Phases 
 
 ---
 
-## Phase 4 — Transactions UI + Categorization
+## Phase 4 — Transactions UI + Categorization ✅
 
-**Status:** Not started
+**Status:** Complete
 **Why fourth:** Makes synced data visible and usable. Completes the MVP.
 
-**Deliverables:**
-- `src/queries/transactions.ts` — `getTransactions()` with filters (date, account, category, reviewed)
-- `/app/(dashboard)/transactions/page.tsx` — paginated transaction list
-- Category assignment (inline dropdown per transaction)
-- Reviewed toggle
-- `src/lib/plaid/categorize.ts` — auto-categorization pipeline (rules → merchant default → uncategorized)
-- Merchant normalization during sync
-- App shell layout with nav sidebar
-- shadcn/ui component setup (button, table, select, badge, dialog)
-- Integration tests for query scoping, unit/property tests for categorization rules
+**Implementation notes:**
+- Pre-phase refactoring: removed dead "depository" from FLIP_SIGN_TYPES, added `db` param to `updateAccount`, preserved `categoryId`/`reviewed` in modified transaction upserts, inherited category on pending→posted transitions, atomized status reset inside `applyToDb`, removed dead plaidCategory computation.
+- Pure categorization engine (`categorizeTransactions`) with rule priority + merchant default fallback, hooked into post-sync pipeline via `categorizeSyncedTransactions` (non-fatal).
+- URL-driven filters via searchParams (date, account, category, search, reviewed). Cursor-based keyset pagination with base64-encoded `{date, id}` cursors.
+- Optimistic per-row mutations: CategoryPicker and ReviewedCheckbox own local state, fire-and-forget server actions, revert on error. Per-row actions skip `revalidatePath`; bulk actions use it.
+- Atomic design: AmountDisplay atom → CategoryPicker, ReviewedCheckbox, TransactionRow, TransactionFilters, TransactionEmptyState, BulkActionBar molecules → TransactionList organism.
+- Shared test data factories (`tests/integration/helpers.ts`) for FK-safe test setup.
+- 127 tests total: 8 categorization engine (6 unit + 2 property-based), 10 transaction queries, 6 transaction actions, 5 categorization-in-sync, 3 factory smoke tests.
+
+**Deliverables (completed):**
+- `src/lib/categorization/engine.ts` — pure categorization function + DB-aware `categorizeSyncedTransactions` wrapper
+- `src/lib/categorization/engine.test.ts` — unit + property tests
+- `src/queries/transactions.ts` — `getTransactions()` with filters, cursor pagination, joins
+- `src/queries/categories.ts` — `getCategories()` grouped by category group
+- `src/actions/transactions.ts` — 5 server actions (updateTransactionCategory, toggleReviewed, bulkUpdateCategory, bulkMarkReviewed, loadMoreTransactions)
+- `src/components/atoms/amount-display.tsx` — color-coded amount display
+- `src/components/molecules/category-picker.tsx` — compact Select with optimistic update
+- `src/components/molecules/reviewed-checkbox.tsx` — dot toggle with optimistic update
+- `src/components/molecules/transaction-row.tsx` — dense h-10 grid row
+- `src/components/molecules/transaction-filters.tsx` — URL-driven filter bar with search debounce
+- `src/components/molecules/transaction-empty-state.tsx` — context-aware empty state
+- `src/components/molecules/bulk-action-bar.tsx` — sticky bulk action bar
+- `src/components/organisms/transaction-list.tsx` — paginated list + selection + bulk actions
+- `/app/(dashboard)/transactions/page.tsx` — server component with searchParams
+- `/app/(dashboard)/transactions/loading.tsx` — skeleton loading state
+- `/app/(dashboard)/transactions/error.tsx` — error boundary with retry
+- `tests/integration/helpers.ts` — shared test data factories
+- `tests/integration/helpers.test.ts` — factory smoke tests
+- `tests/integration/transaction-queries.test.ts` — query integration tests
+- `tests/integration/transaction-actions.test.ts` — action integration tests
+- `tests/integration/categorization-sync.test.ts` — categorization-in-sync tests
 
 ---
 
