@@ -9,10 +9,11 @@ import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId } from "@/lib/auth/session";
+import { getTransactions, type TransactionRow as TxnRow } from "@/queries/transactions";
 
 const saveReportSchema = z.object({
   name: z.string().min(1).max(100),
-  reportType: z.enum(["spending", "income-expense", "trends", "net-worth"]),
+  reportType: z.enum(["spending", "income-expense", "trends", "net-worth", "cash-flow"]),
   filters: z.object({
     dateFrom: z.string(),
     dateTo: z.string(),
@@ -73,4 +74,24 @@ export async function deleteReport(
 
   revalidatePath("/reports");
   return { success: true };
+}
+
+export async function getDrillDownTransactions(filters: {
+  categoryId?: string;
+  dateFrom: string;
+  dateTo: string;
+  type?: "income" | "expense";
+}): Promise<{ rows: TxnRow[]; totalCount: number }> {
+  const householdId = await getHouseholdId();
+
+  const txnFilters = {
+    categoryId: filters.categoryId ?? undefined,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+  };
+
+  const page = getTransactions(householdId, txnFilters, 50);
+  const totalCount = page.rows.length;
+
+  return { rows: page.rows, totalCount };
 }
