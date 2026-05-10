@@ -14,7 +14,8 @@ export const PlaidTransactionSchema = z.object({
   personal_finance_category: z
     .object({
       primary: z.string(),
-      detailed: z.string(),
+      detailed: z.string().optional(),
+      confidence_level: z.string().optional(),
     })
     .nullable()
     .optional(),

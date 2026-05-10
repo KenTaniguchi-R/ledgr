@@ -70,6 +70,7 @@ interface TransactionRow {
   merchantName: string | null;
   logoUrl: string | null;
   pfcPrimary: string | null;
+  pfcDetailed: string | null;
 }
 
 export interface MerchantUpsert {
@@ -94,8 +95,13 @@ export async function fetchAllPages(
 
   let hasMore = true;
   while (hasMore) {
-    const requestBody: { access_token: string; cursor?: string } = {
+    const requestBody: {
+      access_token: string;
+      cursor?: string;
+      options?: { include_personal_finance_category: boolean };
+    } = {
       access_token: accessToken,
+      options: { include_personal_finance_category: true },
     };
     if (currentCursor !== null) {
       requestBody.cursor = currentCursor;
@@ -175,6 +181,7 @@ export function processBatch(
       merchantName: txn.merchant_name ? titleCase(txn.merchant_name) : null,
       logoUrl: txn.logo_url ?? null,
       pfcPrimary: txn.personal_finance_category?.primary ?? null,
+      pfcDetailed: txn.personal_finance_category?.detailed ?? null,
     };
   }
 
@@ -330,6 +337,7 @@ export async function applyToDb(
           currency: row.currency,
           pending: row.pending,
           pfcPrimary: row.pfcPrimary,
+          pfcDetailed: row.pfcDetailed,
           createdAt: now,
           updatedAt: now,
         })
@@ -371,6 +379,7 @@ export async function applyToDb(
             pending: row.pending,
             pendingTransactionId: row.pendingTransactionId,
             pfcPrimary: row.pfcPrimary,
+            pfcDetailed: row.pfcDetailed,
             updatedAt: now,
             // Preserve user's manual categorization and reviewed status
           })
@@ -393,6 +402,7 @@ export async function applyToDb(
             currency: row.currency,
             pending: row.pending,
             pfcPrimary: row.pfcPrimary,
+            pfcDetailed: row.pfcDetailed,
             createdAt: now,
             updatedAt: now,
           })
