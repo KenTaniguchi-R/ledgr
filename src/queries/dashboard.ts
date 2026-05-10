@@ -1,4 +1,4 @@
-import { eq, gt, gte, lte, desc } from "drizzle-orm";
+import { eq, gt, gte, lte, and, desc, inArray } from "drizzle-orm";
 export { getInvestmentsSummary } from "./investments";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
@@ -101,9 +101,8 @@ export function getNetWorthHistory(
   const scoped = scopedQuery(householdId, db);
   const { from: dateFrom } = rangeToDateBounds(range);
 
-  // Get accounts for classification
   const allAccounts = db
-    .select({ id: accounts.id, type: accounts.type })
+    .select({ id: accounts.id, type: accounts.type, currentBalance: accounts.currentBalance })
     .from(accounts)
     .where(scoped.where(accounts, notDeleted(accounts)))
     .all();
@@ -111,24 +110,23 @@ export function getNetWorthHistory(
   const accountTypeMap = new Map(allAccounts.map((a) => [a.id, a.type]));
   const accountIds = allAccounts.map((a) => a.id);
 
-  // Get balance history rows
   type BalanceRow = { accountId: string; date: string; balance: number };
   let historyRows: BalanceRow[] = [];
 
   if (accountIds.length > 0) {
-    const allHistory = db
+    const conditions = [inArray(balanceHistory.accountId, accountIds)];
+    if (dateFrom) {
+      conditions.push(gte(balanceHistory.date, dateFrom));
+    }
+    historyRows = db
       .select({
         accountId: balanceHistory.accountId,
         date: balanceHistory.date,
         balance: balanceHistory.balance,
       })
       .from(balanceHistory)
+      .where(and(...conditions))
       .all();
-
-    historyRows = allHistory.filter((row) => accountTypeMap.has(row.accountId));
-    if (dateFrom) {
-      historyRows = historyRows.filter((row) => row.date >= dateFrom);
-    }
   }
 
   // Aggregate by date
@@ -162,15 +160,9 @@ export function getNetWorthHistory(
   // Remove any existing today entry from history (will be replaced by live)
   const withoutToday = result.filter((p) => p.date !== today);
 
-  const liveTodayAccounts = db
-    .select({ id: accounts.id, type: accounts.type, currentBalance: accounts.currentBalance })
-    .from(accounts)
-    .where(scoped.where(accounts, notDeleted(accounts)))
-    .all();
-
   let todayAssets = 0;
   let todayLiabilities = 0;
-  for (const account of liveTodayAccounts) {
+  for (const account of allAccounts) {
     if (account.currentBalance === null) continue;
     if (classifyAccountType(account.type) === "asset") {
       todayAssets += account.currentBalance;
@@ -244,7 +236,7 @@ export function getMonthlySpending(
   type CatRow = { id: string; name: string; icon: string | null; groupName: string | null };
   let catRows: CatRow[] = [];
   if (categoryIds.length > 0) {
-    const allCats = db
+    catRows = db
       .select({
         id: categories.id,
         name: categories.name,
@@ -253,9 +245,8 @@ export function getMonthlySpending(
       })
       .from(categories)
       .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+      .where(inArray(categories.id, categoryIds))
       .all();
-
-    catRows = allCats.filter((c) => categoryIds.includes(c.id));
   }
 
   const catMap = new Map(catRows.map((c) => [c.id, c]));
@@ -302,11 +293,11 @@ export function getCashFlow(
 ): CashFlowRow[] {
   const scoped = scopedQuery(householdId, db);
 
-  // Calculate dateFrom based on months back
-  const now = new Date();
-  now.setMonth(now.getMonth() - (months - 1));
-  now.setDate(1);
-  const dateFrom = now.toISOString().slice(0, 10);
+  const today = todayDateString();
+  const d = new Date(today + "T00:00:00");
+  d.setMonth(d.getMonth() - (months - 1));
+  d.setDate(1);
+  const dateFrom = d.toISOString().slice(0, 10);
 
   const txns = db
     .select({

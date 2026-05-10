@@ -1,4 +1,4 @@
-import { eq, gt, gte, lte, sql, inArray, notInArray, isNull } from "drizzle-orm";
+import { eq, gt, gte, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -61,6 +61,23 @@ function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
   return conditions;
 }
 
+// ── Split-aware helpers ────────────────────────────────────────────
+
+function findSplitParentIds(
+  scoped: ReturnType<typeof scopedQuery>,
+  conditions: ReturnType<typeof spendingBaseConditions>,
+  db: LedgrDb,
+): string[] {
+  return db
+    .select({ transactionId: transactionSplits.transactionId })
+    .from(transactionSplits)
+    .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
+    .where(scoped.where(transactions, ...conditions))
+    .groupBy(transactionSplits.transactionId)
+    .all()
+    .map((r) => r.transactionId);
+}
+
 // ── Split-aware spending aggregation ────────────────────────────────
 
 function aggregateSpending(
@@ -71,16 +88,7 @@ function aggregateSpending(
   const scoped = scopedQuery(householdId, db);
   const conditions = spendingBaseConditions(filters, db);
 
-  // Find split parents
-  const splitParentRows = db
-    .select({ transactionId: transactionSplits.transactionId })
-    .from(transactionSplits)
-    .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
-    .where(scoped.where(transactions, ...conditions))
-    .groupBy(transactionSplits.transactionId)
-    .all();
-
-  const splitParentIds = splitParentRows.map((r) => r.transactionId);
+  const splitParentIds = findSplitParentIds(scoped, conditions, db);
 
   // Non-split transactions
   const nonSplitConditions =
@@ -142,8 +150,8 @@ function enrichSpendingMap(
       })
       .from(categories)
       .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-      .all()
-      .filter((c) => categoryIds.includes(c.id));
+      .where(inArray(categories.id, categoryIds))
+      .all();
   }
 
   const catMap = new Map(catRows.map((c) => [c.id, c]));
@@ -264,16 +272,7 @@ export function getCategoryTrends(
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  // Find split parents
-  const splitParentRows = db
-    .select({ transactionId: transactionSplits.transactionId })
-    .from(transactionSplits)
-    .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
-    .where(scoped.where(transactions, ...conditions))
-    .groupBy(transactionSplits.transactionId)
-    .all();
-
-  const splitParentIds = splitParentRows.map((r) => r.transactionId);
+  const splitParentIds = findSplitParentIds(scoped, conditions, db);
 
   // Non-split: group by month + category
   const nonSplitConditions =
@@ -380,17 +379,21 @@ export function getReportNetWorthHistory(
 
   if (filteredAccountIds.length === 0) return [];
 
-  const allHistory = db
+  const historyRows = db
     .select({
       accountId: balanceHistory.accountId,
       date: balanceHistory.date,
       balance: balanceHistory.balance,
     })
     .from(balanceHistory)
+    .where(
+      and(
+        inArray(balanceHistory.accountId, filteredAccountIds),
+        gte(balanceHistory.date, filters.dateFrom),
+        lte(balanceHistory.date, filters.dateTo),
+      ),
+    )
     .all();
-
-  let historyRows = allHistory.filter((row) => filteredAccountIds.includes(row.accountId));
-  historyRows = historyRows.filter((row) => row.date >= filters.dateFrom && row.date <= filters.dateTo);
 
   const byDate = new Map<string, { assets: number; liabilities: number }>();
   for (const row of historyRows) {
