@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth/session";
+import { SidebarNav } from "@/components/organisms/sidebar-nav";
 
 export default async function DashboardLayout({
   children,
@@ -7,5 +8,15 @@ export default async function DashboardLayout({
 }) {
   const session = await getSession();
 
-  return <div className="min-h-screen">{children}</div>;
+  return (
+    <div className="flex min-h-screen">
+      <SidebarNav
+        userName={session?.user?.name ?? "User"}
+        userEmail={session?.user?.email ?? ""}
+      />
+      <main className="flex-1 overflow-auto px-6 py-6 lg:px-8">
+        {children}
+      </main>
+    </div>
+  );
 }
