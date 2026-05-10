@@ -32,6 +32,7 @@ export async function triggerSync(
   const result = await syncInstitution(plaidItemId, householdId, db);
 
   revalidatePath("/accounts");
+  revalidatePath("/transactions");
 
   return result;
 }

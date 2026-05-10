@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import type { PlaidApi } from "plaid";
 import {
   PlaidSyncResponseSchema,
@@ -60,8 +60,6 @@ interface TransactionRow {
   pendingTransactionId: string | null;
   merchantName: string | null;
   logoUrl: string | null;
-  plaidCategory: string | null;
-  plaidCategoryDetailed: string | null;
 }
 
 export interface MerchantUpsert {
@@ -239,8 +237,6 @@ export function processBatch(
       pendingTransactionId: txn.pending_transaction_id ?? null,
       merchantName: txn.merchant_name ? titleCase(txn.merchant_name) : null,
       logoUrl: txn.logo_url ?? null,
-      plaidCategory: txn.personal_finance_category?.primary ?? null,
-      plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
     };
   }
 
@@ -413,7 +409,11 @@ export async function applyToDb(
         : null;
 
       const existingTxn = tx
-        .select({ id: transactions.id })
+        .select({
+          id: transactions.id,
+          categoryId: transactions.categoryId,
+          reviewed: transactions.reviewed,
+        })
         .from(transactions)
         .where(eq(transactions.plaidTransactionId, row.plaidTransactionId))
         .get();
@@ -432,6 +432,7 @@ export async function applyToDb(
             pending: row.pending,
             pendingTransactionId: row.pendingTransactionId,
             updatedAt: now,
+            // Preserve user's manual categorization and reviewed status
           })
           .where(eq(transactions.id, existingTxn.id))
           .run();
@@ -459,12 +460,46 @@ export async function applyToDb(
       modifiedCount++;
     }
 
-    // --- Soft-delete pending→posted replacements ---
+    // --- Soft-delete pending→posted replacements, inheriting category ---
     for (const pendingPlaidId of processed.pendingToRemove) {
+      const pendingRow = tx
+        .select({
+          categoryId: transactions.categoryId,
+          reviewed: transactions.reviewed,
+        })
+        .from(transactions)
+        .where(eq(transactions.plaidTransactionId, pendingPlaidId))
+        .get();
+
       tx.update(transactions)
         .set({ deletedAt: now, updatedAt: now })
         .where(eq(transactions.plaidTransactionId, pendingPlaidId))
         .run();
+
+      // If the pending transaction was manually categorized, copy to the posted version
+      if (pendingRow?.categoryId) {
+        const postedTxn = tx
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.pendingTransactionId, pendingPlaidId),
+              isNull(transactions.deletedAt),
+            ),
+          )
+          .get();
+
+        if (postedTxn) {
+          tx.update(transactions)
+            .set({
+              categoryId: pendingRow.categoryId,
+              reviewed: pendingRow.reviewed,
+              updatedAt: now,
+            })
+            .where(eq(transactions.id, postedTxn.id))
+            .run();
+        }
+      }
     }
 
     // --- Soft-delete removed transactions ---
@@ -511,6 +546,12 @@ export async function applyToDb(
         removedCount,
         syncedAt: now,
       })
+      .run();
+
+    // --- Reset item status to active ---
+    tx.update(plaidItems)
+      .set({ status: "active", errorCode: null, updatedAt: now })
+      .where(eq(plaidItems.id, itemId))
       .run();
 
     return { addedCount, modifiedCount, removedCount };
@@ -612,12 +653,6 @@ async function doSync(
       householdId,
       fetchResult.nextCursor,
     );
-
-    // Reset status to active on success
-    db.update(plaidItems)
-      .set({ status: "active", errorCode: null, updatedAt: now })
-      .where(eq(plaidItems.id, itemId))
-      .run();
 
     return {
       success: true,
