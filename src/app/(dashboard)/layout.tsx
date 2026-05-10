@@ -3,7 +3,6 @@ import { getSession } from "@/lib/auth/session";
 import { getUserAiSettings } from "@/queries/settings";
 import { SidebarNav } from "@/components/organisms/sidebar-nav";
 import { ChatPanel } from "@/components/organisms/chat-panel";
-import { ChatPanelProvider } from "@/components/providers/chat-panel-provider";
 
 export default async function DashboardLayout({
   children,
@@ -19,7 +18,7 @@ export default async function DashboardLayout({
   const hasAiConfigured = !!(aiSettings?.hasKey && aiSettings?.aiProvider);
 
   return (
-    <ChatPanelProvider>
+    <>
       <div className="flex h-screen overflow-hidden">
         <SidebarNav
           userName={session.user?.name ?? "User"}
@@ -30,6 +29,6 @@ export default async function DashboardLayout({
         </main>
       </div>
       <ChatPanel hasAiConfigured={hasAiConfigured} />
-    </ChatPanelProvider>
+    </>
   );
 }

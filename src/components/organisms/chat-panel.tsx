@@ -2,10 +2,9 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useEffect, useRef } from "react";
-import { MessageCircle, X, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useChatPanel } from "@/components/providers/chat-panel-provider";
 import { ChatMessage } from "@/components/molecules/chat-message";
 import { ChatInput } from "@/components/molecules/chat-input";
 import { ChatEmptyState } from "@/components/molecules/chat-empty-state";
@@ -15,7 +14,7 @@ interface Props {
 }
 
 export function ChatPanel({ hasAiConfigured }: Props) {
-  const { isOpen, toggle, close } = useChatPanel();
+  const [isOpen, setIsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, sendMessage, status } = useChat({
@@ -38,20 +37,19 @@ export function ChatPanel({ hasAiConfigured }: Props) {
     <>
       {/* Floating Action Button */}
       <button
-        onClick={toggle}
+        onClick={() => setIsOpen((v) => !v)}
         aria-label={isOpen ? "Close AI assistant" : "Open AI assistant"}
         className={cn(
           "fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full shadow-lg transition-all duration-300 ease-out",
           "bg-primary text-primary-foreground hover:scale-105 hover:shadow-xl active:scale-95",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          isOpen && "rotate-0",
           !isOpen && "animate-[pulse-subtle_3s_ease-in-out_infinite]",
         )}
       >
         {isOpen ? (
-          <X className="size-5 transition-transform duration-200" />
+          <X className="size-5" />
         ) : (
-          <Sparkles className="size-5 transition-transform duration-200" />
+          <Sparkles className="size-5" />
         )}
       </button>
 
@@ -78,7 +76,7 @@ export function ChatPanel({ hasAiConfigured }: Props) {
             <h2 className="text-sm font-semibold">Ledgr AI</h2>
           </div>
           <button
-            onClick={close}
+            onClick={() => setIsOpen(false)}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             aria-label="Close"
           >

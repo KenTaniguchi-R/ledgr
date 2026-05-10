@@ -1,5 +1,6 @@
 import { v4 as uuid } from "uuid";
 import type { ValidatedMapping } from "./mapper";
+import { parseToCents } from "@/lib/money";
 
 export type AmountConvention = "positive_is_expense" | "positive_is_income";
 
@@ -30,10 +31,8 @@ function parseDateToISO(dateStr: string): string {
   return dateStr;
 }
 
-function parseAmountToCents(value: string): number {
-  const cleaned = value.replace(/[$,\s]/g, "");
-  if (!cleaned || cleaned === "-") return 0;
-  return Math.round(parseFloat(cleaned) * 100);
+function parseAmountSafe(value: string): number {
+  return parseToCents(value) ?? 0;
 }
 
 export function normalizeImportedRows(
@@ -53,13 +52,13 @@ export function normalizeImportedRows(
     let amountCents: number;
 
     if (mapping.amount) {
-      const raw = parseAmountToCents(row[mapping.amount] ?? "0");
+      const raw = parseAmountSafe(row[mapping.amount] ?? "0");
       amountCents = convention === "positive_is_income" ? -raw : raw;
     } else {
       const debitStr = row[mapping.debit!] ?? "";
       const creditStr = row[mapping.credit!] ?? "";
-      const debit = debitStr ? parseAmountToCents(debitStr) : 0;
-      const credit = creditStr ? parseAmountToCents(creditStr) : 0;
+      const debit = debitStr ? parseAmountSafe(debitStr) : 0;
+      const credit = creditStr ? parseAmountSafe(creditStr) : 0;
       amountCents = debit > 0 ? debit : -credit;
     }
 
