@@ -11,6 +11,7 @@ import { InstitutionHeader } from "@/components/molecules/institution-header";
 import { PlaidLinkFlow } from "./plaid-link-flow";
 import { EditAccountDialog } from "./edit-account-dialog";
 import { triggerSync } from "@/actions/sync";
+import { disconnectPlaidItem } from "@/actions/plaid";
 import type { InstitutionGroup, AccountRow } from "@/queries/accounts";
 import type { SyncStatus } from "@/components/atoms/sync-status-badge";
 
@@ -85,6 +86,11 @@ export function AccountList({ groups }: AccountListProps) {
     setReAuthError(error);
   }, []);
 
+  const handleDisconnect = useCallback(async (itemId: string) => {
+    await disconnectPlaidItem(itemId);
+    router.refresh();
+  }, [router]);
+
   const isSyncing = plaidItemIds.some((id) => getSyncState(id).status === "syncing");
 
   return (
@@ -117,6 +123,7 @@ export function AccountList({ groups }: AccountListProps) {
                 syncStatus={state.status}
                 syncError={state.error}
                 onSync={() => group.plaidItemId && handleSync(group.plaidItemId)}
+                onDisconnect={group.plaidItemId ? () => handleDisconnect(group.plaidItemId!) : undefined}
                 reconnectButton={
                   group.status === "reauth_required" && group.plaidItemId ? (
                     <PlaidLinkFlow

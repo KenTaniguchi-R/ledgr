@@ -93,6 +93,20 @@ function inIds(column: { getSQL: () => unknown }, ids: string[]) {
   return sql`${column} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`;
 }
 
+function computeGainLoss(
+  currentValue: number | null,
+  costBasis: number | null,
+): { gainLoss: number | null; gainLossPercent: number | null } {
+  const cv = currentValue ?? 0;
+  if (costBasis === null || currentValue === null) {
+    return { gainLoss: null, gainLossPercent: null };
+  }
+  return {
+    gainLoss: cv - costBasis,
+    gainLossPercent: costBasis !== 0 ? ((cv - costBasis) / costBasis) * 100 : null,
+  };
+}
+
 // ─── Queries ────────────────────────────────────────────────────────────────
 
 export function getPortfolioSummary(
@@ -103,13 +117,16 @@ export function getPortfolioSummary(
   const accIds = investmentAccountIds(householdId, db);
   if (accIds.length === 0) return { totalValue: 0, dayChange: null, totalGainLoss: 0, totalCostBasis: 0 };
 
+  const holdingsInAccIds = inIds(investmentHoldings.accountId, accIds);
+  const historyInAccIds = inIds(holdingsHistory.accountId, accIds);
+
   const holdings = db
     .select({
       currentValue: investmentHoldings.currentValue,
       costBasis: investmentHoldings.costBasis,
     })
     .from(investmentHoldings)
-    .where(sql`${investmentHoldings.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`)
+    .where(holdingsInAccIds)
     .all();
 
   let totalValue = 0;
@@ -119,25 +136,22 @@ export function getPortfolioSummary(
     if (h.costBasis !== null) totalCostBasis += h.costBasis;
   }
 
-  // Day change: today vs yesterday
   const todayStr = today ?? todayDateString();
   const prevDate = new Date(todayStr + "T00:00:00");
   prevDate.setDate(prevDate.getDate() - 1);
   const yesterdayStr = prevDate.toISOString().slice(0, 10);
 
-  const inAccIds = sql`${holdingsHistory.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`;
-
   const hasToday = db
     .select({ id: holdingsHistory.id })
     .from(holdingsHistory)
-    .where(and(inAccIds, eq(holdingsHistory.date, todayStr)))
+    .where(and(historyInAccIds, eq(holdingsHistory.date, todayStr)))
     .limit(1)
     .get();
 
   const hasYesterday = db
     .select({ id: holdingsHistory.id })
     .from(holdingsHistory)
-    .where(and(inAccIds, eq(holdingsHistory.date, yesterdayStr)))
+    .where(and(historyInAccIds, eq(holdingsHistory.date, yesterdayStr)))
     .limit(1)
     .get();
 
@@ -146,13 +160,13 @@ export function getPortfolioSummary(
     const todayTotal = db
       .select({ total: sql<number>`COALESCE(SUM(${holdingsHistory.value}), 0)` })
       .from(holdingsHistory)
-      .where(and(inAccIds, eq(holdingsHistory.date, todayStr)))
+      .where(and(historyInAccIds, eq(holdingsHistory.date, todayStr)))
       .get();
 
     const yesterdayTotal = db
       .select({ total: sql<number>`COALESCE(SUM(${holdingsHistory.value}), 0)` })
       .from(holdingsHistory)
-      .where(and(inAccIds, eq(holdingsHistory.date, yesterdayStr)))
+      .where(and(historyInAccIds, eq(holdingsHistory.date, yesterdayStr)))
       .get();
 
     dayChange = (todayTotal?.total ?? 0) - (yesterdayTotal?.total ?? 0);
@@ -181,7 +195,7 @@ export function getPortfolioHistory(
     })
     .from(holdingsHistory)
     .where(and(
-      sql`${holdingsHistory.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`,
+      inIds(holdingsHistory.accountId, accIds),
       gte(holdingsHistory.date, dateRange.dateFrom),
       lte(holdingsHistory.date, dateRange.dateTo),
     ))
@@ -203,7 +217,7 @@ export function getAssetAllocation(
       value: sql<number>`SUM(${investmentHoldings.currentValue})`,
     })
     .from(investmentHoldings)
-    .where(sql`${investmentHoldings.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`)
+    .where(inIds(investmentHoldings.accountId, accIds))
     .groupBy(investmentHoldings.type)
     .all();
 
@@ -226,7 +240,7 @@ export function getHoldings(
   const accIds = accountId ? allAccIds.filter((id) => id === accountId) : allAccIds;
   if (accIds.length === 0) return [];
 
-  const inAccIds = sql`${investmentHoldings.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`;
+  const holdingsFilter = inIds(investmentHoldings.accountId, accIds);
 
   if (view === "consolidated") {
     const rows = db
@@ -240,7 +254,7 @@ export function getHoldings(
         costBasis: sql<number | null>`SUM(${investmentHoldings.costBasis})`,
       })
       .from(investmentHoldings)
-      .where(inAccIds)
+      .where(holdingsFilter)
       .groupBy(sql`COALESCE(${investmentHoldings.ticker}, ${investmentHoldings.securityName})`)
       .orderBy(sql`SUM(${investmentHoldings.currentValue}) DESC`)
       .all();
@@ -253,15 +267,10 @@ export function getHoldings(
       quantity: r.quantity ?? 0,
       currentValue: r.currentValue ?? 0,
       costBasis: r.costBasis,
-      gainLoss: r.costBasis !== null ? (r.currentValue ?? 0) - r.costBasis : null,
-      gainLossPercent:
-        r.costBasis !== null && r.costBasis !== 0
-          ? (((r.currentValue ?? 0) - r.costBasis) / r.costBasis) * 100
-          : null,
+      ...computeGainLoss(r.currentValue, r.costBasis),
     }));
   }
 
-  // by-account
   const rows = db
     .select({
       ticker: investmentHoldings.ticker,
@@ -276,7 +285,7 @@ export function getHoldings(
     })
     .from(investmentHoldings)
     .innerJoin(accounts, eq(investmentHoldings.accountId, accounts.id))
-    .where(inAccIds)
+    .where(holdingsFilter)
     .orderBy(sql`${investmentHoldings.currentValue} DESC`)
     .all();
 
@@ -288,12 +297,7 @@ export function getHoldings(
     quantity: r.quantity ?? 0,
     currentValue: r.currentValue ?? 0,
     costBasis: r.costBasis,
-    gainLoss:
-      r.costBasis !== null && r.currentValue !== null ? r.currentValue - r.costBasis : null,
-    gainLossPercent:
-      r.costBasis !== null && r.costBasis !== 0 && r.currentValue !== null
-        ? ((r.currentValue - r.costBasis) / r.costBasis) * 100
-        : null,
+    ...computeGainLoss(r.currentValue, r.costBasis),
     accountName: r.accountName,
     accountId: r.accountId,
   }));
@@ -313,7 +317,7 @@ export function getInvestmentTransactions(
   if (accIds.length === 0) return { rows: [], nextCursor: null };
 
   const conditions = [
-    sql`${investmentTransactions.accountId} IN (${sql.join(accIds.map((id) => sql`${id}`), sql`, `)})`,
+    inIds(investmentTransactions.accountId, accIds),
   ];
 
   if (filters.type)

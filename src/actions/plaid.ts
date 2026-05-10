@@ -3,10 +3,9 @@
 import { v4 as uuid } from "uuid";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { Products, CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
-import { encrypt } from "@/lib/encryption";
+import { encrypt, decrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
 import { mapPlaidAccountType, todayISO, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
@@ -170,98 +169,47 @@ export async function exchangePublicToken(publicToken: string) {
   return result;
 }
 
-const createManualAccountSchema = z.object({
-  name: z.string().min(1).max(100),
-  type: z.enum(["checking", "savings", "credit", "loan", "investment", "other"]),
-  balance: z.number().transform((v) => Math.round(v)),
-});
-
-type CreateManualAccountInput = {
-  name: string;
-  type: "checking" | "savings" | "credit" | "loan" | "investment" | "other";
-  balance: number;
-};
-
-export async function createManualAccount(data: CreateManualAccountInput, db: LedgrDb = defaultDb) {
+export async function disconnectPlaidItem(
+  plaidItemId: string,
+  db: LedgrDb = defaultDb,
+) {
   const householdId = await getHouseholdId();
+  const scoped = scopedQuery(householdId, db);
 
-  const parsed = createManualAccountSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: "Invalid input" };
+  const item = db
+    .select({
+      id: plaidItems.id,
+      accessToken: plaidItems.accessToken,
+    })
+    .from(plaidItems)
+    .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
+    .get();
+
+  if (!item) {
+    return { error: "Item not found" };
   }
 
-  const accountId = uuid();
-  const today = todayISO();
+  try {
+    await getPlaidClient().itemRemove({
+      access_token: decrypt(item.accessToken),
+    });
+  } catch {
+    // Best-effort — continue with local cleanup even if Plaid call fails
+  }
 
+  const now = new Date().toISOString();
   db.transaction((tx) => {
-    tx.insert(accounts)
-      .values({
-        id: accountId,
-        householdId,
-        name: parsed.data.name,
-        type: parsed.data.type,
-        currentBalance: parsed.data.balance,
-        isManual: true,
-      })
+    tx.update(accounts)
+      .set({ deletedAt: now, plaidItemId: null, plaidAccountId: null })
+      .where(eq(accounts.plaidItemId, plaidItemId))
       .run();
 
-    tx.insert(balanceHistory)
-      .values({
-        id: uuid(),
-        accountId,
-        date: today,
-        balance: parsed.data.balance,
-      })
+    tx.delete(plaidItems)
+      .where(eq(plaidItems.id, plaidItemId))
       .run();
   });
 
   revalidatePath("/accounts");
-  return { success: true, accountId };
-}
-
-const updateAccountSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  isHidden: z.boolean().optional(),
-});
-
-type UpdateAccountInput = {
-  name?: string;
-  isHidden?: boolean;
-};
-
-export async function updateAccount(
-  accountId: string,
-  data: UpdateAccountInput,
-  db: LedgrDb = defaultDb,
-) {
-  const householdId = await getHouseholdId();
-  const parsed = updateAccountSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: "Invalid input" };
-  }
-
-  const scoped = scopedQuery(householdId, db);
-  const existing = db
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(scoped.where(accounts, eq(accounts.id, accountId)))
-    .get();
-
-  if (!existing) {
-    return { error: "Account not found" };
-  }
-
-  const updates: Partial<typeof accounts.$inferInsert> = {};
-  if (parsed.data.name !== undefined) updates.name = parsed.data.name;
-  if (parsed.data.isHidden !== undefined) updates.isHidden = parsed.data.isHidden;
-
-  if (Object.keys(updates).length > 0) {
-    db.update(accounts)
-      .set(updates)
-      .where(scoped.where(accounts, eq(accounts.id, accountId)))
-      .run();
-  }
-
-  revalidatePath("/accounts");
+  revalidatePath("/investments");
   return { success: true };
 }

@@ -7,6 +7,7 @@ import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { syncInstitution, type SyncResult } from "@/lib/plaid/sync";
+import { syncInvestments } from "@/lib/plaid/investments";
 
 export async function triggerSync(
   plaidItemId: string,
@@ -27,9 +28,13 @@ export async function triggerSync(
 
   const result = await syncInstitution(plaidItemId, householdId, db);
 
+  // Fire-and-forget investment sync — skips silently if item has no investment accounts
+  syncInvestments(plaidItemId, householdId, db).catch(() => {});
+
   revalidatePath("/");
   revalidatePath("/accounts");
   revalidatePath("/transactions");
+  revalidatePath("/investments");
 
   return result;
 }

@@ -1,6 +1,26 @@
-import { type ReactNode } from "react";
-import { RefreshCw } from "lucide-react";
+"use client";
+
+import { type ReactNode, useState } from "react";
+import { RefreshCw, MoreHorizontal, Unplug, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/atoms/status-badge";
 import { SyncStatusBadge, type SyncStatus } from "@/components/atoms/sync-status-badge";
 import type { PlaidItemStatus } from "@/db/schema";
@@ -14,6 +34,7 @@ interface InstitutionHeaderProps {
   syncStatus: SyncStatus;
   syncError?: string;
   onSync: () => void;
+  onDisconnect?: () => void;
   reconnectButton?: ReactNode;
   reAuthError?: string | null;
 }
@@ -38,9 +59,12 @@ export function InstitutionHeader({
   syncStatus,
   syncError,
   onSync,
+  onDisconnect,
   reconnectButton,
   reAuthError,
 }: InstitutionHeaderProps) {
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
+
   return (
     <div>
       <div className="group flex items-center justify-between px-4 py-2">
@@ -66,16 +90,42 @@ export function InstitutionHeader({
           <SyncStatusBadge status={syncStatus} errorMessage={syncError} />
           {status && syncStatus === "idle" && <StatusBadge status={status} />}
           {reconnectButton ?? (plaidItemId ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onSync}
-              disabled={syncStatus === "syncing"}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <RefreshCw className="size-3.5" />
-              <span className="sr-only">Sync Now</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" />
+                <span className="sr-only">Institution actions</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={4}>
+                <DropdownMenuItem
+                  disabled={syncStatus === "syncing"}
+                  onClick={onSync}
+                >
+                  <RefreshCw className="size-3.5 mr-2" />
+                  Sync now
+                </DropdownMenuItem>
+                {onDisconnect && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setDisconnectOpen(true)}
+                    >
+                      <Unplug className="size-3.5 mr-2" />
+                      Disconnect
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null)}
         </div>
       </div>
@@ -84,6 +134,34 @@ export function InstitutionHeader({
           {reAuthError}
         </p>
       )}
+
+      <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10">
+              <AlertTriangle className="size-5 text-destructive" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Disconnect {institutionName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {accountCount} {accountCount === 1 ? "account" : "accounts"} and
+              revoke Ledgr&apos;s access to this institution. Transaction history will be
+              preserved but no longer update. You can reconnect anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setDisconnectOpen(false);
+                onDisconnect?.();
+              }}
+            >
+              Disconnect
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

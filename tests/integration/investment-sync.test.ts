@@ -81,7 +81,7 @@ describe("applyInvestmentsToDb", () => {
     const holdings = [makeHolding(accountId)];
     const txns = [makeTxn(accountId)];
 
-    const result = applyInvestmentsToDb(db, holdings, txns, plaidItemId, householdId);
+    const result = applyInvestmentsToDb(db, holdings, txns, plaidItemId);
 
     expect(result.holdingsUpserted).toBe(1);
     expect(result.txnsInserted).toBe(1);
@@ -97,10 +97,10 @@ describe("applyInvestmentsToDb", () => {
 
   it("full-replaces holdings on re-sync", () => {
     const h1 = [makeHolding(accountId, { currentValue: 100000 })];
-    applyInvestmentsToDb(db, h1, [], plaidItemId, householdId);
+    applyInvestmentsToDb(db, h1, [], plaidItemId);
 
     const h2 = [makeHolding(accountId, { currentValue: 200000 })];
-    applyInvestmentsToDb(db, h2, [], plaidItemId, householdId);
+    applyInvestmentsToDb(db, h2, [], plaidItemId);
 
     const dbHoldings = db.select().from(investmentHoldings).all();
     expect(dbHoldings).toHaveLength(1);
@@ -109,8 +109,8 @@ describe("applyInvestmentsToDb", () => {
 
   it("deduplicates transactions with INSERT OR IGNORE", () => {
     const txn = makeTxn(accountId, { plaidInvestmentTransactionId: "dup-txn" });
-    applyInvestmentsToDb(db, [], [txn], plaidItemId, householdId);
-    applyInvestmentsToDb(db, [], [{ ...txn, id: crypto.randomUUID() }], plaidItemId, householdId);
+    applyInvestmentsToDb(db, [], [txn], plaidItemId);
+    applyInvestmentsToDb(db, [], [{ ...txn, id: crypto.randomUUID() }], plaidItemId);
 
     const dbTxns = db.select().from(investmentTransactions).all();
     expect(dbTxns).toHaveLength(1);
@@ -118,7 +118,7 @@ describe("applyInvestmentsToDb", () => {
 
   it("writes holdings_history snapshot", () => {
     const holdings = [makeHolding(accountId)];
-    applyInvestmentsToDb(db, holdings, [], plaidItemId, householdId);
+    applyInvestmentsToDb(db, holdings, [], plaidItemId);
 
     const snapshots = db.select().from(holdingsHistory).all();
     expect(snapshots).toHaveLength(1);
@@ -127,8 +127,8 @@ describe("applyInvestmentsToDb", () => {
 
   it("prevents duplicate snapshots via unique constraint", () => {
     const holdings = [makeHolding(accountId)];
-    applyInvestmentsToDb(db, holdings, [], plaidItemId, householdId);
-    applyInvestmentsToDb(db, holdings, [], plaidItemId, householdId);
+    applyInvestmentsToDb(db, holdings, [], plaidItemId);
+    applyInvestmentsToDb(db, holdings, [], plaidItemId);
 
     const snapshots = db.select().from(holdingsHistory).all();
     expect(snapshots).toHaveLength(1);
@@ -138,7 +138,7 @@ describe("applyInvestmentsToDb", () => {
     const hh2 = insertHousehold(db, "Other Household");
     const acc2 = insertAccount(db, hh2.householdId, { type: "investment" });
 
-    applyInvestmentsToDb(db, [makeHolding(accountId)], [], plaidItemId, householdId);
+    applyInvestmentsToDb(db, [makeHolding(accountId)], [], plaidItemId);
     insertInvestmentHolding(db, acc2.accountId, { currentValue: 999999 });
 
     const hh1Holdings = db

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { displayToCents } from "@/lib/money";
-import { createManualAccount } from "@/actions/plaid";
+import { createManualAccount } from "@/actions/accounts";
 import { ACCOUNT_TYPES, type AccountType } from "@/db/schema/accounts";
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
