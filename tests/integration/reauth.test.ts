@@ -45,7 +45,7 @@ describe("re-auth server actions", () => {
     return db;
   }
 
-  function seedItem(testDb: typeof db, status: string = "reauth_required") {
+  function seedItem(testDb: typeof db, status: "active" | "error" | "reauth_required" | "revoked" = "reauth_required") {
     const now = new Date().toISOString();
     testDb.insert(households).values({ id: HOUSEHOLD_ID, name: "Test", createdAt: now, updatedAt: now }).run();
     testDb.insert(householdMembers).values({ id: uuid(), householdId: HOUSEHOLD_ID, userId: USER_ID, role: "owner", createdAt: now }).run();
