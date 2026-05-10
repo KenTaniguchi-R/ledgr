@@ -16,7 +16,9 @@ function findItemByPlaidId(db: LedgrDb, plaidItemIdValue: string) {
     .get();
 }
 
-function updateItemStatus(db: LedgrDb, itemId: string, status: string, errorCode: string | null) {
+type PlaidItemStatus = "active" | "error" | "reauth_required" | "revoked";
+
+function updateItemStatus(db: LedgrDb, itemId: string, status: PlaidItemStatus, errorCode: string | null) {
   db.update(plaidItems)
     .set({ status, errorCode, updatedAt: new Date().toISOString() })
     .where(eq(plaidItems.id, itemId))
