@@ -10,21 +10,8 @@ import {
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
-import { todayDateString, rangeToDateBounds } from "@/lib/date-utils";
+import { todayDateString, rangeToDateBounds, monthBounds, getCurrentMonth } from "@/lib/date-utils";
 import { baseTransactionQuery, type TransactionRow } from "./transactions";
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function currentMonthBounds(): { dateFrom: string; dateTo: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const dateFrom = `${year}-${month}-01`;
-  // Last day of month
-  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-  const dateTo = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
-  return { dateFrom, dateTo };
-}
 
 // ─── getDashboardSummary ────────────────────────────────────────────────────
 
@@ -59,7 +46,7 @@ export function getDashboardSummary(
     }
   }
 
-  const { dateFrom, dateTo } = currentMonthBounds();
+  const { from: dateFrom, to: dateTo } = monthBounds(getCurrentMonth());
 
   // Monthly transactions (non-pending, non-deleted)
   const monthlyTxns = db
@@ -218,12 +205,8 @@ export function getMonthlySpending(
 ): MonthlySpendingRow[] {
   const scoped = scopedQuery(householdId, db);
 
-  const targetMonth = month ?? new Date().toISOString().slice(0, 7);
-  const dateFrom = `${targetMonth}-01`;
-  // Last day of month
-  const [year, mon] = targetMonth.split("-").map(Number);
-  const lastDay = new Date(year, mon, 0).getDate();
-  const dateTo = `${targetMonth}-${String(lastDay).padStart(2, "0")}`;
+  const targetMonth = month ?? getCurrentMonth();
+  const { from: dateFrom, to: dateTo } = monthBounds(targetMonth);
 
   // Get expense transactions (positive normalizedAmount, non-pending, non-deleted)
   const expenseTxns = db

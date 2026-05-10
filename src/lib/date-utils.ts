@@ -11,6 +11,10 @@ export function formatMonthShort(month: string): string {
   return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "short" });
 }
 
+export function formatDateShort(date: string): string {
+  return new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 export function formatMonthLong(month: string): string {
   const [y, m] = month.split("-");
   return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });

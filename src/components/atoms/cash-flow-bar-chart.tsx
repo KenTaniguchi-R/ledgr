@@ -2,17 +2,13 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { centsToDisplay } from "@/lib/money";
+import { formatMonthShort } from "@/lib/date-utils";
 import { INCOME_COLOR, EXPENSE_COLOR } from "@/lib/chart-colors";
 import type { CashFlowRow } from "@/queries/dashboard";
 
 interface CashFlowBarChartProps {
   data: CashFlowRow[];
   height?: number;
-}
-
-function formatMonth(month: string) {
-  const [y, m] = month.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "short" });
 }
 
 export function CashFlowBarChart({ data }: CashFlowBarChartProps) {
@@ -28,7 +24,7 @@ export function CashFlowBarChart({ data }: CashFlowBarChartProps) {
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 11 }} />
+        <XAxis dataKey="month" tickFormatter={formatMonthShort} tick={{ fontSize: 11 }} />
         <YAxis
           tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
           tick={{ fontSize: 11 }}
@@ -36,7 +32,7 @@ export function CashFlowBarChart({ data }: CashFlowBarChartProps) {
         />
         <Tooltip
           formatter={(v) => centsToDisplay(Number(v))}
-          labelFormatter={(label) => formatMonth(String(label))}
+          labelFormatter={(label) => formatMonthShort(String(label))}
         />
         <Legend />
         <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[2, 2, 0, 0]} />

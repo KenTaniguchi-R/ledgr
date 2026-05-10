@@ -2,15 +2,11 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { centsToDisplay } from "@/lib/money";
+import { formatMonthShort } from "@/lib/date-utils";
 
 interface TrendLineChartProps {
   data: Record<string, number | string>[];
   categories: { name: string; color: string }[];
-}
-
-function formatMonth(month: string) {
-  const [y, m] = month.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "short" });
 }
 
 export function TrendLineChart({ data, categories: cats }: TrendLineChartProps) {
@@ -26,13 +22,13 @@ export function TrendLineChart({ data, categories: cats }: TrendLineChartProps) 
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="period" tickFormatter={formatMonth} tick={{ fontSize: 11 }} />
+        <XAxis dataKey="period" tickFormatter={formatMonthShort} tick={{ fontSize: 11 }} />
         <YAxis
           tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
           tick={{ fontSize: 11 }}
           width={60}
         />
-        <Tooltip formatter={(v) => centsToDisplay(Number(v))} labelFormatter={(l) => formatMonth(String(l))} />
+        <Tooltip formatter={(v) => centsToDisplay(Number(v))} labelFormatter={(l) => formatMonthShort(String(l))} />
         <Legend />
         {cats.map((cat) => (
           <Line
