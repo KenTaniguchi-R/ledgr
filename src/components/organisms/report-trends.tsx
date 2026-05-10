@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TrendLineChart } from "@/components/atoms/trend-line-chart";
+import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CHART_COLORS } from "@/lib/chart-colors";
 import type { CategoryTrendRow } from "@/queries/reports";
@@ -43,8 +44,18 @@ export function ReportTrends({ data }: ReportTrendsProps) {
     return row;
   });
 
+  const totalSpent = data.reduce((s, r) => s + r.total, 0);
+  const monthCount = new Set(data.map((r) => r.period)).size;
+  const monthlyAvg = monthCount > 0 ? Math.round(totalSpent / monthCount) : 0;
+
+  const summaryItems: SummaryItem[] = [
+    { label: "Total Spent", value: totalSpent, color: "expense" },
+    { label: "Monthly Average", value: monthlyAvg },
+  ];
+
   return (
     <div className="space-y-4">
+      <ReportSummaryBar items={summaryItems} />
       <h3 className="text-lg font-medium">Category Trends</h3>
 
       <div className="h-[300px]">

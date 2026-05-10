@@ -1,7 +1,7 @@
 "use client";
 
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
-import { centsToDisplay } from "@/lib/money";
+import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import type { IncomeExpenseRow } from "@/queries/reports";
 
 interface ReportIncomeExpenseProps {
@@ -20,27 +20,16 @@ export function ReportIncomeExpense({ data }: ReportIncomeExpenseProps) {
   const totalExpenses = data.reduce((s, r) => s + r.expenses, 0);
   const totalNet = totalIncome - totalExpenses;
 
+  const summaryItems: SummaryItem[] = [
+    { label: "Total Income", value: totalIncome, color: "income" },
+    { label: "Total Expenses", value: totalExpenses, color: "expense" },
+    { label: "Net", value: totalNet, color: "dynamic" },
+  ];
+
   return (
     <div className="space-y-4">
+      <ReportSummaryBar items={summaryItems} />
       <h3 className="text-lg font-medium">Income vs Expense</h3>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-lg border p-3">
-          <div className="text-xs text-muted-foreground">Total Income</div>
-          <div className="text-lg font-semibold text-green-600">{centsToDisplay(totalIncome)}</div>
-        </div>
-        <div className="rounded-lg border p-3">
-          <div className="text-xs text-muted-foreground">Total Expenses</div>
-          <div className="text-lg font-semibold text-destructive">{centsToDisplay(totalExpenses)}</div>
-        </div>
-        <div className="rounded-lg border p-3">
-          <div className="text-xs text-muted-foreground">Net</div>
-          <div className={`text-lg font-semibold ${totalNet >= 0 ? "text-green-600" : "text-destructive"}`}>
-            {centsToDisplay(totalNet)}
-          </div>
-        </div>
-      </div>
-
       <div className="h-[300px]">
         <CashFlowBarChart data={chartData} />
       </div>
