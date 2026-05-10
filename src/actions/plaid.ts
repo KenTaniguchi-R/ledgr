@@ -101,6 +101,7 @@ export async function exchangeAndStoreAccounts(
           householdId,
           accessToken: encrypt(accessToken),
           plaidInstitutionId: institutionId,
+          plaidItemId: itemRes.data.item.item_id,
           institutionName,
           status: "active",
         })
