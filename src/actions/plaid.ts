@@ -22,7 +22,7 @@ export async function createLinkToken() {
     const response = await getPlaidClient().linkTokenCreate({
       user: { client_user_id: session!.user.id },
       client_name: "Ledgr",
-      products: [Products.Transactions],
+      products: [Products.Transactions, Products.Investments],
       country_codes: [CountryCode.Us],
       language: "en",
       ...(process.env.PLAID_WEBHOOK_URL
