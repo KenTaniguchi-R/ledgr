@@ -1,11 +1,36 @@
 services:
-  ledgr:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ledgr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledgr}
+      POSTGRES_DB: ledgr
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c work_mem=16MB
+        -c maintenance_work_mem=64MB
+        -c random_page_cost=1.1
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledgr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
     build: .
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "3000:3000"
-    volumes:
-      - ledgr-data:/app/data
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql://ledgr:${POSTGRES_PASSWORD:-ledgr}@db:5432/ledgr
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
@@ -14,4 +39,4 @@ services:
       retries: 3
 
 volumes:
-  ledgr-data:
+  pgdata:
