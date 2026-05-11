@@ -5,6 +5,11 @@ import { userSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { nowISO } from "@/lib/date-utils";
 import { v4 as uuid } from "uuid";
+import { z } from "zod";
+
+const McpSettingsSchema = z.object({
+  mcpEnabled: z.boolean(),
+});
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -13,8 +18,11 @@ export async function POST(request: Request) {
   }
 
   const userId = session.user.id;
-  const body = await request.json();
-  const mcpEnabled = body.mcpEnabled === true ? 1 : 0;
+  const parsed = McpSettingsSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request body", details: parsed.error.flatten() }, { status: 400 });
+  }
+  const mcpEnabled = parsed.data.mcpEnabled ? 1 : 0;
 
   const existing = db
     .select({ id: userSettings.id })

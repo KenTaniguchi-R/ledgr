@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getClient } from "@/lib/mcp/auth/oauth-server";
+import { SCOPE_LABELS } from "@/lib/mcp/constants";
 import { ConsentForm } from "./consent-form";
 
 interface Props {
@@ -34,11 +35,6 @@ export default async function ConsentPage({ searchParams }: Props) {
   }
 
   const scopeList = (scope ?? "ledgr:read").split(" ");
-  const scopeLabels: Record<string, string> = {
-    "ledgr:read": "View your accounts, transactions, budgets, and reports",
-    "ledgr:write": "Update transaction categories and budget allocations",
-    "ledgr:sync": "Trigger bank account syncs",
-  };
 
   return (
     <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-lg">
@@ -53,7 +49,7 @@ export default async function ConsentPage({ searchParams }: Props) {
           {scopeList.map((s) => (
             <li key={s} className="flex items-start gap-2 text-sm">
               <span className="mt-0.5 text-primary">&#10003;</span>
-              <span>{scopeLabels[s] ?? s}</span>
+              <span>{SCOPE_LABELS[s] ?? s}</span>
             </li>
           ))}
         </ul>

@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { signAccessToken, verifyAccessToken, generateRefreshToken } from "./token";
+
+beforeAll(() => {
+  process.env.ENCRYPTION_KEY ??= "test-key-for-jwt-signing-32chars!!";
+});
 
 describe("JWT tokens", () => {
   it("round-trips a signed JWT with correct claims", async () => {

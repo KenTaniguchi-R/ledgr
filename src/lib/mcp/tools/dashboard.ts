@@ -1,13 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getDashboardSummary } from "@/queries/dashboard";
 import { centsToDisplay } from "@/lib/money";
-
-const READ_ANNOTATIONS = {
-  readOnlyHint: true,
-  destructiveHint: false,
-  openWorldHint: false,
-  idempotentHint: true,
-} as const;
+import { READ_ANNOTATIONS } from "../constants";
+import { jsonResult } from "../tool-result";
 
 export function registerDashboardTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -20,20 +15,17 @@ export function registerDashboardTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async () => {
-      const summary = getDashboardSummary(householdId);
-      const result = {
-        netWorthCents: summary.netWorth,
-        netWorthDisplay: centsToDisplay(summary.netWorth),
-        monthlyIncomeCents: summary.monthlyIncome,
-        monthlyIncomeDisplay: centsToDisplay(summary.monthlyIncome),
-        monthlyExpensesCents: summary.monthlyExpenses,
-        monthlyExpensesDisplay: centsToDisplay(summary.monthlyExpenses),
-        monthlyNetCents: summary.monthlyNet,
-        monthlyNetDisplay: centsToDisplay(summary.monthlyNet),
-      };
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
+      const s = getDashboardSummary(householdId);
+      return jsonResult({
+        netWorthCents: s.netWorth,
+        netWorthDisplay: centsToDisplay(s.netWorth),
+        monthlyIncomeCents: s.monthlyIncome,
+        monthlyIncomeDisplay: centsToDisplay(s.monthlyIncome),
+        monthlyExpensesCents: s.monthlyExpenses,
+        monthlyExpensesDisplay: centsToDisplay(s.monthlyExpenses),
+        monthlyNetCents: s.monthlyNet,
+        monthlyNetDisplay: centsToDisplay(s.monthlyNet),
+      });
     },
   );
 }

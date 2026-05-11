@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getClient } from "@/lib/mcp/auth/oauth-server";
+import { DEFAULT_SCOPE } from "@/lib/mcp/constants";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -7,7 +8,7 @@ export async function GET(request: Request) {
   const redirectUri = url.searchParams.get("redirect_uri");
   const codeChallenge = url.searchParams.get("code_challenge");
   const codeChallengeMethod = url.searchParams.get("code_challenge_method");
-  const scope = url.searchParams.get("scope") ?? "ledgr:read ledgr:write ledgr:sync";
+  const scope = url.searchParams.get("scope") ?? DEFAULT_SCOPE;
   const state = url.searchParams.get("state");
 
   if (!clientId || !redirectUri || !codeChallenge) {

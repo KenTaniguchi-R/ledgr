@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "@/db";
 import { plaidItems } from "@/db/schema";
@@ -6,13 +5,8 @@ import { eq } from "drizzle-orm";
 import { scopedQuery } from "@/lib/scoped-query";
 import { syncInstitution } from "@/lib/plaid/sync";
 import { checkSyncRateLimit } from "../rate-limit";
-
-const SYNC_ANNOTATIONS = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  openWorldHint: true,
-  idempotentHint: false,
-} as const;
+import { SYNC_ANNOTATIONS } from "../constants";
+import { jsonResult } from "../tool-result";
 
 export function registerSyncTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -74,9 +68,7 @@ export function registerSyncTools(server: McpServer, householdId: string) {
         }
       }
 
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify({ synced: results }, null, 2) }],
-      };
+      return jsonResult({ synced: results });
     },
   );
 }

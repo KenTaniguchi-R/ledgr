@@ -2,13 +2,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getTransactions } from "@/queries/transactions";
 import { centsToDisplay } from "@/lib/money";
-
-const READ_ANNOTATIONS = {
-  readOnlyHint: true,
-  destructiveHint: false,
-  openWorldHint: false,
-  idempotentHint: true,
-} as const;
+import { READ_ANNOTATIONS } from "../constants";
+import { jsonResult } from "../tool-result";
 
 export function registerTransactionTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -32,34 +27,28 @@ export function registerTransactionTools(server: McpServer, householdId: string)
       const { cursor, ...filters } = args;
       const page = getTransactions(householdId, filters, 50, cursor ?? null);
 
-      const rows = page.rows.map((t) => ({
-        id: t.id,
-        date: t.date,
-        name: t.name,
-        merchantName: t.merchantName,
-        categoryName: t.categoryName,
-        categoryGroupName: t.categoryGroupName,
-        accountName: t.accountName,
-        amountCents: t.normalizedAmount,
-        amountDisplay: centsToDisplay(t.normalizedAmount, t.currency),
-        isIncome: t.normalizedAmount > 0,
-        currency: t.currency,
-        pending: t.pending,
-        reviewed: t.reviewed,
-        notes: t.notes,
-        isTransfer: t.isTransfer,
-        hasSplits: t.hasSplits,
-        categorySource: t.categorySource,
-      }));
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({ rows, nextCursor: page.nextCursor }, null, 2),
-          },
-        ],
-      };
+      return jsonResult({
+        rows: page.rows.map((t) => ({
+          id: t.id,
+          date: t.date,
+          name: t.name,
+          merchantName: t.merchantName,
+          categoryName: t.categoryName,
+          categoryGroupName: t.categoryGroupName,
+          accountName: t.accountName,
+          amountCents: t.normalizedAmount,
+          amountDisplay: centsToDisplay(t.normalizedAmount, t.currency),
+          isIncome: t.normalizedAmount > 0,
+          currency: t.currency,
+          pending: t.pending,
+          reviewed: t.reviewed,
+          notes: t.notes,
+          isTransfer: t.isTransfer,
+          hasSplits: t.hasSplits,
+          categorySource: t.categorySource,
+        })),
+        nextCursor: page.nextCursor,
+      });
     },
   );
 }

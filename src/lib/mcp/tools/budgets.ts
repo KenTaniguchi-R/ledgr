@@ -4,20 +4,8 @@ import { getBudgetForMonth } from "@/queries/budgets";
 import { setBudgetCategory } from "@/actions/budgets";
 import { getCurrentMonth } from "@/lib/date-utils";
 import { centsToDisplay } from "@/lib/money";
-
-const READ_ANNOTATIONS = {
-  readOnlyHint: true,
-  destructiveHint: false,
-  openWorldHint: false,
-  idempotentHint: true,
-} as const;
-
-const WRITE_ANNOTATIONS = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  openWorldHint: false,
-  idempotentHint: true,
-} as const;
+import { READ_ANNOTATIONS, WRITE_ANNOTATIONS } from "../constants";
+import { jsonResult } from "../tool-result";
 
 export function registerBudgetReadTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -37,12 +25,11 @@ export function registerBudgetReadTools(server: McpServer, householdId: string) 
     },
     async (args) => {
       const month = args.month ?? getCurrentMonth();
-      const budgetMonth = getBudgetForMonth(householdId, month);
+      const b = getBudgetForMonth(householdId, month);
 
-      // Enrich with display values
-      const result = {
-        budget: budgetMonth.budget,
-        groups: budgetMonth.groups.map((g) => ({
+      return jsonResult({
+        budget: b.budget,
+        groups: b.groups.map((g) => ({
           ...g,
           totalBudgetedDisplay: centsToDisplay(g.totalBudgeted),
           totalSpentDisplay: centsToDisplay(g.totalSpent),
@@ -54,25 +41,21 @@ export function registerBudgetReadTools(server: McpServer, householdId: string) 
           })),
         })),
         unbudgeted: {
-          spentDisplay: centsToDisplay(budgetMonth.unbudgeted.spent),
-          ...budgetMonth.unbudgeted,
-          categories: budgetMonth.unbudgeted.categories.map((c) => ({
+          ...b.unbudgeted,
+          spentDisplay: centsToDisplay(b.unbudgeted.spent),
+          categories: b.unbudgeted.categories.map((c) => ({
             ...c,
             spentDisplay: centsToDisplay(c.spent),
           })),
         },
         summary: {
-          ...budgetMonth.summary,
-          totalBudgetedDisplay: centsToDisplay(budgetMonth.summary.totalBudgeted),
-          totalSpentDisplay: centsToDisplay(budgetMonth.summary.totalSpent),
-          totalRemainingDisplay: centsToDisplay(budgetMonth.summary.totalRemaining),
+          ...b.summary,
+          totalBudgetedDisplay: centsToDisplay(b.summary.totalBudgeted),
+          totalSpentDisplay: centsToDisplay(b.summary.totalSpent),
+          totalRemainingDisplay: centsToDisplay(b.summary.totalRemaining),
         },
-        lastSyncedAt: budgetMonth.lastSyncedAt,
-      };
-
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
+        lastSyncedAt: b.lastSyncedAt,
+      });
     },
   );
 }
@@ -97,9 +80,7 @@ export function registerBudgetWriteTools(server: McpServer, _householdId: string
     },
     async (args) => {
       const result = await setBudgetCategory(args.budgetId, args.categoryId, args.limitAmountCents);
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResult(result);
     },
   );
 }

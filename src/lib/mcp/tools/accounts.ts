@@ -1,14 +1,8 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getAccounts, getAccountSummary } from "@/queries/accounts";
 import { centsToDisplay } from "@/lib/money";
-
-const READ_ANNOTATIONS = {
-  readOnlyHint: true,
-  destructiveHint: false,
-  openWorldHint: false,
-  idempotentHint: true,
-} as const;
+import { READ_ANNOTATIONS } from "../constants";
+import { jsonResult } from "../tool-result";
 
 export function registerAccountTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -21,26 +15,25 @@ export function registerAccountTools(server: McpServer, householdId: string) {
     },
     async () => {
       const accounts = getAccounts(householdId);
-      const result = accounts.map((a) => ({
-        id: a.id,
-        name: a.name,
-        type: a.type,
-        subtype: a.subtype,
-        isHidden: a.isHidden,
-        currentBalanceCents: a.currentBalance,
-        currentBalanceDisplay: a.currentBalance !== null
-          ? centsToDisplay(a.currentBalance, a.currency ?? "USD")
-          : null,
-        availableBalanceCents: a.availableBalance,
-        availableBalanceDisplay: a.availableBalance !== null
-          ? centsToDisplay(a.availableBalance, a.currency ?? "USD")
-          : null,
-        currency: a.currency,
-        plaidItemId: a.plaidItemId,
-      }));
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResult(
+        accounts.map((a) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          subtype: a.subtype,
+          isHidden: a.isHidden,
+          currentBalanceCents: a.currentBalance,
+          currentBalanceDisplay: a.currentBalance !== null
+            ? centsToDisplay(a.currentBalance, a.currency ?? "USD")
+            : null,
+          availableBalanceCents: a.availableBalance,
+          availableBalanceDisplay: a.availableBalance !== null
+            ? centsToDisplay(a.availableBalance, a.currency ?? "USD")
+            : null,
+          currency: a.currency,
+          plaidItemId: a.plaidItemId,
+        })),
+      );
     },
   );
 
@@ -53,18 +46,15 @@ export function registerAccountTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async () => {
-      const summary = getAccountSummary(householdId);
-      const result = {
-        totalAssetsCents: summary.totalAssets,
-        totalAssetsDisplay: centsToDisplay(summary.totalAssets),
-        totalLiabilitiesCents: summary.totalLiabilities,
-        totalLiabilitiesDisplay: centsToDisplay(summary.totalLiabilities),
-        netWorthCents: summary.netWorth,
-        netWorthDisplay: centsToDisplay(summary.netWorth),
-      };
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
+      const s = getAccountSummary(householdId);
+      return jsonResult({
+        totalAssetsCents: s.totalAssets,
+        totalAssetsDisplay: centsToDisplay(s.totalAssets),
+        totalLiabilitiesCents: s.totalLiabilities,
+        totalLiabilitiesDisplay: centsToDisplay(s.totalLiabilities),
+        netWorthCents: s.netWorth,
+        netWorthDisplay: centsToDisplay(s.netWorth),
+      });
     },
   );
 }

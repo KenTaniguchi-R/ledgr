@@ -20,6 +20,7 @@ describe("OAuth 2.1 flow", () => {
   let close: () => void;
 
   beforeAll(() => {
+    process.env.ENCRYPTION_KEY ??= "test-key-for-jwt-signing-32chars!!";
     const testDb = createTestDb();
     db = testDb.db;
     close = testDb.close;
