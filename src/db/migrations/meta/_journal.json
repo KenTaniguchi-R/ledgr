@@ -92,6 +92,13 @@
       "when": 1747180800000,
       "tag": "0012_add_reviewed_transfer_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1747267200000,
+      "tag": "0013_add_mcp_enabled",
+      "breakpoints": true
     }
   ]
 }

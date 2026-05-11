@@ -37,6 +37,7 @@ export const userSettings = sqliteTable("user_settings", {
   aiBaseUrl: text("ai_base_url"),
   aiConfidenceThreshold: text("ai_confidence_threshold").default("0.7"),
   toolCallingSupported: integer("tool_calling_supported", { mode: "boolean" }),
+  mcpEnabled: integer("mcp_enabled").notNull().default(0),
   dashboardLayout: text("dashboard_layout"),
   createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
   updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
