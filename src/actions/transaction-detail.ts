@@ -43,7 +43,7 @@ export async function fetchTransactionDetail(
   const parsed = transactionIdSchema.safeParse(transactionId);
   if (!parsed.success) return { error: "Invalid input" };
 
-  const detail = getTransactionDetail(householdId, parsed.data, db);
+  const detail = await getTransactionDetail(householdId, parsed.data, db);
   if (!detail) return { error: "deleted" };
 
   return { data: detail };
@@ -65,7 +65,7 @@ export async function updateTransactionFields(
   if (!parsedId.success || !parsedData.success) return { error: "Invalid input" };
 
   const scoped = scopedQuery(householdId, db);
-  const existing = db
+  const [existing] = await db
     .select({
       id: transactions.id,
       plaidTransactionId: transactions.plaidTransactionId,
@@ -75,7 +75,7 @@ export async function updateTransactionFields(
     .where(
       scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)),
     )
-    .get();
+    .limit(1);
 
   if (!existing) return { error: "Transaction not found" };
 
@@ -86,15 +86,13 @@ export async function updateTransactionFields(
   }
 
   if (fields.isTransfer === false && existing.transferPairId) {
-    db.transaction(() => {
-      db.update(transactions)
+    await db.transaction(async (tx) => {
+      await tx.update(transactions)
         .set({ isTransfer: false, transferPairId: null, updatedAt: nowISO() })
-        .where(eq(transactions.id, existing.id))
-        .run();
-      db.update(transactions)
+        .where(eq(transactions.id, existing.id));
+      await tx.update(transactions)
         .set({ isTransfer: false, transferPairId: null, updatedAt: nowISO() })
-        .where(eq(transactions.id, existing.transferPairId!))
-        .run();
+        .where(eq(transactions.id, existing.transferPairId!));
     });
     if (Object.keys(fields).length === 1) return { success: true };
   }
@@ -105,10 +103,9 @@ export async function updateTransactionFields(
   if (fields.date !== undefined) updates.date = fields.date;
   if (fields.isTransfer !== undefined) updates.isTransfer = fields.isTransfer;
 
-  db.update(transactions)
+  await db.update(transactions)
     .set(updates)
-    .where(eq(transactions.id, existing.id))
-    .run();
+    .where(eq(transactions.id, existing.id));
 
   return { success: true };
 }
@@ -133,26 +130,25 @@ export async function upsertSplit(
   if (!parsedId.success || !parsedData.success) return { error: "Invalid input" };
 
   const scoped = scopedQuery(householdId, db);
-  const txn = db
+  const [txn] = await db
     .select({
       id: transactions.id,
       normalizedAmount: transactions.normalizedAmount,
     })
     .from(transactions)
     .where(scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)))
-    .get();
+    .limit(1);
 
   if (!txn) return { error: "Transaction not found" };
 
   const fields = parsedData.data;
   const maxAmount = Math.abs(txn.normalizedAmount);
 
-  return db.transaction(() => {
-    const existingSplits = db
+  return db.transaction(async (tx) => {
+    const existingSplits = await tx
       .select({ id: transactionSplits.id, amount: transactionSplits.amount })
       .from(transactionSplits)
-      .where(eq(transactionSplits.transactionId, txn.id))
-      .all();
+      .where(eq(transactionSplits.transactionId, txn.id));
 
     const otherSplitsTotal = existingSplits
       .filter((s) => s.id !== splitId)
@@ -165,33 +161,30 @@ export async function upsertSplit(
     let savedId: string;
 
     if (splitId) {
-      db.update(transactionSplits)
+      await tx.update(transactionSplits)
         .set({
           categoryId: fields.categoryId,
           amount: fields.amount,
           notes: fields.notes,
         })
-        .where(eq(transactionSplits.id, splitId))
-        .run();
+        .where(eq(transactionSplits.id, splitId));
       savedId = splitId;
     } else {
       savedId = uuid();
-      db.insert(transactionSplits)
+      await tx.insert(transactionSplits)
         .values({
           id: savedId,
           transactionId: txn.id,
           categoryId: fields.categoryId,
           amount: fields.amount,
           notes: fields.notes,
-        })
-        .run();
+        });
     }
 
     if (existingSplits.length === 0 && !splitId) {
-      db.update(transactions)
+      await tx.update(transactions)
         .set({ categorySource: "manual", updatedAt: nowISO() })
-        .where(eq(transactions.id, txn.id))
-        .run();
+        .where(eq(transactions.id, txn.id));
     }
 
     return {
@@ -218,39 +211,37 @@ export async function deleteSplit(
   const parsedSplitId = transactionIdSchema.safeParse(splitId);
   if (!parsedSplitId.success) return { error: "Invalid input" };
 
-  const split = db
+  const [split] = await db
     .select({ id: transactionSplits.id, transactionId: transactionSplits.transactionId })
     .from(transactionSplits)
     .where(eq(transactionSplits.id, parsedSplitId.data))
-    .get();
+    .limit(1);
 
   if (!split) return { error: "Split not found" };
 
   const scoped = scopedQuery(householdId, db);
-  const txn = db
+  const [txn] = await db
     .select({ id: transactions.id })
     .from(transactions)
     .where(scoped.where(transactions, eq(transactions.id, split.transactionId), notDeleted(transactions)))
-    .get();
+    .limit(1);
 
   if (!txn) return { error: "Transaction not found" };
 
-  return db.transaction(() => {
-    db.delete(transactionSplits)
-      .where(eq(transactionSplits.id, split.id))
-      .run();
+  return db.transaction(async (tx) => {
+    await tx.delete(transactionSplits)
+      .where(eq(transactionSplits.id, split.id));
 
-    const remaining = db
+    const [remaining] = await tx
       .select({ count: sql<number>`count(*)` })
       .from(transactionSplits)
       .where(eq(transactionSplits.transactionId, txn.id))
-      .get();
+      .limit(1);
 
     if (remaining && remaining.count === 0) {
-      db.update(transactions)
+      await tx.update(transactions)
         .set({ updatedAt: nowISO() })
-        .where(eq(transactions.id, txn.id))
-        .run();
+        .where(eq(transactions.id, txn.id));
     }
 
     return { success: true };

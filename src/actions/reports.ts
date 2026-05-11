@@ -40,7 +40,7 @@ export async function saveReport(
   const id = uuid();
   const now = nowISO();
 
-  db.insert(savedReports)
+  await db.insert(savedReports)
     .values({
       id,
       householdId,
@@ -49,8 +49,7 @@ export async function saveReport(
       filters: JSON.stringify(parsed.data.filters),
       createdAt: now,
       updatedAt: now,
-    })
-    .run();
+    });
 
   revalidatePath("/reports");
   return { success: true, id };
@@ -72,12 +71,11 @@ export async function deleteReport(
 
   const scoped = scopedQuery(householdId, db);
 
-  const result = db
+  const result = await db
     .delete(savedReports)
-    .where(scoped.where(savedReports, eq(savedReports.id, reportId)))
-    .run();
+    .where(scoped.where(savedReports, eq(savedReports.id, reportId)));
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return { error: "Report not found" };
   }
 
@@ -95,7 +93,7 @@ export async function getDrillDownTransactions(filters: {
 }): Promise<{ rows: TransactionRow[]; hasMore: boolean }> {
   const householdId = await getHouseholdId();
 
-  const page = getTransactions(householdId, {
+  const page = await getTransactions(householdId, {
     categoryId: filters.categoryId ?? undefined,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,

@@ -2,7 +2,7 @@
 
 import { getSession } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
-import { saveLayoutForUser, getLayoutForUser } from "@/queries/settings";
+import { saveLayoutForUser, getLayoutForUser } from "@/actions/settings";
 import type { DashboardLayout } from "@/components/organisms/widgets/registry";
 
 export async function saveLayout(
@@ -12,7 +12,7 @@ export async function saveLayout(
   if (!session) throw new Error("Not authenticated");
   const blocked = guardDemoMode(session.user.id);
   if (blocked) return;
-  saveLayoutForUser(session.user.id, layout);
+  await saveLayoutForUser(session.user.id, layout);
 }
 
 export async function getLayout(): Promise<DashboardLayout | null> {

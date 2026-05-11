@@ -14,17 +14,18 @@ import { guardDemoMode } from "@/lib/demo-mode";
 const monthSchema = z.string().regex(/^\d{4}-\d{2}$/);
 const budgetTypeSchema = z.enum(["category", "flex"]);
 
-function verifyBudgetOwnership(
+async function verifyBudgetOwnership(
   budgetId: string,
   householdId: string,
   db: LedgrDb,
 ) {
   const scoped = scopedQuery(householdId, db);
-  return db
+  const [row] = await db
     .select({ id: budgets.id })
     .from(budgets)
     .where(scoped.where(budgets, eq(budgets.id, budgetId)))
-    .get();
+    .limit(1);
+  return row;
 }
 
 export async function createBudget(
@@ -44,11 +45,11 @@ export async function createBudget(
   const scoped = scopedQuery(householdId, db);
 
   // Idempotent: return existing budget if one exists for this household+month
-  const existing = db
+  const [existing] = await db
     .select({ id: budgets.id })
     .from(budgets)
     .where(scoped.where(budgets, eq(budgets.month, month)))
-    .get();
+    .limit(1);
 
   if (existing) {
     return { success: true, budgetId: existing.id };
@@ -56,15 +57,14 @@ export async function createBudget(
 
   const id = uuid();
   const now = nowISO();
-  db.insert(budgets)
+  await db.insert(budgets)
     .values({
       id,
       householdId,
       month,
       createdAt: now,
       updatedAt: now,
-    })
-    .run();
+    });
 
   revalidatePath("/budgets");
   return { success: true, budgetId: id };
@@ -88,13 +88,13 @@ export async function setBudgetCategory(
   const blocked = guardDemoMode(session!.user.id);
   if (blocked) return blocked;
 
-  const owned = verifyBudgetOwnership(budgetId, householdId, db);
+  const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
     return { error: "Budget not found" };
   }
 
   // Upsert: check if row exists
-  const existing = db
+  const [existing] = await db
     .select({ id: budgetCategories.id })
     .from(budgetCategories)
     .where(
@@ -103,22 +103,20 @@ export async function setBudgetCategory(
         eq(budgetCategories.categoryId, categoryId),
       ),
     )
-    .get();
+    .limit(1);
 
   if (existing) {
-    db.update(budgetCategories)
+    await db.update(budgetCategories)
       .set({ limitAmount })
-      .where(eq(budgetCategories.id, existing.id))
-      .run();
+      .where(eq(budgetCategories.id, existing.id));
   } else {
-    db.insert(budgetCategories)
+    await db.insert(budgetCategories)
       .values({
         id: uuid(),
         budgetId,
         categoryId,
         limitAmount,
-      })
-      .run();
+      });
   }
 
   revalidatePath("/budgets");
@@ -135,19 +133,18 @@ export async function removeBudgetCategory(
   const blocked = guardDemoMode(session!.user.id);
   if (blocked) return blocked;
 
-  const owned = verifyBudgetOwnership(budgetId, householdId, db);
+  const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
     return { error: "Budget not found" };
   }
 
-  db.delete(budgetCategories)
+  await db.delete(budgetCategories)
     .where(
       and(
         eq(budgetCategories.budgetId, budgetId),
         eq(budgetCategories.categoryId, categoryId),
       ),
-    )
-    .run();
+    );
 
   revalidatePath("/budgets");
   return { success: true };
@@ -172,11 +169,11 @@ export async function copyBudgetFromMonth(
   const scoped = scopedQuery(householdId, db);
 
   // Find source budget
-  const sourceBudget = db
+  const [sourceBudget] = await db
     .select({ id: budgets.id })
     .from(budgets)
     .where(scoped.where(budgets, eq(budgets.month, sourceMonth)))
-    .get();
+    .limit(1);
 
   if (!sourceBudget) {
     return { error: "Source budget not found" };
@@ -190,24 +187,22 @@ export async function copyBudgetFromMonth(
   const targetBudgetId = targetResult.budgetId;
 
   // Get source categories
-  const sourceCategories = db
+  const sourceCategories = await db
     .select()
     .from(budgetCategories)
-    .where(eq(budgetCategories.budgetId, sourceBudget.id))
-    .all();
+    .where(eq(budgetCategories.budgetId, sourceBudget.id));
 
   // Get existing target categories to avoid overwriting
-  const existingTargetCategories = db
+  const existingTargetCategories = await db
     .select({ categoryId: budgetCategories.categoryId })
     .from(budgetCategories)
-    .where(eq(budgetCategories.budgetId, targetBudgetId))
-    .all();
+    .where(eq(budgetCategories.budgetId, targetBudgetId));
   const existingCategoryIds = new Set(existingTargetCategories.map((r) => r.categoryId));
 
   // Copy only missing categories
   for (const src of sourceCategories) {
     if (!existingCategoryIds.has(src.categoryId)) {
-      db.insert(budgetCategories)
+      await db.insert(budgetCategories)
         .values({
           id: uuid(),
           budgetId: targetBudgetId,
@@ -215,8 +210,7 @@ export async function copyBudgetFromMonth(
           limitAmount: src.limitAmount,
           rollover: src.rollover,
           isFixed: src.isFixed,
-        })
-        .run();
+        });
     }
   }
 
@@ -239,17 +233,15 @@ export async function updateBudgetType(
   const blocked = guardDemoMode(session!.user.id);
   if (blocked) return blocked;
 
-  const owned = verifyBudgetOwnership(budgetId, householdId, db);
+  const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
     return { error: "Budget not found" };
   }
 
-  db.update(budgets)
+  await db.update(budgets)
     .set({ type: parsedType.data, updatedAt: nowISO() })
-    .where(eq(budgets.id, budgetId))
-    .run();
+    .where(eq(budgets.id, budgetId));
 
   revalidatePath("/budgets");
   return { success: true };
 }
-

@@ -6,11 +6,13 @@ import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { getSession } from "@/lib/auth/session";
 import { decrypt, encrypt } from "@/lib/encryption";
-import { getUserAiSettings, upsertAiSettings } from "@/queries/settings";
+import { getUserAiSettings } from "@/queries/settings";
 import { createUserModel, type AiProvider } from "@/lib/ai/provider";
 import { generateText, stepCountIs } from "ai";
-import { db } from "@/db";
+import { db, db as defaultDb, type LedgrDb } from "@/db";
 import { userSettings } from "@/db/schema";
+import { nowISO } from "@/lib/date-utils";
+import type { DashboardLayout } from "@/components/organisms/widgets/registry";
 
 const aiProviderEnum = z.enum(["openai", "anthropic", "google", "custom"]);
 
@@ -29,6 +31,112 @@ const testAiConnectionSchema = z.object({
   aiBaseUrl: z.string().url().optional().or(z.literal("")),
 });
 
+export interface UpsertAiInput {
+  aiProvider: string;
+  aiModel: string;
+  aiApiKey?: string;
+  aiBaseUrl?: string;
+  aiConfidenceThreshold?: number;
+  toolCallingSupported?: boolean;
+}
+
+export async function upsertAiSettings(
+  userId: string,
+  input: UpsertAiInput,
+  db: LedgrDb = defaultDb,
+): Promise<void> {
+  const [existing] = await db
+    .select({ id: userSettings.id })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+
+  const now = nowISO();
+
+  if (existing) {
+    const updates: Record<string, unknown> = {
+      aiProvider: input.aiProvider,
+      aiModel: input.aiModel,
+      updatedAt: now,
+    };
+    if (input.aiApiKey !== undefined) updates.aiApiKey = input.aiApiKey;
+    if (input.aiBaseUrl !== undefined) updates.aiBaseUrl = input.aiBaseUrl;
+    if (input.aiConfidenceThreshold !== undefined)
+      updates.aiConfidenceThreshold = String(input.aiConfidenceThreshold);
+    if (input.toolCallingSupported !== undefined)
+      updates.toolCallingSupported = input.toolCallingSupported;
+
+    await db.update(userSettings)
+      .set(updates)
+      .where(eq(userSettings.id, existing.id));
+  } else {
+    await db.insert(userSettings).values({
+      id: uuid(),
+      userId,
+      aiProvider: input.aiProvider as "openai" | "anthropic" | "google" | "custom",
+      aiModel: input.aiModel,
+      aiApiKey: input.aiApiKey ?? null,
+      aiBaseUrl: input.aiBaseUrl ?? null,
+      aiConfidenceThreshold: input.aiConfidenceThreshold
+        ? String(input.aiConfidenceThreshold)
+        : "0.7",
+      toolCallingSupported: input.toolCallingSupported ?? null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+export async function upsertMcpEnabled(
+  userId: string,
+  mcpEnabled: boolean,
+  db: LedgrDb = defaultDb,
+): Promise<void> {
+  const [existing] = await db
+    .select({ id: userSettings.id })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+
+  const now = nowISO();
+
+  if (existing) {
+    await db.update(userSettings)
+      .set({ mcpEnabled, updatedAt: now })
+      .where(eq(userSettings.id, existing.id));
+  } else {
+    await db.insert(userSettings).values({
+      id: uuid(),
+      userId,
+      mcpEnabled,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+export async function saveLayoutForUser(
+  userId: string,
+  layout: DashboardLayout,
+  db: LedgrDb = defaultDb,
+): Promise<void> {
+  const layoutJson = JSON.stringify(layout);
+  const [existing] = await db
+    .select({ id: userSettings.id })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+
+  if (existing) {
+    await db.update(userSettings)
+      .set({ dashboardLayout: layoutJson })
+      .where(eq(userSettings.userId, userId));
+  } else {
+    await db.insert(userSettings)
+      .values({ id: uuid(), userId, dashboardLayout: layoutJson });
+  }
+}
+
 export async function updateAiSettings(
   input: z.infer<typeof updateAiSettingsSchema>,
 ): Promise<{ success: true } | { error: string }> {
@@ -40,7 +148,7 @@ export async function updateAiSettings(
 
   const { aiProvider, aiModel, aiApiKey, aiBaseUrl, aiConfidenceThreshold } = parsed.data;
 
-  upsertAiSettings(session.user.id, {
+  await upsertAiSettings(session.user.id, {
     aiProvider,
     aiModel,
     aiApiKey: aiApiKey ? encrypt(aiApiKey) : undefined,
@@ -65,7 +173,7 @@ export async function testAiConnection(
 
   let apiKey = parsed.data.aiApiKey;
   if (!apiKey) {
-    const stored = getUserAiSettings(session.user.id);
+    const stored = await getUserAiSettings(session.user.id);
     if (!stored?.rawEncryptedKey) return { error: "No API key configured" };
     apiKey = decrypt(stored.rawEncryptedKey);
   }
@@ -103,7 +211,7 @@ export async function testAiConnection(
       toolCallingSupported = false;
     }
 
-    upsertAiSettings(session.user.id, {
+    await upsertAiSettings(session.user.id, {
       aiProvider,
       aiModel,
       toolCallingSupported,
@@ -120,21 +228,19 @@ export async function toggleDemoMode(): Promise<{ success: true } | { error: str
   const session = await getSession();
   if (!session) return { error: "Not authenticated" };
 
-  const existing = db
+  const [existing] = await db
     .select({ id: userSettings.id, demoMode: userSettings.demoMode })
     .from(userSettings)
     .where(eq(userSettings.userId, session.user.id))
-    .get();
+    .limit(1);
 
   if (existing) {
-    db.update(userSettings)
-      .set({ demoMode: !existing.demoMode, updatedAt: new Date().toISOString() })
-      .where(eq(userSettings.id, existing.id))
-      .run();
+    await db.update(userSettings)
+      .set({ demoMode: !existing.demoMode, updatedAt: nowISO() })
+      .where(eq(userSettings.id, existing.id));
   } else {
-    db.insert(userSettings)
-      .values({ id: uuid(), userId: session.user.id, demoMode: true })
-      .run();
+    await db.insert(userSettings)
+      .values({ id: uuid(), userId: session.user.id, demoMode: true });
   }
 
   revalidatePath("/", "layout");

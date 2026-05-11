@@ -83,7 +83,7 @@ export async function exchangeAndStoreAccounts(
     }
 
     if (institutionId) {
-      const existing = db
+      const [existing] = await db
         .select({ id: plaidItems.id })
         .from(plaidItems)
         .where(
@@ -92,7 +92,7 @@ export async function exchangeAndStoreAccounts(
             eq(plaidItems.plaidInstitutionId, institutionId)
           )
         )
-        .get();
+        .limit(1);
       if (existing) {
         return { success: false, error: "This institution is already connected" };
       }
@@ -106,8 +106,8 @@ export async function exchangeAndStoreAccounts(
     const plaidItemId = uuid();
     const today = todayISO();
 
-    db.transaction((tx) => {
-      tx.insert(plaidItems)
+    await db.transaction(async (tx) => {
+      await tx.insert(plaidItems)
         .values({
           id: plaidItemId,
           householdId,
@@ -117,17 +117,15 @@ export async function exchangeAndStoreAccounts(
           institutionName,
           primaryColor: institutionPrimaryColor,
           status: "active",
-        })
-        .run();
+        });
 
       if (institutionLogo) {
-        tx.insert(institutionLogos)
+        await tx.insert(institutionLogos)
           .values({
             id: uuid(),
             plaidItemId: plaidItemId,
             logo: institutionLogo,
-          })
-          .run();
+          });
       }
 
       for (const acct of plaidAccounts) {
@@ -138,7 +136,7 @@ export async function exchangeAndStoreAccounts(
         );
         const creditLimit = plaidAmountToCents(acct.balances.limit ?? null);
 
-        tx.insert(accounts)
+        await tx.insert(accounts)
           .values({
             id: accountId,
             householdId,
@@ -152,18 +150,16 @@ export async function exchangeAndStoreAccounts(
             availableBalance,
             creditLimit,
             currency: acct.balances.iso_currency_code ?? "USD",
-          })
-          .run();
+          });
 
         if (currentBalance !== null) {
-          tx.insert(balanceHistory)
+          await tx.insert(balanceHistory)
             .values({
               id: uuid(),
               accountId,
               date: today,
               balance: currentBalance,
-            })
-            .run();
+            });
         }
       }
     });
@@ -205,14 +201,14 @@ export async function disconnectPlaidItem(
 
   const scoped = scopedQuery(householdId, db);
 
-  const item = db
+  const [item] = await db
     .select({
       id: plaidItems.id,
       accessToken: plaidItems.accessToken,
     })
     .from(plaidItems)
     .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
-    .get();
+    .limit(1);
 
   if (!item) {
     return { error: "Item not found" };
@@ -227,15 +223,13 @@ export async function disconnectPlaidItem(
   }
 
   const now = nowISO();
-  db.transaction((tx) => {
-    tx.update(accounts)
+  await db.transaction(async (tx) => {
+    await tx.update(accounts)
       .set({ deletedAt: now, plaidItemId: null, plaidAccountId: null })
-      .where(eq(accounts.plaidItemId, plaidItemId))
-      .run();
+      .where(eq(accounts.plaidItemId, plaidItemId));
 
-    tx.delete(plaidItems)
-      .where(eq(plaidItems.id, plaidItemId))
-      .run();
+    await tx.delete(plaidItems)
+      .where(eq(plaidItems.id, plaidItemId));
   });
 
   revalidatePath("/accounts");

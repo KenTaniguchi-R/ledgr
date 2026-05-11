@@ -20,11 +20,11 @@ export async function createUpdateLinkTokenDirect(
   db: LedgrDb = defaultDb,
 ) {
   const scoped = scopedQuery(householdId, db);
-  const item = db
+  const [item] = await db
     .select({ accessToken: plaidItems.accessToken, status: plaidItems.status })
     .from(plaidItems)
     .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
-    .get();
+    .limit(1);
 
   if (!item) {
     return { error: "Institution not found" };
@@ -65,11 +65,11 @@ export async function completeReAuthDirect(
   db: LedgrDb = defaultDb,
 ) {
   const scoped = scopedQuery(householdId, db);
-  const item = db
+  const [item] = await db
     .select({ accessToken: plaidItems.accessToken, status: plaidItems.status })
     .from(plaidItems)
     .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
-    .get();
+    .limit(1);
 
   if (!item) {
     return { error: "Institution not found" };
@@ -87,10 +87,9 @@ export async function completeReAuthDirect(
       return { error: "Bank connection still requires re-authentication" };
     }
 
-    db.update(plaidItems)
+    await db.update(plaidItems)
       .set({ status: "active", errorCode: null, updatedAt: nowISO() })
-      .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
-      .run();
+      .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)));
 
     await syncInstitution(plaidItemId, householdId, db);
 

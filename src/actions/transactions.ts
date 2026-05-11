@@ -53,11 +53,11 @@ export async function updateTransactionCategory(
   }
 
   const scoped = scopedQuery(householdId, db);
-  const existing = db
+  const [existing] = await db
     .select({ id: transactions.id })
     .from(transactions)
     .where(scoped.where(transactions, eq(transactions.id, transactionId), notDeleted(transactions)))
-    .get();
+    .limit(1);
 
   if (!existing) {
     return { error: "Transaction not found" };
@@ -65,10 +65,9 @@ export async function updateTransactionCategory(
 
   const updates = buildCategoryUpdate(parsedCatId.data);
 
-  db.update(transactions)
+  await db.update(transactions)
     .set(updates)
-    .where(eq(transactions.id, existing.id))
-    .run();
+    .where(eq(transactions.id, existing.id));
 
   revalidatePath("/transactions");
   return { success: true };
@@ -89,21 +88,20 @@ export async function toggleReviewed(
   }
 
   const scoped = scopedQuery(householdId, db);
-  const existing = db
+  const [existing] = await db
     .select({ id: transactions.id, reviewed: transactions.reviewed })
     .from(transactions)
     .where(scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)))
-    .get();
+    .limit(1);
 
   if (!existing) {
     return { error: "Transaction not found" };
   }
 
   const newReviewed = !existing.reviewed;
-  db.update(transactions)
+  await db.update(transactions)
     .set({ reviewed: newReviewed, updatedAt: nowISO() })
-    .where(eq(transactions.id, existing.id))
-    .run();
+    .where(eq(transactions.id, existing.id));
 
   revalidatePath("/transactions");
   return { success: true, reviewed: newReviewed };
@@ -125,7 +123,7 @@ export async function bulkUpdateCategory(
   if (blocked) return blocked;
   const scoped = scopedQuery(householdId, db);
 
-  const owned = db
+  const owned = await db
     .select({ id: transactions.id })
     .from(transactions)
     .where(
@@ -134,8 +132,7 @@ export async function bulkUpdateCategory(
         inArray(transactions.id, parsedIds.data),
         notDeleted(transactions),
       ),
-    )
-    .all();
+    );
 
   if (owned.length === 0) {
     return { success: true, updatedCount: 0 };
@@ -144,10 +141,9 @@ export async function bulkUpdateCategory(
   const ownedIds = owned.map((r) => r.id);
   const updates = buildCategoryUpdate(categoryId);
 
-  db.update(transactions)
+  await db.update(transactions)
     .set(updates)
-    .where(inArray(transactions.id, ownedIds))
-    .run();
+    .where(inArray(transactions.id, ownedIds));
 
   revalidatePath("/transactions");
   return { success: true, updatedCount: ownedIds.length };
@@ -169,7 +165,7 @@ export async function bulkMarkReviewed(
   if (blocked) return blocked;
   const scoped = scopedQuery(householdId, db);
 
-  const owned = db
+  const owned = await db
     .select({ id: transactions.id })
     .from(transactions)
     .where(
@@ -178,18 +174,16 @@ export async function bulkMarkReviewed(
         inArray(transactions.id, parsedIds.data),
         notDeleted(transactions),
       ),
-    )
-    .all();
+    );
 
   if (owned.length === 0) {
     return { success: true, updatedCount: 0 };
   }
 
   const ownedIds = owned.map((r) => r.id);
-  db.update(transactions)
+  await db.update(transactions)
     .set({ reviewed, updatedAt: nowISO() })
-    .where(inArray(transactions.id, ownedIds))
-    .run();
+    .where(inArray(transactions.id, ownedIds));
 
   revalidatePath("/transactions");
   return { success: true, updatedCount: ownedIds.length };

@@ -21,11 +21,11 @@ export async function triggerSync(
 
   const scoped = scopedQuery(householdId, db);
 
-  const item = db
+  const [item] = await db
     .select({ id: plaidItems.id })
     .from(plaidItems)
     .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
-    .get();
+    .limit(1);
 
   if (!item) {
     return { success: false, error: "Institution not found" };

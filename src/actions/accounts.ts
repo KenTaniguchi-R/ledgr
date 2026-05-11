@@ -37,8 +37,8 @@ export async function createManualAccount(data: CreateManualAccountInput, db: Le
   const accountId = uuid();
   const today = todayISO();
 
-  db.transaction((tx) => {
-    tx.insert(accounts)
+  await db.transaction(async (tx) => {
+    await tx.insert(accounts)
       .values({
         id: accountId,
         householdId,
@@ -46,17 +46,15 @@ export async function createManualAccount(data: CreateManualAccountInput, db: Le
         type: parsed.data.type,
         currentBalance: parsed.data.balance,
         isManual: true,
-      })
-      .run();
+      });
 
-    tx.insert(balanceHistory)
+    await tx.insert(balanceHistory)
       .values({
         id: uuid(),
         accountId,
         date: today,
         balance: parsed.data.balance,
-      })
-      .run();
+      });
   });
 
   revalidatePath("/accounts");
@@ -89,11 +87,11 @@ export async function updateAccount(
   }
 
   const scoped = scopedQuery(householdId, db);
-  const existing = db
+  const [existing] = await db
     .select({ id: accounts.id })
     .from(accounts)
     .where(scoped.where(accounts, eq(accounts.id, accountId)))
-    .get();
+    .limit(1);
 
   if (!existing) {
     return { error: "Account not found" };
@@ -104,10 +102,9 @@ export async function updateAccount(
   if (parsed.data.isHidden !== undefined) updates.isHidden = parsed.data.isHidden;
 
   if (Object.keys(updates).length > 0) {
-    db.update(accounts)
+    await db.update(accounts)
       .set(updates)
-      .where(scoped.where(accounts, eq(accounts.id, accountId)))
-      .run();
+      .where(scoped.where(accounts, eq(accounts.id, accountId)));
   }
 
   revalidatePath("/accounts");
