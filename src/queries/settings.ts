@@ -3,6 +3,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { userSettings } from "@/db/schema";
 import { nowISO } from "@/lib/date-utils";
 import { v4 as uuid } from "uuid";
+import { getConsentsForUser } from "@/lib/mcp/auth/oauth-server";
 
 export interface AiSettings {
   aiProvider: "openai" | "anthropic" | "google" | "custom" | null;
@@ -34,6 +35,41 @@ export function getUserAiSettings(
     aiBaseUrl: row.aiBaseUrl ?? null,
     aiConfidenceThreshold: parseFloat(row.aiConfidenceThreshold ?? "0.7"),
     toolCallingSupported: row.toolCallingSupported ?? null,
+  };
+}
+
+export interface ConnectedClient {
+  clientId: string;
+  clientName: string | null;
+  scope: string;
+  grantedAt: string;
+}
+
+export interface McpSettings {
+  mcpEnabled: boolean;
+  connectedClients: ConnectedClient[];
+}
+
+export function getMcpSettings(
+  userId: string,
+  db: LedgrDb = defaultDb,
+): McpSettings {
+  const row = db
+    .select({ mcpEnabled: userSettings.mcpEnabled })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .get();
+
+  const consents = getConsentsForUser(userId, db);
+
+  return {
+    mcpEnabled: row?.mcpEnabled === 1,
+    connectedClients: consents.map((c) => ({
+      clientId: c.clientId,
+      clientName: c.clientName ?? null,
+      scope: c.scope,
+      grantedAt: c.grantedAt,
+    })),
   };
 }
 
@@ -88,6 +124,35 @@ export function upsertAiSettings(
         ? String(input.aiConfidenceThreshold)
         : "0.7",
       toolCallingSupported: input.toolCallingSupported ?? null,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+  }
+}
+
+export function upsertMcpEnabled(
+  userId: string,
+  mcpEnabled: boolean,
+  db: LedgrDb = defaultDb,
+): void {
+  const existing = db
+    .select({ id: userSettings.id })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .get();
+
+  const now = nowISO();
+
+  if (existing) {
+    db.update(userSettings)
+      .set({ mcpEnabled: mcpEnabled ? 1 : 0, updatedAt: now })
+      .where(eq(userSettings.id, existing.id))
+      .run();
+  } else {
+    db.insert(userSettings).values({
+      id: uuid(),
+      userId,
+      mcpEnabled: mcpEnabled ? 1 : 0,
       createdAt: now,
       updatedAt: now,
     }).run();
