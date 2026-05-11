@@ -16,6 +16,8 @@ interface CategoryPillProps {
   categories: CategoryGroup[];
   disabled?: boolean;
   onCategoryChange?: (categoryId: string | null, categoryName: string | null) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CategoryPill({
@@ -24,10 +26,18 @@ export function CategoryPill({
   categories,
   disabled = false,
   onCategoryChange,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: CategoryPillProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [categoryName, setCategoryName] = useState(currentCategoryName);
   const [isPending, startTransition] = useTransition();
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled
+    ? (v: boolean) => controlledOnOpenChange?.(v)
+    : setInternalOpen;
 
   const totalCategoryCount = categories.reduce((sum, g) => sum + g.categories.length, 0);
 
