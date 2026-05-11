@@ -12,7 +12,7 @@ import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
 
 export const TRANSACTION_GRID_COLS =
-  "grid-cols-[24px_32px_1fr_auto_100px]" as const;
+  "grid-cols-[24px_minmax(0,1fr)_auto_80px] sm:grid-cols-[24px_32px_minmax(0,1fr)_auto_100px]" as const;
 
 interface TransactionRowProps {
   transaction: TxnRow;
@@ -59,7 +59,7 @@ export const TransactionRow = memo(function TransactionRow({
       onClick={onClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        `group/row grid ${TRANSACTION_GRID_COLS} items-center h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer`,
+        `group/row grid ${TRANSACTION_GRID_COLS} items-center h-11 sm:h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer`,
         txn.pending && "opacity-60",
         isActive && "bg-muted",
       )}
@@ -72,7 +72,7 @@ export const TransactionRow = memo(function TransactionRow({
         />
       </div>
 
-      <div className="flex items-center justify-center" onClick={handleCheckboxClick}>
+      <div className="hidden sm:flex items-center justify-center" onClick={handleCheckboxClick}>
         <Checkbox
           checked={isSelected}
           onCheckedChange={handleCheckboxChange}

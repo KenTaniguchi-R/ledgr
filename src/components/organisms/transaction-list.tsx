@@ -130,7 +130,7 @@ export function TransactionList({
 
         <div className={`grid ${TRANSACTION_GRID_COLS} items-center h-8 px-2 border-b text-xs font-medium text-muted-foreground`}>
           <div />
-          <div className="flex items-center justify-center">
+          <div className="hidden sm:flex items-center justify-center">
             <Checkbox
               checked={selected.size > 0 && selected.size === rows.length}
               indeterminate={selected.size > 0 && selected.size < rows.length}
