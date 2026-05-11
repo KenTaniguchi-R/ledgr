@@ -10,7 +10,7 @@ export async function createTestDb() {
     process.env.DATABASE_URL || "postgresql://ledgr:ledgr@localhost:5432/ledgr_test";
 
   const schemaName = `test_${randomUUID().replace(/-/g, "")}`;
-  const pool = new Pool({ connectionString, max: 1 });
+  const pool = new Pool({ connectionString });
 
   await pool.query(`CREATE SCHEMA "${schemaName}"`);
   await pool.query(`SET search_path TO "${schemaName}"`);
