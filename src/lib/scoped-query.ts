@@ -1,12 +1,12 @@
 import { eq, and, type SQL } from "drizzle-orm";
-import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { db as defaultDb, type LedgrDb } from "@/db";
 
 export function scopedQuery(householdId: string, db: LedgrDb = defaultDb) {
   return {
     db,
     householdId,
-    where<T extends { householdId: SQLiteColumn }>(
+    where<T extends { householdId: PgColumn }>(
       table: T,
       ...conditions: (SQL | undefined)[]
     ) {

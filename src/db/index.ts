@@ -1,19 +1,17 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import path from "node:path";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import * as schema from "./schema";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 
-export type LedgrDb = BetterSQLite3Database<typeof schema>;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+});
 
-const dbPath =
-  process.env.DATABASE_PATH || path.join(process.cwd(), "data", "ledgr.db");
+pool.on("connect", (client) => {
+  client.query("SET statement_timeout = '30s'");
+});
 
-const sqlite = new Database(dbPath);
-
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("busy_timeout = 5000");
-sqlite.pragma("foreign_keys = ON");
-sqlite.pragma("synchronous = NORMAL");
-
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle({ client: pool, schema });
+export type LedgrDb = typeof db;

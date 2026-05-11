@@ -1,6 +1,6 @@
 import { isNull } from "drizzle-orm";
-import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
+import type { PgColumn } from "drizzle-orm/pg-core";
 
-export function notDeleted(table: { deletedAt: SQLiteColumn }) {
+export function notDeleted(table: { deletedAt: PgColumn }) {
   return isNull(table.deletedAt);
 }
