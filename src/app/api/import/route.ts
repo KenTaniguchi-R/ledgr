@@ -89,11 +89,11 @@ export async function POST(request: Request) {
     }
 
     const scoped = scopedQuery(householdId);
-    const account = db
+    const [account] = await db
       .select({ id: accounts.id, type: accounts.type })
       .from(accounts)
       .where(scoped.where(accounts, eq(accounts.id, accountId)))
-      .get();
+      .limit(1);
 
     if (!account) {
       return NextResponse.json(
@@ -165,9 +165,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ imported: 0, skipped: normalized.length });
     }
 
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       for (const row of toInsert) {
-        tx.insert(transactions)
+        await tx.insert(transactions)
           .values({
             id: row.id,
             accountId: row.accountId,
@@ -178,8 +178,7 @@ export async function POST(request: Request) {
             amount: row.amount,
             normalizedAmount: normalizeAmount(row.amount, account.type),
             externalId: row.externalId,
-          })
-          .run();
+          });
       }
     });
 
