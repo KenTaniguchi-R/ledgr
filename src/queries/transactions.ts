@@ -242,8 +242,8 @@ export async function getTransactionSummary(
     db
       .select({
         count: sql<number>`count(*)`,
-        totalExpense: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} < 0 AND ${transactions.isTransfer} = 0 AND ${transactions.pending} = 0 THEN abs(${transactions.normalizedAmount}) ELSE 0 END), 0)`,
-        totalIncome: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} > 0 AND ${transactions.isTransfer} = 0 AND ${transactions.pending} = 0 THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`,
+        totalExpense: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} < 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN abs(${transactions.normalizedAmount}) ELSE 0 END), 0)`,
+        totalIncome: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} > 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`,
       })
       .from(transactions)
   )

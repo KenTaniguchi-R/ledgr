@@ -238,15 +238,15 @@ export async function getHoldings(
       .select({
         ticker: investmentHoldings.ticker,
         securityName: investmentHoldings.securityName,
-        type: investmentHoldings.type,
-        sector: investmentHoldings.sector,
+        type: sql<string | null>`MIN(${investmentHoldings.type})`,
+        sector: sql<string | null>`MIN(${investmentHoldings.sector})`,
         quantity: sql<number>`SUM(${investmentHoldings.quantity})`,
         currentValue: sql<number>`SUM(${investmentHoldings.currentValue})`,
         costBasis: sql<number | null>`SUM(${investmentHoldings.costBasis})`,
       })
       .from(investmentHoldings)
       .where(inArray(investmentHoldings.accountId, filteredAccIds))
-      .groupBy(sql`COALESCE(${investmentHoldings.ticker}, ${investmentHoldings.securityName})`)
+      .groupBy(investmentHoldings.ticker, investmentHoldings.securityName)
       .orderBy(sql`SUM(${investmentHoldings.currentValue}) DESC`);
 
     return rows.map((r) => ({
