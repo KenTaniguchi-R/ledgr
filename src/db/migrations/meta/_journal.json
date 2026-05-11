@@ -99,6 +99,13 @@
       "when": 1747267200000,
       "tag": "0013_add_mcp_enabled",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1747353600000,
+      "tag": "0014_add_consent_unique_index",
+      "breakpoints": true
     }
   ]
 }

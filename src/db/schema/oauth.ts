@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const oauthClients = sqliteTable("oauth_clients", {
   id: text("id").primaryKey(),
@@ -31,10 +31,14 @@ export const oauthRefreshTokens = sqliteTable("oauth_refresh_tokens", {
   revoked: integer("revoked").notNull().default(0),
 });
 
-export const oauthConsents = sqliteTable("oauth_consents", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  clientId: text("client_id").notNull(),
-  scope: text("scope").notNull(),
-  grantedAt: text("granted_at").notNull(),
-});
+export const oauthConsents = sqliteTable(
+  "oauth_consents",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    clientId: text("client_id").notNull(),
+    scope: text("scope").notNull(),
+    grantedAt: text("granted_at").notNull(),
+  },
+  (table) => [uniqueIndex("uq_consent_user_client").on(table.userId, table.clientId)],
+);
