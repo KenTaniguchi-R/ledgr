@@ -19,7 +19,6 @@ import {
 import { seedDefaultCategories } from "@/db/seed/categories";
 import { encrypt } from "@/lib/encryption";
 import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
-import { nowISO } from "@/lib/date-utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,7 +75,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
 
   if (existing) return;
 
-  const now = nowISO();
+  const now = new Date();
 
   await db.transaction(async (tx) => {
     // ------------------------------------------------------------------
@@ -139,7 +138,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: uuid(),
           plaidItemId: PLAID_ITEM_CHASE,
-          syncedAt: toDateStr(daysAgo(1)) + "T08:00:00.000Z",
+          syncedAt: new Date(toDateStr(daysAgo(1)) + "T08:00:00.000Z"),
           cursorBefore: "demo-cursor-chase-000",
           cursorAfter: "demo-cursor-chase-001",
           addedCount: 12,
@@ -149,7 +148,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: uuid(),
           plaidItemId: PLAID_ITEM_CHASE,
-          syncedAt: toDateStr(daysAgo(3)) + "T08:00:00.000Z",
+          syncedAt: new Date(toDateStr(daysAgo(3)) + "T08:00:00.000Z"),
           cursorBefore: null,
           cursorAfter: "demo-cursor-chase-000",
           addedCount: 45,
@@ -159,7 +158,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: uuid(),
           plaidItemId: PLAID_ITEM_VANGUARD,
-          syncedAt: toDateStr(daysAgo(1)) + "T09:00:00.000Z",
+          syncedAt: new Date(toDateStr(daysAgo(1)) + "T09:00:00.000Z"),
           cursorBefore: "demo-cursor-vanguard-000",
           cursorAfter: "demo-cursor-vanguard-001",
           addedCount: 3,
@@ -169,7 +168,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: uuid(),
           plaidItemId: PLAID_ITEM_VANGUARD,
-          syncedAt: toDateStr(daysAgo(5)) + "T09:00:00.000Z",
+          syncedAt: new Date(toDateStr(daysAgo(5)) + "T09:00:00.000Z"),
           cursorBefore: null,
           cursorAfter: "demo-cursor-vanguard-000",
           addedCount: 8,

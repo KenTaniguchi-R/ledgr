@@ -9,7 +9,6 @@ import {
   householdMembers,
 } from "@/db/schema";
 import { notDeleted } from "@/lib/query-helpers";
-import { nowISO } from "@/lib/date-utils";
 import { createUserModel, type AiProvider } from "./provider";
 import { getUserAiSettings } from "@/queries/settings";
 import { decrypt } from "@/lib/encryption";
@@ -167,7 +166,7 @@ export async function categorizeWithAi(
   const threshold = settings.aiConfidenceThreshold;
   const batchSize = getBatchSize(settings.aiProvider as AiProvider);
   let categorized = 0;
-  const now = nowISO();
+  const now = new Date();
 
   for (let i = 0; i < uncategorized.length; i += batchSize) {
     const batch = uncategorized.slice(i, i + batchSize);

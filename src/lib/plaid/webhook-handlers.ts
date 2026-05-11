@@ -3,30 +3,29 @@ import { plaidItems, type PlaidItemStatus } from "@/db/schema";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { syncInstitution } from "./sync";
 import { REAUTH_ERROR_CODES } from "./utils";
-import { nowISO } from "@/lib/date-utils";
 import type { WebhookPayload } from "./schemas";
 import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 
 type WebhookContext = { db: LedgrDb; payload: WebhookPayload };
 type WebhookHandler = (ctx: WebhookContext) => Promise<void>;
 
-function findItemByPlaidId(db: LedgrDb, plaidItemIdValue: string) {
-  return db
+async function findItemByPlaidId(db: LedgrDb, plaidItemIdValue: string) {
+  const [row] = await db
     .select({ id: plaidItems.id, householdId: plaidItems.householdId })
     .from(plaidItems)
     .where(eq(plaidItems.plaidItemId, plaidItemIdValue))
-    .get();
+    .limit(1);
+  return row ?? null;
 }
 
-function updateItemStatus(db: LedgrDb, itemId: string, status: PlaidItemStatus, errorCode: string | null) {
-  db.update(plaidItems)
-    .set({ status, errorCode, updatedAt: nowISO() })
-    .where(eq(plaidItems.id, itemId))
-    .run();
+async function updateItemStatus(db: LedgrDb, itemId: string, status: PlaidItemStatus, errorCode: string | null) {
+  await db.update(plaidItems)
+    .set({ status, errorCode, updatedAt: new Date() })
+    .where(eq(plaidItems.id, itemId));
 }
 
 async function handleSyncUpdates({ db, payload }: WebhookContext): Promise<void> {
-  const item = findItemByPlaidId(db, payload.item_id);
+  const item = await findItemByPlaidId(db, payload.item_id);
   if (!item) {
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
@@ -41,7 +40,7 @@ async function handleItemError({ db, payload }: WebhookContext): Promise<void> {
     return;
   }
 
-  const item = findItemByPlaidId(db, payload.item_id);
+  const item = await findItemByPlaidId(db, payload.item_id);
   if (!item) {
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
@@ -50,30 +49,30 @@ async function handleItemError({ db, payload }: WebhookContext): Promise<void> {
 
   const code = payload.error.error_code;
   if (REAUTH_ERROR_CODES.has(code)) {
-    updateItemStatus(db, item.id, "reauth_required", code);
+    await updateItemStatus(db, item.id, "reauth_required", code);
   } else {
-    updateItemStatus(db, item.id, "error", code);
+    await updateItemStatus(db, item.id, "error", code);
   }
 }
 
 async function handlePendingExpiration({ db, payload }: WebhookContext): Promise<void> {
-  const item = findItemByPlaidId(db, payload.item_id);
+  const item = await findItemByPlaidId(db, payload.item_id);
   if (!item) {
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
   }
   if (item.householdId === DEMO_HOUSEHOLD_ID) return;
-  updateItemStatus(db, item.id, "reauth_required", null);
+  await updateItemStatus(db, item.id, "reauth_required", null);
 }
 
 async function handlePermissionRevoked({ db, payload }: WebhookContext): Promise<void> {
-  const item = findItemByPlaidId(db, payload.item_id);
+  const item = await findItemByPlaidId(db, payload.item_id);
   if (!item) {
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
   }
   if (item.householdId === DEMO_HOUSEHOLD_ID) return;
-  updateItemStatus(db, item.id, "revoked", null);
+  await updateItemStatus(db, item.id, "revoked", null);
 }
 
 const WEBHOOK_HANDLERS: Record<string, WebhookHandler> = {

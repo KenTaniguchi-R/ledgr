@@ -34,7 +34,7 @@ export const getHouseholdId = cache(async (): Promise<string> => {
     throw new Error("Not authenticated");
   }
 
-  if (isDemoMode(session.user.id)) {
+  if (await isDemoMode(session.user.id)) {
     return DEMO_HOUSEHOLD_ID;
   }
 

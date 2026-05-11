@@ -17,7 +17,6 @@ import {
   TRANSIENT_ERROR_CODES,
   retryWithBackoff,
 } from "./utils";
-import { nowISO } from "@/lib/date-utils";
 import type { LedgrDb } from "@/db";
 import {
   plaidItems,
@@ -249,7 +248,7 @@ export async function applyToDb(
   newCursor: string,
   accountBalances: AccountBalanceInfo[] = [],
 ): Promise<{ addedCount: number; modifiedCount: number; removedCount: number }> {
-  const now = nowISO();
+  const now = new Date();
 
   return db.transaction(async (tx) => {
     // --- Build account lookup: plaid_account_id → internal account id ---
@@ -541,7 +540,7 @@ async function doSync(
   householdId: string,
   db: LedgrDb,
 ): Promise<SyncResult> {
-  const now = nowISO();
+  const now = new Date();
 
   try {
     // Read plaid_items row
@@ -625,7 +624,7 @@ async function doSync(
       addedCount: counts.addedCount,
       modifiedCount: counts.modifiedCount,
       removedCount: counts.removedCount,
-      syncedAt: now,
+      syncedAt: now.toISOString(),
     };
   } catch (err: unknown) {
     const errorCode = extractPlaidErrorCode(err);

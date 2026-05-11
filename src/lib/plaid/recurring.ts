@@ -7,7 +7,6 @@ import {
 } from "./schemas";
 import { plaidAmountToCents } from "@/lib/money";
 import { titleCase } from "./utils";
-import { nowISO } from "@/lib/date-utils";
 import type { LedgrDb } from "@/db";
 import { db as defaultDb } from "@/db";
 import {
@@ -68,7 +67,7 @@ export async function syncRecurringTransactions(
       ...parsed.outflow_streams.map((s) => ({ ...s, isIncome: false })),
     ];
 
-    const now = nowISO();
+    const now = new Date();
     const seenStreamIds = new Set<string>();
 
     const result = await db.transaction(async (tx) => {
