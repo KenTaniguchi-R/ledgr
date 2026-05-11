@@ -114,7 +114,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
             aria-label="Search transactions"
             value={searchValue}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="h-8 w-[180px] pl-7 text-sm"
+            className="h-8 w-full sm:w-[180px] pl-7 text-sm"
           />
         </div>
 
@@ -122,8 +122,8 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
 
         <Button
           variant="outline"
-          size="xs"
-          className="text-xs md:hidden"
+          size="sm"
+          className="text-xs md:hidden min-h-[44px]"
           onClick={() => setFiltersExpanded(!filtersExpanded)}
         >
           <SlidersHorizontal className="h-3 w-3 mr-1" />
@@ -153,14 +153,14 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
       </div>
 
       <div className={cn(
-        "flex flex-wrap items-center gap-2",
+        "flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2",
         !filtersExpanded && "hidden md:flex",
       )}>
         <Select
           value={searchParams.get("account") ?? "all"}
           onValueChange={(v) => updateFilter("account", v === "all" ? null : v)}
         >
-          <SelectTrigger className="h-8 w-[160px] text-xs">
+          <SelectTrigger className="h-8 w-full sm:w-[160px] text-xs">
             <SelectValue>{selectedAccountName}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -175,7 +175,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
           value={searchParams.get("category") ?? "all"}
           onValueChange={(v) => updateFilter("category", v === "all" ? null : v)}
         >
-          <SelectTrigger className="h-8 w-[160px] text-xs">
+          <SelectTrigger className="h-8 w-full sm:w-[160px] text-xs">
             <SelectValue>{selectedCategoryName}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -188,7 +188,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
           value={searchParams.get("type") ?? "all"}
           onValueChange={(v) => updateFilter("type", v === "all" ? null : v)}
         >
-          <SelectTrigger className="h-8 w-[120px] text-xs">
+          <SelectTrigger className="h-8 w-full sm:w-[120px] text-xs">
             <SelectValue>
               {searchParams.get("type") === "expense" ? "Expenses"
                 : searchParams.get("type") === "credits" ? "Credits"
@@ -233,7 +233,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
             setActivePreset("");
             updateFilter("from", e.target.value || null);
           }}
-          className="h-8 w-[130px] text-xs"
+          className="h-8 w-full sm:w-[130px] text-xs"
         />
         <span className="text-xs text-muted-foreground">to</span>
         <Input
@@ -244,7 +244,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
             setActivePreset("");
             updateFilter("to", e.target.value || null);
           }}
-          className="h-8 w-[130px] text-xs"
+          className="h-8 w-full sm:w-[130px] text-xs"
         />
 
         <div className="flex items-center gap-1.5">
