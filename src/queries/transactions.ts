@@ -49,7 +49,7 @@ export interface TransactionPage {
   nextCursor: string | null;
 }
 
-export const transactionSelectFields = {
+const transactionSelectFields = {
   id: transactions.id,
   date: transactions.date,
   name: transactions.name,
@@ -107,7 +107,7 @@ function decodeCursor(cursor: string): { date: string; id: string } | null {
   }
 }
 
-export function buildTransactionConditions(filters: TransactionFilters): (SQL | undefined)[] {
+function buildTransactionConditions(filters: TransactionFilters): (SQL | undefined)[] {
   const conditions: (SQL | undefined)[] = [notDeleted(transactions)];
 
   if (filters.dateFrom) {
