@@ -14,7 +14,7 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
     <ToggleGroup
       value={[value]}
       onValueChange={(values) => {
-        const next = values[values.length - 1];
+        const next = values[0];
         if (next) onChange(next);
       }}
       size="sm"

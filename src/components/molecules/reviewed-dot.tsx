@@ -21,6 +21,8 @@ export function ReviewedDot({ transactionId, reviewed }: ReviewedDotProps) {
       const result = await toggleReviewed(transactionId);
       if ("error" in result) {
         setIsReviewed(prev);
+      } else {
+        setIsReviewed(result.reviewed);
       }
     });
   }
