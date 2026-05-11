@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from "react";
 import { DateRangeSelector } from "@/components/molecules/date-range-selector";
-import { Search, X, Download } from "lucide-react";
+import { Search, X, Download, SlidersHorizontal } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [activePreset, setActivePreset] = useState("All");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const initMin = searchParams.get("amountMin");
   const initMax = searchParams.get("amountMax");
@@ -133,139 +135,172 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
     return "All categories";
   })();
 
+  const activeFilterCount = [
+    searchParams.get("account"),
+    searchParams.get("category"),
+    searchParams.get("type"),
+    searchParams.get("amountMin"),
+    searchParams.get("amountMax"),
+    searchParams.get("from"),
+    searchParams.get("to"),
+    searchParams.get("reviewed"),
+  ].filter(Boolean).length;
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search..."
+            aria-label="Search transactions"
+            value={searchValue}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="h-8 w-[180px] pl-7 text-sm"
+          />
+        </div>
+
+        <DateRangeSelector value={activePreset} onChange={handlePresetChange} />
+
+        <Button
+          variant="outline"
+          size="xs"
+          className="text-xs md:hidden"
+          onClick={() => setFiltersExpanded(!filtersExpanded)}
+        >
+          <SlidersHorizontal className="h-3 w-3 mr-1" />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+
+        {hasFilters && (
+          <Button variant="ghost" size="xs" onClick={handleClearFilters} className="text-xs">
+            <X className="h-3 w-3 mr-1" /> Clear
+          </Button>
+        )}
+
+        <a
+          href={`/api/export/transactions?${searchParams.toString()}`}
+          download
+          className="ml-auto"
+        >
+          <Button variant="outline" size="xs" className="text-xs">
+            <Download className="h-3 w-3 mr-1" /> Export
+          </Button>
+        </a>
+      </div>
+
+      <div className={cn(
+        "flex flex-wrap items-center gap-2",
+        !filtersExpanded && "hidden md:flex",
+      )}>
+        <Select
+          value={searchParams.get("account") ?? "all"}
+          onValueChange={(v) => updateFilter("account", v === "all" ? null : v)}
+        >
+          <SelectTrigger className="h-8 w-[160px] text-xs">
+            <SelectValue>{selectedAccountName}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All accounts</SelectItem>
+            {accounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={searchParams.get("category") ?? "all"}
+          onValueChange={(v) => updateFilter("category", v === "all" ? null : v)}
+        >
+          <SelectTrigger className="h-8 w-[160px] text-xs">
+            <SelectValue>{selectedCategoryName}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            <CategorySelectItems categories={categories} />
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={searchParams.get("type") ?? "all"}
+          onValueChange={(v) => updateFilter("type", v === "all" ? null : v)}
+        >
+          <SelectTrigger className="h-8 w-[120px] text-xs">
+            <SelectValue>
+              {searchParams.get("type") === "expense" ? "Expenses"
+                : searchParams.get("type") === "credits" ? "Credits"
+                : searchParams.get("type") === "transfer" ? "Transfers"
+                : "All types"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            <SelectItem value="expense">Expenses</SelectItem>
+            <SelectItem value="credits">Credits</SelectItem>
+            <SelectItem value="transfer">Transfers</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Input
-          placeholder="Search..."
-          aria-label="Search transactions"
-          value={searchValue}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="h-8 w-[180px] pl-7 text-sm"
+          type="text"
+          inputMode="decimal"
+          placeholder="Min $"
+          aria-label="Minimum amount"
+          value={amountMinDisplay}
+          onChange={(e) => handleAmountMinChange(e.target.value)}
+          onBlur={() => handleAmountBlur("amountMin", amountMinDisplay)}
+          className="h-8 w-[80px] text-xs"
         />
-      </div>
-
-      <Select
-        value={searchParams.get("account") ?? "all"}
-        onValueChange={(v) => updateFilter("account", v === "all" ? null : v)}
-      >
-        <SelectTrigger className="h-8 w-[160px] text-xs">
-          <SelectValue>{selectedAccountName}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All accounts</SelectItem>
-          {accounts.map((a) => (
-            <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
-        value={searchParams.get("category") ?? "all"}
-        onValueChange={(v) => updateFilter("category", v === "all" ? null : v)}
-      >
-        <SelectTrigger className="h-8 w-[160px] text-xs">
-          <SelectValue>{selectedCategoryName}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All categories</SelectItem>
-          <CategorySelectItems categories={categories} />
-        </SelectContent>
-      </Select>
-
-      <Select
-        value={searchParams.get("type") ?? "all"}
-        onValueChange={(v) => updateFilter("type", v === "all" ? null : v)}
-      >
-        <SelectTrigger className="h-8 w-[120px] text-xs">
-          <SelectValue>
-            {searchParams.get("type") === "expense" ? "Expenses"
-              : searchParams.get("type") === "credits" ? "Credits"
-              : searchParams.get("type") === "transfer" ? "Transfers"
-              : "All types"}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All types</SelectItem>
-          <SelectItem value="expense">Expenses</SelectItem>
-          <SelectItem value="credits">Credits</SelectItem>
-          <SelectItem value="transfer">Transfers</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Input
-        type="text"
-        inputMode="decimal"
-        placeholder="Min $"
-        aria-label="Minimum amount"
-        value={amountMinDisplay}
-        onChange={(e) => handleAmountMinChange(e.target.value)}
-        onBlur={() => handleAmountBlur("amountMin", amountMinDisplay)}
-        className="h-8 w-[80px] text-xs"
-      />
-      <Input
-        type="text"
-        inputMode="decimal"
-        placeholder="Max $"
-        aria-label="Maximum amount"
-        value={amountMaxDisplay}
-        onChange={(e) => handleAmountMaxChange(e.target.value)}
-        onBlur={() => handleAmountBlur("amountMax", amountMaxDisplay)}
-        className="h-8 w-[80px] text-xs"
-      />
-
-      <DateRangeSelector value={activePreset} onChange={handlePresetChange} />
-
-      <Input
-        type="date"
-        aria-label="From date"
-        value={searchParams.get("from") ?? ""}
-        onChange={(e) => {
-          setActivePreset("");
-          updateFilter("from", e.target.value || null);
-        }}
-        className="h-8 w-[130px] text-xs"
-      />
-      <span className="text-xs text-muted-foreground">to</span>
-      <Input
-        type="date"
-        aria-label="To date"
-        value={searchParams.get("to") ?? ""}
-        onChange={(e) => {
-          setActivePreset("");
-          updateFilter("to", e.target.value || null);
-        }}
-        className="h-8 w-[130px] text-xs"
-      />
-
-      <div className="flex items-center gap-1.5">
-        <Switch
-          id="reviewed-filter"
-          checked={searchParams.get("reviewed") === "true"}
-          onCheckedChange={(checked) =>
-            updateFilter("reviewed", checked ? "true" : null)
-          }
-          className="h-4 w-7"
+        <Input
+          type="text"
+          inputMode="decimal"
+          placeholder="Max $"
+          aria-label="Maximum amount"
+          value={amountMaxDisplay}
+          onChange={(e) => handleAmountMaxChange(e.target.value)}
+          onBlur={() => handleAmountBlur("amountMax", amountMaxDisplay)}
+          className="h-8 w-[80px] text-xs"
         />
-        <Label htmlFor="reviewed-filter" className="text-xs">Reviewed</Label>
+
+        <Input
+          type="date"
+          aria-label="From date"
+          value={searchParams.get("from") ?? ""}
+          onChange={(e) => {
+            setActivePreset("");
+            updateFilter("from", e.target.value || null);
+          }}
+          className="h-8 w-[130px] text-xs"
+        />
+        <span className="text-xs text-muted-foreground">to</span>
+        <Input
+          type="date"
+          aria-label="To date"
+          value={searchParams.get("to") ?? ""}
+          onChange={(e) => {
+            setActivePreset("");
+            updateFilter("to", e.target.value || null);
+          }}
+          className="h-8 w-[130px] text-xs"
+        />
+
+        <div className="flex items-center gap-1.5">
+          <Switch
+            id="reviewed-filter"
+            checked={searchParams.get("reviewed") === "true"}
+            onCheckedChange={(checked) =>
+              updateFilter("reviewed", checked ? "true" : null)
+            }
+            className="h-4 w-7"
+          />
+          <Label htmlFor="reviewed-filter" className="text-xs">Reviewed</Label>
+        </div>
       </div>
-
-      {hasFilters && (
-        <Button variant="ghost" size="xs" onClick={handleClearFilters} className="text-xs">
-          <X className="h-3 w-3 mr-1" /> Clear
-        </Button>
-      )}
-
-      <a
-        href={`/api/export/transactions?${searchParams.toString()}`}
-        download
-        className="ml-auto"
-      >
-        <Button variant="outline" size="xs" className="text-xs">
-          <Download className="h-3 w-3 mr-1" /> Export
-        </Button>
-      </a>
     </div>
   );
 }
