@@ -9,7 +9,7 @@ interface DashboardSummaryCardsProps {
 
 export function DashboardSummaryCards({ data }: DashboardSummaryCardsProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 h-full">
+    <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto">
       <SummaryCard
         label="Net Worth"
         amount={data.netWorth}

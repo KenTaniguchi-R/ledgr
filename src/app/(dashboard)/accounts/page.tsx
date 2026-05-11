@@ -24,7 +24,7 @@ export default async function AccountsPage() {
         <AccountsActions />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <SummaryCard label="Net Worth" amount={summary.netWorth} />
         <SummaryCard label="Assets" amount={summary.totalAssets} />
         <SummaryCard label="Debts" amount={summary.totalLiabilities} />
