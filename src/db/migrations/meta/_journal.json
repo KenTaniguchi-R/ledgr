@@ -85,6 +85,13 @@
       "when": 1747094400000,
       "tag": "0011_oauth_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1747180800000,
+      "tag": "0012_add_reviewed_transfer_indexes",
+      "breakpoints": true
     }
   ]
 }

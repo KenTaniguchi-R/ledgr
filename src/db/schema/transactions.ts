@@ -51,6 +51,8 @@ export const transactions = sqliteTable(
     index("idx_txn_merchant").on(table.merchantId),
     index("idx_txn_transfer").on(table.transferPairId),
     index("idx_txn_external_id").on(table.accountId, table.externalId),
+    index("idx_txn_household_reviewed_date").on(table.householdId, table.reviewed, table.date),
+    index("idx_txn_household_transfer_date").on(table.householdId, table.isTransfer, table.date),
   ]
 );
 
