@@ -16,7 +16,7 @@ import { DashboardSummaryCards } from "./widgets/dashboard-summary-cards";
 import { UpcomingBillsWidget } from "./widgets/upcoming-bills";
 import { InvestmentsWidget } from "./widgets/investments-widget";
 import { WidgetPlaceholder } from "@/components/molecules/widget-placeholder";
-import { DASHBOARD_WIDGETS, type GridItem } from "./widgets/registry";
+import { WIDGET_TITLE_MAP, type GridItem, type DashboardLayout } from "./widgets/registry";
 import { saveLayout } from "@/actions/dashboard";
 import type { DashboardSummary, NetWorthPoint, MonthlySpendingRow, CashFlowRow } from "@/queries/dashboard";
 import type { TransactionRow } from "@/queries/transactions";
@@ -38,7 +38,7 @@ export interface DashboardData {
 }
 
 interface DashboardGridProps {
-  layout: { desktop: GridItem[]; tablet: GridItem[]; mobile: GridItem[] };
+  layout: DashboardLayout;
   data: DashboardData;
 }
 
@@ -70,9 +70,6 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
   );
 
   function renderWidget(id: string) {
-    const config = DASHBOARD_WIDGETS.find((w) => w.id === id);
-    if (!config) return null;
-
     switch (id) {
       case "net-worth":
         return (
@@ -143,7 +140,7 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
           width={width}
           layouts={layouts}
           breakpoints={{ lg: 1200, md: 768, sm: 0 }}
-          cols={{ lg: 4, md: 2, sm: 1 }}
+          cols={{ lg: 2, md: 2, sm: 1 }}
           rowHeight={160}
           onLayoutChange={handleLayoutChange}
           dragConfig={{ enabled: true, handle: ".drag-handle", bounded: false, threshold: 3 }}
@@ -155,7 +152,7 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
               <Card className="h-full flex flex-col">
                 <div className="flex items-center justify-between pb-2 pt-3 px-4">
                   <CardTitle className="text-sm font-medium">
-                    {DASHBOARD_WIDGETS.find((w) => w.id === item.i)?.title ?? item.i}
+                    {WIDGET_TITLE_MAP.get(item.i) ?? item.i}
                   </CardTitle>
                   <GripVertical className="size-4 text-muted-foreground cursor-grab drag-handle" />
                 </div>

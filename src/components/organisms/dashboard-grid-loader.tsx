@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { DashboardData } from "./dashboard-grid";
-import type { GridItem } from "./widgets/registry";
+import type { DashboardLayout } from "./widgets/registry";
 
 const DashboardGrid = dynamic(
   () => import("./dashboard-grid").then((m) => ({ default: m.DashboardGrid })),
@@ -13,7 +13,7 @@ const DashboardGrid = dynamic(
 );
 
 interface DashboardGridLoaderProps {
-  layout: { desktop: GridItem[]; tablet: GridItem[]; mobile: GridItem[] };
+  layout: DashboardLayout;
   data: DashboardData;
 }
 
