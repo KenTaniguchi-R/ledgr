@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | UI | shadcn/ui v4 + Tailwind v4 |
 | Charts | Recharts v3 (via shadcn Chart) |
 | ORM | Drizzle ORM 0.45 |
-| Database | SQLite (WAL mode) |
+| Database | PostgreSQL 17 (via node-postgres Pool) |
 | Auth | Better Auth |
 | Bank Sync | Plaid Node SDK (optional — CSV import is first-class) |
 | AI | Vercel AI SDK (BYOK — user brings own API key) |
@@ -31,15 +31,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Ownership enforcement:** Use `scopedQuery(householdId)` wrapper to auto-inject `household_id` filtering on all queries. Never write manual WHERE clauses for tenant isolation.
 - **Encryption:** Plaid access tokens and AI API keys encrypted at app layer (aes-256-gcm, key from `ENCRYPTION_KEY` env var).
 - **Plaid is the primary feature.** Bank sync via Plaid is the core experience. CSV/OFX import is available as a supplementary option for accounts not supported by Plaid.
-- **Timestamps:** Use `nowISO()` from `@/lib/date-utils` for all server-side timestamps. Never use `new Date().toISOString()` directly.
-- **No serverless.** SQLite requires persistent filesystem. Deployment target is Docker on VPS.
+- **Timestamps:** Use `new Date()` for all Postgres `timestamp` columns. Use `nowISO()` from `@/lib/date-utils` only for text date columns. Never use `new Date().toISOString()` for timestamp columns — Drizzle handles Date→Postgres conversion.
+- **Deployment target:** Docker on VPS. `docker compose up` starts both Postgres and the app.
 
 ## Commands (New App)
 
 ```bash
 # Development
 pnpm install                     # Install dependencies
-pnpm dev                         # Next.js dev server
+pnpm dev:db                      # Start Postgres (Docker)
+pnpm dev:setup                   # Start Postgres + migrate + dev server
+pnpm dev                         # Next.js dev server (requires running Postgres)
 pnpm db:generate                 # Generate Drizzle migrations
 pnpm db:migrate                  # Run migrations
 pnpm db:seed                     # Seed default categories + demo data
@@ -80,7 +82,7 @@ Browser ──▶ Next.js App Router
               ├── API Routes ──────── Plaid webhooks, AI streaming, CSV import
               └── Client Components ── interactive UI (charts, forms)
                     │
-              Drizzle ORM ──▶ SQLite (data/ledgr.db, WAL mode)
+              Drizzle ORM ──▶ PostgreSQL (via node-postgres Pool)
               Plaid Node SDK ──▶ Plaid API (sandbox/production via PLAID_ENV)
               Vercel AI SDK ──▶ User's LLM provider (Claude/OpenAI/Gemini)
               node-cron ──▶ Background jobs (sync, snapshots, categorization)
@@ -99,7 +101,7 @@ ledgr/
 │   ├── db/
 │   │   ├── schema/             # Drizzle schema files (one per domain)
 │   │   ├── seed/               # Default categories + demo data
-│   │   └── index.ts            # Drizzle client + SQLite PRAGMAs
+│   │   └── index.ts            # Drizzle client + node-postgres Pool
 │   ├── lib/
 │   │   ├── plaid/              # Plaid client, sync logic
 │   │   ├── categorization/     # Rule engine, PFC mapping, orchestrator
@@ -115,15 +117,16 @@ ledgr/
 │   └── queries/                # Server-side data fetching
 ├── tests/
 │   ├── integration/
-│   │   ├── setup.ts                # In-memory SQLite test DB factory
+│   │   ├── setup.ts                # Postgres test DB factory (per-file schema isolation)
 │   │   ├── db-factory.test.ts      # DB factory smoke tests
 │   │   └── scoped-query.test.ts    # Household isolation integration tests
+│   ├── global-setup.ts             # Testcontainers Postgres lifecycle
 │   └── mocks/
 │       ├── handlers.ts             # MSW handlers (Plaid API)
 │       └── server.ts               # MSW server setup for Vitest
 ├── e2e/
 │   └── health.spec.ts              # Playwright health check E2E
-├── data/                           # SQLite DB + attachments (Docker volume)
+├── docker-compose.yml              # Postgres 17 + app services
 ├── vitest.config.ts
 ├── playwright.config.ts
 ├── stryker.config.json
@@ -145,7 +148,7 @@ See the design spec for full schema with indexes and constraints.
 | Layer | Tool | What It Tests |
 |-------|------|--------------|
 | Unit + Property | Vitest + fast-check | Pure logic (money, encryption, categorization rules) |
-| Integration | Vitest + real SQLite (in-memory) | Drizzle queries, scoped-query isolation, server actions |
+| Integration | Vitest + Postgres (testcontainers) | Drizzle queries, scoped-query isolation, server actions |
 | Mutation | Stryker (incremental) | Whether tests actually catch bugs (not just coverage) |
 | E2E | Playwright | Critical user journeys end-to-end |
 | Contract | MSW + Zod | Plaid API response shapes |
@@ -156,7 +159,7 @@ See the design spec for full schema with indexes and constraints.
 - **Integration tests** (need DB) go in `tests/integration/`.
 - **E2E tests** go in `e2e/`.
 - **No tests for declarative code** (schemas, configs, type definitions).
-- **Test DB factory:** `createTestDb()` from `tests/integration/setup.ts` — fresh in-memory SQLite per test file with migrations applied and `foreign_keys = ON`.
+- **Test DB factory:** `createTestDb()` from `tests/integration/setup.ts` — async, creates a unique Postgres schema per test file for isolation. Shared testcontainer started via `tests/global-setup.ts`. Use `beforeAll(async () => { ({ db, close } = await createTestDb()); })` pattern.
 - **Property-based tests** use `@fast-check/vitest`. API: `test.prop([arb])("name", fn)` — not `fc.test()`.
 - **Scoped-query** accepts optional `db` parameter for testability: `scopedQuery(householdId, testDb)`.
 - **MSW mocks** for Plaid API in `tests/mocks/`. Use `server` from `tests/mocks/server.ts` in Vitest.
