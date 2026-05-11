@@ -13,6 +13,6 @@ export async function GET(request: NextRequest) {
   const householdId = await getHouseholdId();
   const rawRange = request.nextUrl.searchParams.get("range") ?? "6M";
   const range: NetWorthRange = isValidRange(rawRange) ? rawRange : "6M";
-  const data = getNetWorthHistory(householdId, range);
+  const data = await getNetWorthHistory(householdId, range);
   return NextResponse.json(data);
 }

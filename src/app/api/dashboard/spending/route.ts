@@ -5,6 +5,6 @@ import { getMonthlySpending } from "@/queries/dashboard";
 export async function GET(request: NextRequest) {
   const householdId = await getHouseholdId();
   const month = request.nextUrl.searchParams.get("month") ?? undefined;
-  const data = getMonthlySpending(householdId, month);
+  const data = await getMonthlySpending(householdId, month);
   return NextResponse.json(data);
 }
