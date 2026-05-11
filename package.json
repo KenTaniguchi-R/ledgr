@@ -18,7 +18,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:mutate": "stryker run",
-    "test:mutate:incremental": "stryker run --incremental"
+    "test:mutate:incremental": "stryker run --incremental",
+    "build:mcp-widgets": "tsx src/lib/mcp/apps/build.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.76",
