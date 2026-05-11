@@ -58,19 +58,19 @@ export function registerAppTools(server: McpServer, householdId: string) {
 
       switch (view) {
         case "spending-breakdown": {
-          const { data, summary } = spendingBreakdownData(householdId, month);
+          const { data, summary } = await spendingBreakdownData(householdId, month);
           return appResult(summary, html, data);
         }
         case "transaction-table": {
-          const { data, summary } = transactionTableData(householdId, limit);
+          const { data, summary } = await transactionTableData(householdId, limit);
           return appResult(summary, html, data);
         }
         case "budget-progress": {
-          const { data, summary } = budgetProgressData(householdId, month);
+          const { data, summary } = await budgetProgressData(householdId, month);
           return appResult(summary, html, data);
         }
         case "net-worth-trend": {
-          const { data, summary } = netWorthTrendData(householdId, range);
+          const { data, summary } = await netWorthTrendData(householdId, range);
           return appResult(summary, html, data);
         }
       }

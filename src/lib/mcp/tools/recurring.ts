@@ -18,7 +18,7 @@ export function registerRecurringTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {
-      const bills = getUpcomingBills(householdId, { search: args.search, limit: args.limit });
+      const bills = await getUpcomingBills(householdId, { search: args.search, limit: args.limit });
 
       return jsonResult(
         bills.map((b) => ({

@@ -14,7 +14,7 @@ export function registerAccountTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async () => {
-      const accounts = getAccounts(householdId);
+      const accounts = await getAccounts(householdId);
       return jsonResult(
         accounts.map((a) => ({
           id: a.id,
@@ -46,7 +46,7 @@ export function registerAccountTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async () => {
-      const s = getAccountSummary(householdId);
+      const s = await getAccountSummary(householdId);
       return jsonResult({
         totalAssetsCents: s.totalAssets,
         totalAssetsDisplay: centsToDisplay(s.totalAssets),

@@ -4,9 +4,9 @@ import { getMonthlySpending, getNetWorthHistory } from "@/queries/dashboard";
 import { getTransactions } from "@/queries/transactions";
 import { getBudgetForMonth } from "@/queries/budgets";
 
-export function spendingBreakdownData(householdId: string, month?: string) {
+export async function spendingBreakdownData(householdId: string, month?: string) {
   const targetMonth = month ?? getCurrentMonth();
-  const spending = getMonthlySpending(householdId, targetMonth);
+  const spending = await getMonthlySpending(householdId, targetMonth);
   const totalCents = spending.reduce((s, r) => s + r.total, 0);
 
   const categories = spending.map((r) => ({
@@ -26,9 +26,9 @@ export function spendingBreakdownData(householdId: string, month?: string) {
   };
 }
 
-export function transactionTableData(householdId: string, limit?: number) {
+export async function transactionTableData(householdId: string, limit?: number) {
   const txnLimit = limit ?? 25;
-  const page = getTransactions(householdId, {}, txnLimit);
+  const page = await getTransactions(householdId, {}, txnLimit);
 
   const txnRows = page.rows.map((r) => ({
     date: r.date,
@@ -50,9 +50,9 @@ export function transactionTableData(householdId: string, limit?: number) {
   };
 }
 
-export function budgetProgressData(householdId: string, month?: string) {
+export async function budgetProgressData(householdId: string, month?: string) {
   const targetMonth = month ?? getCurrentMonth();
-  const budget = getBudgetForMonth(householdId, targetMonth);
+  const budget = await getBudgetForMonth(householdId, targetMonth);
 
   const allCategories = budget.groups.flatMap((g) =>
     g.categories.map((c) => ({
@@ -95,9 +95,9 @@ export function budgetProgressData(householdId: string, month?: string) {
 
 type NetWorthRange = "1M" | "3M" | "6M" | "1Y" | "all";
 
-export function netWorthTrendData(householdId: string, range?: NetWorthRange) {
+export async function netWorthTrendData(householdId: string, range?: NetWorthRange) {
   const timeRange = range ?? "6M";
-  const points = getNetWorthHistory(householdId, timeRange);
+  const points = await getNetWorthHistory(householdId, timeRange);
 
   const formattedPoints = points.map((p) => ({
     date: p.date,

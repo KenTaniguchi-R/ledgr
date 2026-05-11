@@ -16,7 +16,7 @@ export function registerInvestmentTools(server: McpServer, householdId: string) 
       annotations: READ_ANNOTATIONS,
     },
     async () => {
-      const s = getPortfolioSummary(householdId);
+      const s = await getPortfolioSummary(householdId);
       return jsonResult({
         totalValueCents: s.totalValue,
         totalValueDisplay: centsToDisplay(s.totalValue),
@@ -43,7 +43,7 @@ export function registerInvestmentTools(server: McpServer, householdId: string) 
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {
-      const holdings = getHoldings(householdId, args.view ?? "consolidated", args.accountId);
+      const holdings = await getHoldings(householdId, args.view ?? "consolidated", args.accountId);
 
       return jsonResult(
         holdings.map((h) => ({

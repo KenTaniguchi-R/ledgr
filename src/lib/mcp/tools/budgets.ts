@@ -25,7 +25,7 @@ export function registerBudgetReadTools(server: McpServer, householdId: string) 
     },
     async (args) => {
       const month = args.month ?? getCurrentMonth();
-      const b = getBudgetForMonth(householdId, month);
+      const b = await getBudgetForMonth(householdId, month);
 
       return jsonResult({
         budget: b.budget,

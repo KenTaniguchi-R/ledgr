@@ -25,7 +25,7 @@ export function registerTransactionTools(server: McpServer, householdId: string)
     },
     async (args) => {
       const { cursor, ...filters } = args;
-      const page = getTransactions(householdId, filters, 50, cursor ?? null);
+      const page = await getTransactions(householdId, filters, 50, cursor ?? null);
 
       return jsonResult({
         rows: page.rows.map((t) => ({

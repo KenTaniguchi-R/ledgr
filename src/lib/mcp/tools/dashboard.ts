@@ -15,7 +15,7 @@ export function registerDashboardTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async () => {
-      const s = getDashboardSummary(householdId);
+      const s = await getDashboardSummary(householdId);
       return jsonResult({
         netWorthCents: s.netWorth,
         netWorthDisplay: centsToDisplay(s.netWorth),

@@ -21,7 +21,7 @@ export function registerReportTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {
-      const rows = getSpendingByCategory(householdId, {
+      const rows = await getSpendingByCategory(householdId, {
         dateFrom: args.dateFrom,
         dateTo: args.dateTo,
         accountIds: args.accountIds,
@@ -57,7 +57,7 @@ export function registerReportTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {
-      const rows = getIncomeVsExpense(householdId, {
+      const rows = await getIncomeVsExpense(householdId, {
         dateFrom: args.dateFrom,
         dateTo: args.dateTo,
         accountIds: args.accountIds,
