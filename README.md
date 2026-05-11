@@ -4,7 +4,7 @@
 
 # Ledgr
 
-**Self-hostable personal finance app with Plaid bank sync and AI agent support via MCP.**
+**Self-hostable personal finance app with Plaid bank sync. Ask Claude about your money via MCP.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
@@ -21,133 +21,48 @@
 
 Ledgr connects to your bank accounts through Plaid, automatically syncs and categorizes transactions, and gives you budgets, investment tracking, bill detection, and financial reports — all running on your own server with your own data.
 
-It also exposes a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server, so AI assistants like Claude can query your finances, generate reports, and manage budgets through natural conversation.
+It also exposes a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server, so AI assistants like Claude can query your finances through natural conversation — from Claude Code, Claude Desktop, or any MCP client.
 
-## Why Ledgr?
-
-Most personal finance apps either lock your data in their cloud or require you to manually import CSVs. Ledgr is different:
-
-- **Plaid-first** — connects directly to 12,000+ banks. Your transactions sync automatically, not manually
-- **MCP-enabled** — the only open-source finance app with a built-in AI agent interface. Ask Claude about your spending instead of clicking through dashboards
-- **Self-hosted** — Docker Compose with PostgreSQL. Your financial data never leaves your server
-- **Smart categorization** — four-tier pipeline (your rules > merchant defaults > Plaid categories > AI) that learns from your corrections
-
-| | Ledgr | Actual Budget | Firefly III | Maybe |
-|---|---|---|---|---|
-| Automatic bank sync | Plaid | GoCardless (EU) | Spectre/GoCardless | Manual only |
-| AI agent (MCP) | Yes | No | No | No |
-| Database | PostgreSQL | SQLite | MySQL/Postgres | Postgres |
-| Self-hostable | Yes | Yes | Yes | Yes |
-| Investment tracking | Yes | No | No | Yes |
-
-## Features
-
-**Core**
-- Automatic bank sync via Plaid (checking, savings, credit cards, investments)
-- Transaction categorization pipeline (user rules > merchant defaults > Plaid categories > AI)
-- Budgets with category-level tracking
-- Recurring transaction & bill detection
-- Investment portfolio tracking with holdings history
-- Financial reports (spending breakdown, income vs. expense, net worth trends)
-- CSV/OFX import for accounts not supported by Plaid
-
-**AI & MCP**
-- MCP server with OAuth — connect Claude Desktop, Claude Code, or any MCP client
-- 10 tool endpoints: accounts, transactions, budgets, categories, investments, reports, recurring, sync, and dashboard
-- Interactive dashboard widgets served as MCP Apps
-- BYOK (Bring Your Own Key) AI categorization — works with Claude, GPT, Gemini
-
-**Self-Hosting**
-- Docker Compose with PostgreSQL — `docker compose up` and you're running
-- All data stays on your machine
-- Multi-user support with household-based data isolation
+```
+You: "How much did I spend on dining out last month?"
+Claude: Based on your transactions, you spent $342.18 on dining out in April...
+```
 
 ## Quick Start
 
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/) 9+
-- A [Plaid](https://plaid.com/) account (free tier works for development)
-
-### 1. Clone and install
+Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
 
 ```bash
 git clone https://github.com/KenTaniguchi-R/ledgr.git
 cd ledgr
-pnpm install
-```
-
-### 2. Set up Plaid
-
-1. Sign up at [dashboard.plaid.com](https://dashboard.plaid.com/signup)
-2. Go to [Developers > Keys](https://dashboard.plaid.com/developers/keys) to get your `client_id` and secret
-3. Get your **Production** keys to connect real bank accounts. Sandbox keys are available for testing with fake data
-
-### 3. Configure environment
-
-```bash
 cp .env.example .env
-```
-
-Open `.env` and fill in:
-
-```env
-# Generate these:
-ENCRYPTION_KEY=           # Run: openssl rand -hex 32
-AUTH_SECRET=              # Run: openssl rand -base64 32
-
-# From Plaid dashboard:
-PLAID_CLIENT_ID=your_client_id
-PLAID_SECRET=your_production_secret
-PLAID_ENV=production      # production | sandbox (sandbox uses fake data)
-```
-
-### 4. Initialize database and run
-
-```bash
-pnpm db:setup             # Generate and run migrations
-pnpm dev                  # Start dev server at http://localhost:3000
-```
-
-Create an account, then link your bank through the Plaid Link flow in the app.
-
-## Docker
-
-```bash
-# Configure
-cp .env.example .env
-# Edit .env with your keys (see step 3 above)
-
-# Run
 docker compose up -d
 ```
 
-The app runs at `http://localhost:3000`. Data persists in a Docker volume.
+Visit `http://localhost:3000`, create an account, and start exploring.
 
-To update:
+> Secrets (`ENCRYPTION_KEY`, `AUTH_SECRET`) are auto-generated on first run if left blank. Add your Plaid keys to `.env` to enable bank sync — see [Connect Your Bank](#connect-your-bank) below.
 
-```bash
-docker compose pull
-docker compose up -d
-```
+## Connect to Claude (MCP)
 
-## MCP Setup (AI Integration)
+Ledgr includes a built-in [MCP](https://modelcontextprotocol.io) server. Tell your AI agent:
 
-Ledgr includes a built-in MCP server so AI assistants can interact with your financial data.
+> Add Ledgr as an MCP server at http://localhost:3000/api/mcp/sse using SSE transport.
 
-### 1. Enable MCP
+This works in Claude Code, Cursor, Windsurf, and other MCP-capable agents. On first connection, Ledgr redirects you through an OAuth flow to authorize access.
 
-Add to your `.env`:
+<details>
+<summary>Manual configuration (Claude Desktop, VS Code, etc.)</summary>
 
-```env
-MCP_ENABLED=true
-LEDGR_URL=http://localhost:3000
-```
+#### Claude Desktop
 
-### 2. Connect Claude Desktop
+Add to your config file:
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+| OS | Path |
+|----|------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
 
 ```json
 {
@@ -159,17 +74,31 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 }
 ```
 
-### 3. Authorize
+#### VS Code
 
-When Claude connects, you'll be redirected to Ledgr's OAuth flow to authorize access. Once approved, Claude can:
+Add to `.vscode/mcp.json` in your workspace, or open **Command Palette > MCP: Open User Configuration**:
 
-- "Show me my spending this month"
-- "How much have I spent on dining out?"
-- "What's my budget status?"
-- "Show me my investment portfolio"
-- "Sync my accounts"
+```json
+{
+  "servers": {
+    "ledgr": {
+      "url": "http://localhost:3000/api/mcp/sse"
+    }
+  }
+}
+```
 
-### Available MCP Tools
+#### Other MCP Clients
+
+Ledgr uses SSE transport. Point any MCP-compatible client to:
+
+```
+http://localhost:3000/api/mcp/sse
+```
+
+</details>
+
+### Available Tools
 
 | Tool | Description |
 |------|-------------|
@@ -183,6 +112,86 @@ When Claude connects, you'll be redirected to Ledgr's OAuth flow to authorize ac
 | `sync_accounts` | Trigger a bank sync |
 | `show_dashboard` | Interactive financial dashboard |
 | `manage_categories` | Create and update categories |
+
+**Example prompts:**
+- "How much did I spend on groceries this month?"
+- "Show me my budget status"
+- "What recurring bills do I have?"
+- "Generate a spending report for Q1"
+- "Sync my accounts and show my balances"
+
+## Connect Your Bank
+
+Plaid is what makes Ledgr powerful — automatic sync from 12,000+ banks, combined with MCP, means you can ask Claude about real transactions as they happen.
+
+1. Sign up at [dashboard.plaid.com](https://dashboard.plaid.com/signup) and get your `client_id` and secret from [Developers > Keys](https://dashboard.plaid.com/developers/keys)
+2. Add them to your `.env`:
+   ```env
+   PLAID_CLIENT_ID=your_client_id
+   PLAID_SECRET=your_secret
+   PLAID_ENV=production      # or sandbox for fake data
+   ```
+3. Restart: `docker compose restart`
+4. In the app, go to **Accounts > Link Bank** to connect via Plaid
+
+> Don't have Plaid keys yet? The app still works — you can import transactions via CSV and add Plaid later.
+
+## Why Ledgr?
+
+Most personal finance apps either lock your data in their cloud or require you to manually import CSVs. Ledgr is different:
+
+- **Plaid + MCP** — the only open-source finance app that combines automatic bank sync (12,000+ banks) with an AI agent interface. Your transactions sync automatically, and you query them through Claude
+- **Smart categorization** — four-tier pipeline (your rules > merchant defaults > Plaid categories > AI) that learns from your corrections
+- **Self-hosted** — Docker Compose with PostgreSQL. Your financial data never leaves your server
+- **Full-featured** — budgets, recurring bill detection, investment tracking, financial reports, CSV/OFX import, BYOK AI categorization
+
+| | Ledgr | Actual Budget | Firefly III | Maybe |
+|---|---|---|---|---|
+| Automatic bank sync | Plaid | GoCardless (EU) | Spectre/GoCardless | Manual only |
+| AI agent (MCP) | Yes | No | No | No |
+| Database | PostgreSQL | SQLite | MySQL/Postgres | Postgres |
+| Self-hostable | Yes | Yes | Yes | Yes |
+| Investment tracking | Yes | No | No | Yes |
+
+## Updating
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+## Development
+
+> **If you're trying to self-host Ledgr, use the [Quick Start](#quick-start) above.** The instructions below are for contributors.
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 20+
+- [pnpm](https://pnpm.io/) 9+
+- Running PostgreSQL (or use `pnpm dev:db` to start one in Docker)
+
+### Setup
+
+```bash
+git clone https://github.com/KenTaniguchi-R/ledgr.git
+cd ledgr
+pnpm install
+cp .env.example .env        # edit with your Plaid keys if needed
+pnpm db:setup               # generate + run migrations
+pnpm dev                    # http://localhost:3000
+```
+
+### Commands
+
+```bash
+pnpm dev                          # Dev server (Turbopack)
+pnpm test                         # Unit + integration tests
+pnpm test:watch                   # Watch mode
+pnpm test:e2e                     # Playwright E2E tests
+pnpm lint                         # ESLint
+pnpm typecheck                    # Type checking
+pnpm db:studio                    # Drizzle Studio (DB browser)
+```
 
 ## Tech Stack
 
@@ -198,46 +207,6 @@ When Claude connects, you'll be redirected to Ledgr's OAuth flow to authorize ac
 | AI | Vercel AI SDK (BYOK) |
 | MCP | Model Context Protocol SDK |
 | Testing | Vitest + Playwright + Stryker |
-
-## Project Structure
-
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── (auth)/             # Login, signup
-│   ├── (dashboard)/        # Main app pages
-│   │   ├── accounts/       # Linked bank accounts
-│   │   ├── transactions/   # Transaction list + filters
-│   │   ├── budgets/        # Budget management
-│   │   ├── bills/          # Recurring bills
-│   │   ├── investments/    # Portfolio tracking
-│   │   ├── reports/        # Financial reports
-│   │   ├── import/         # CSV/OFX import
-│   │   └── settings/       # App settings, AI keys
-│   └── api/                # Plaid webhooks, MCP, health
-├── components/             # UI components
-├── db/schema/              # Drizzle schema (one file per domain)
-├── lib/
-│   ├── plaid/              # Plaid client + sync logic
-│   ├── mcp/                # MCP server + tools
-│   ├── categorization/     # Auto-categorization pipeline
-│   ├── ai/                 # AI provider integration
-│   └── auth/               # Auth config
-├── actions/                # Server Actions (mutations)
-└── queries/                # Server-side data fetching
-```
-
-## Development
-
-```bash
-pnpm dev                          # Dev server (Turbopack)
-pnpm test                         # Unit + integration tests
-pnpm test:watch                   # Watch mode
-pnpm test:e2e                     # Playwright E2E tests
-pnpm lint                         # ESLint
-pnpm typecheck                    # Type checking
-pnpm db:studio                    # Drizzle Studio (DB browser)
-```
 
 ## Roadmap
 
