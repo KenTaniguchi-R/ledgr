@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Unplug } from "lucide-react";
+import { McpSetupInstructions } from "@/components/molecules/mcp-setup-instructions";
 
 interface McpSettingsFormProps {
   mcpEnabled: boolean;
@@ -28,6 +29,11 @@ export function McpSettingsForm({
   const [enabled, setEnabled] = useState(initialEnabled);
   const [clients, setClients] = useState(initialClients);
   const [isPending, startTransition] = useTransition();
+
+  const mcpUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/mcp`
+      : "http://localhost:3000/api/mcp";
 
   function handleToggle(checked: boolean) {
     startTransition(async () => {
@@ -65,6 +71,8 @@ export function McpSettingsForm({
             disabled={isPending}
           />
         </div>
+
+        {enabled && <McpSetupInstructions mcpUrl={mcpUrl} />}
 
         <div className="space-y-3">
           <p className="text-sm font-medium">Connected Clients</p>
