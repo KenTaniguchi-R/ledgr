@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Search, X, Download } from "lucide-react";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { CategorySelectItems } from "@/components/molecules/category-select-items";
+import { parseToCents, centsToInputDisplay } from "@/lib/money";
 import type { CategoryGroup } from "@/queries/categories";
 
 interface AccountOption {
@@ -28,21 +29,70 @@ interface TransactionFiltersProps {
 }
 
 export function TransactionFilters({ accounts, categories }: TransactionFiltersProps) {
-  const { updateFilter, clearFilters, hasFilters, searchParams } = useSearchParamFilters();
+  const { updateFilter, updateFilters, clearFilters, hasFilters, searchParams } = useSearchParamFilters();
 
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const initMin = searchParams.get("amountMin");
+  const initMax = searchParams.get("amountMax");
+  const [amountMinDisplay, setAmountMinDisplay] = useState(
+    initMin ? centsToInputDisplay(parseInt(initMin, 10)) : "",
+  );
+  const [amountMaxDisplay, setAmountMaxDisplay] = useState(
+    initMax ? centsToInputDisplay(parseInt(initMax, 10)) : "",
+  );
+  const minDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const maxDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   function handleSearchChange(value: string) {
     setSearchValue(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
       updateFilter("q", value || null);
     }, 300);
   }
 
+  const flushAmountFilter = useCallback(
+    (key: "amountMin" | "amountMax", displayValue: string) => {
+      if (displayValue === "") {
+        updateFilter(key, null);
+        return;
+      }
+      const cents = parseToCents(displayValue);
+      if (cents !== null && cents >= 0) {
+        updateFilter(key, String(cents));
+      }
+    },
+    [updateFilter],
+  );
+
+  function handleAmountMinChange(value: string) {
+    setAmountMinDisplay(value);
+    if (minDebounceRef.current) clearTimeout(minDebounceRef.current);
+    minDebounceRef.current = setTimeout(() => {
+      flushAmountFilter("amountMin", value);
+    }, 500);
+  }
+
+  function handleAmountMaxChange(value: string) {
+    setAmountMaxDisplay(value);
+    if (maxDebounceRef.current) clearTimeout(maxDebounceRef.current);
+    maxDebounceRef.current = setTimeout(() => {
+      flushAmountFilter("amountMax", value);
+    }, 500);
+  }
+
+  function handleAmountBlur(key: "amountMin" | "amountMax", displayValue: string) {
+    const ref = key === "amountMin" ? minDebounceRef : maxDebounceRef;
+    if (ref.current) clearTimeout(ref.current);
+    flushAmountFilter(key, displayValue);
+  }
+
   function handleClearFilters() {
     setSearchValue("");
+    setAmountMinDisplay("");
+    setAmountMaxDisplay("");
     clearFilters();
   }
 
@@ -101,6 +151,45 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
           <CategorySelectItems categories={categories} />
         </SelectContent>
       </Select>
+
+      <Select
+        value={searchParams.get("type") ?? "all"}
+        onValueChange={(v) => updateFilter("type", v === "all" ? null : v)}
+      >
+        <SelectTrigger className="h-8 w-[120px] text-xs">
+          <SelectValue>
+            {searchParams.get("type") === "expense" ? "Expenses"
+              : searchParams.get("type") === "credits" ? "Credits"
+              : searchParams.get("type") === "transfer" ? "Transfers"
+              : "All types"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All types</SelectItem>
+          <SelectItem value="expense">Expenses</SelectItem>
+          <SelectItem value="credits">Credits</SelectItem>
+          <SelectItem value="transfer">Transfers</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Input
+        type="text"
+        inputMode="decimal"
+        placeholder="Min $"
+        value={amountMinDisplay}
+        onChange={(e) => handleAmountMinChange(e.target.value)}
+        onBlur={() => handleAmountBlur("amountMin", amountMinDisplay)}
+        className="h-8 w-[80px] text-xs"
+      />
+      <Input
+        type="text"
+        inputMode="decimal"
+        placeholder="Max $"
+        value={amountMaxDisplay}
+        onChange={(e) => handleAmountMaxChange(e.target.value)}
+        onBlur={() => handleAmountBlur("amountMax", amountMaxDisplay)}
+        className="h-8 w-[80px] text-xs"
+      />
 
       <Input
         type="date"
