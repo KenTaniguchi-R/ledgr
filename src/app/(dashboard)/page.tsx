@@ -11,7 +11,7 @@ import { getAccounts } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { getUpcomingBills } from "@/queries/recurring";
 import { getCurrentMonth } from "@/lib/date-utils";
-import { getLayoutForUser } from "@/queries/settings";
+import { getLayoutForUser } from "@/queries/dashboard-layout";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
 import { getSession } from "@/lib/auth/session";
 import { DashboardGridLoader } from "@/components/organisms/dashboard-grid-loader";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useActionTransition } from "@/hooks/use-action-transition";
-import { toggleDemoMode } from "@/actions/settings";
+import { toggleDemoMode } from "@/actions/demo-mode";
 import {
   Card,
   CardContent,

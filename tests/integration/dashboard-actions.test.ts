@@ -3,8 +3,8 @@ import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
 import { insertHousehold } from "./helpers";
 import { userSettings } from "../../src/db/schema";
-import { getLayoutForUser } from "../../src/queries/settings";
-import { saveLayoutForUser } from "../../src/actions/settings";
+import { getLayoutForUser } from "../../src/queries/dashboard-layout";
+import { saveLayoutForUser } from "../../src/actions/dashboard";
 import type { DashboardLayout } from "../../src/components/organisms/widgets/registry";
 import type { LedgrDb } from "../../src/db";
 

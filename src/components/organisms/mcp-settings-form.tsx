@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toggleMcpEndpoint, revokeMcpClient } from "@/actions/mcp-settings";
-import type { ConnectedClient } from "@/queries/settings";
+import type { ConnectedClient } from "@/queries/mcp-settings";
 import {
   Card,
   CardContent,

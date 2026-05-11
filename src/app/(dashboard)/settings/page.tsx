@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth/session";
-import { getMcpSettings } from "@/queries/settings";
+import { getMcpSettings } from "@/queries/mcp-settings";
 import { McpSettingsForm } from "@/components/organisms/mcp-settings-form";
 import { DemoModeToggle } from "@/components/molecules/demo-mode-toggle";
 import { isDemoMode } from "@/lib/demo-mode";

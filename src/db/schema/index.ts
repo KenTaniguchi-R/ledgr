@@ -1,5 +1,6 @@
 export * from "./auth";
 export * from "./households";
+export * from "./user-settings";
 export * from "./plaid";
 export * from "./accounts";
 export * from "./categories";
