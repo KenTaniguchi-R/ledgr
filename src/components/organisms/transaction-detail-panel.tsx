@@ -47,10 +47,7 @@ export function TransactionDetailPanel({
     handleAddSplit,
     handleSplitUpdate,
     handleSplitDelete,
-  } = useTransactionDetail(transactionId, initialData, {
-    onClose,
-    onTransactionUpdated,
-  });
+  } = useTransactionDetail(transactionId, initialData, onClose, onTransactionUpdated);
 
   useEffect(() => {
     headingRef.current?.focus();
