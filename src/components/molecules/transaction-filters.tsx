@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { Search, X, Download } from "lucide-react";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
 
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [activePreset, setActivePreset] = useState("All");
 
   const initMin = searchParams.get("amountMin");
   const initMax = searchParams.get("amountMax");
@@ -89,10 +91,29 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
     flushAmountFilter(key, displayValue);
   }
 
+  function handlePresetChange(range: string) {
+    setActivePreset(range);
+    if (range === "All") {
+      updateFilters({ from: null, to: null });
+      return;
+    }
+    const today = new Date();
+    const to = today.toISOString().split("T")[0];
+    const from = new Date(today);
+    switch (range) {
+      case "1M": from.setMonth(from.getMonth() - 1); break;
+      case "3M": from.setMonth(from.getMonth() - 3); break;
+      case "6M": from.setMonth(from.getMonth() - 6); break;
+      case "1Y": from.setFullYear(from.getFullYear() - 1); break;
+    }
+    updateFilters({ from: from.toISOString().split("T")[0], to });
+  }
+
   function handleClearFilters() {
     setSearchValue("");
     setAmountMinDisplay("");
     setAmountMaxDisplay("");
+    setActivePreset("All");
     clearFilters();
   }
 
@@ -194,11 +215,16 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         className="h-8 w-[80px] text-xs"
       />
 
+      <DateRangeSelector value={activePreset} onChange={handlePresetChange} />
+
       <Input
         type="date"
         aria-label="From date"
         value={searchParams.get("from") ?? ""}
-        onChange={(e) => updateFilter("from", e.target.value || null)}
+        onChange={(e) => {
+          setActivePreset("");
+          updateFilter("from", e.target.value || null);
+        }}
         className="h-8 w-[130px] text-xs"
       />
       <span className="text-xs text-muted-foreground">to</span>
@@ -206,7 +232,10 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         type="date"
         aria-label="To date"
         value={searchParams.get("to") ?? ""}
-        onChange={(e) => updateFilter("to", e.target.value || null)}
+        onChange={(e) => {
+          setActivePreset("");
+          updateFilter("to", e.target.value || null);
+        }}
         className="h-8 w-[130px] text-xs"
       />
 
