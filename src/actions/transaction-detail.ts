@@ -8,7 +8,8 @@ import { transactions, transactionSplits } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 import { nowISO } from "@/lib/date-utils";
-import { getHouseholdId } from "@/lib/auth/session";
+import { getHouseholdId, getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { getTransactionDetail, type TransactionDetail } from "@/queries/transactions";
 
 const transactionIdSchema = z.string().min(1);
@@ -55,6 +56,10 @@ export async function updateTransactionFields(
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const parsedId = transactionIdSchema.safeParse(transactionId);
   const parsedData = updateFieldsSchema.safeParse(data);
   if (!parsedId.success || !parsedData.success) return { error: "Invalid input" };
@@ -119,6 +124,10 @@ export async function upsertSplit(
   | { error: string }
 > {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const parsedId = transactionIdSchema.safeParse(transactionId);
   const parsedData = splitSchema.safeParse(data);
   if (!parsedId.success || !parsedData.success) return { error: "Invalid input" };
@@ -202,6 +211,10 @@ export async function deleteSplit(
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const parsedSplitId = transactionIdSchema.safeParse(splitId);
   if (!parsedSplitId.success) return { error: "Invalid input" };
 

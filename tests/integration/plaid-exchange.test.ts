@@ -10,6 +10,12 @@ import { exchangeAndStoreAccounts } from "@/actions/plaid";
 import { mapPlaidAccountType } from "@/lib/plaid/utils";
 import { resetPlaidClient } from "@/lib/plaid/client";
 
+vi.mock("@/lib/auth/session", () => ({
+  getSession: vi.fn(() => Promise.resolve({ user: { id: "test-user-id" } })),
+  getHouseholdId: vi.fn(),
+}));
+vi.mock("@/lib/demo-mode", () => ({ guardDemoMode: vi.fn(() => null) }));
+
 beforeAll(() => {
   vi.stubEnv("PLAID_CLIENT_ID", "test-id");
   vi.stubEnv("PLAID_SECRET", "test-secret");

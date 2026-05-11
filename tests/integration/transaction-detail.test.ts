@@ -17,10 +17,13 @@ import { eq } from "drizzle-orm";
 
 // Mock auth + revalidation
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("../../src/lib/demo-mode", () => ({ guardDemoMode: vi.fn(() => null) }));
 
+const mockUserId = "test-user-id";
 let mockHouseholdId: string;
 vi.mock("../../src/lib/auth/session", () => ({
   getHouseholdId: vi.fn(() => Promise.resolve(mockHouseholdId)),
+  getSession: vi.fn(() => Promise.resolve({ user: { id: mockUserId } })),
 }));
 
 import {

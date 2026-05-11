@@ -8,7 +8,8 @@ import { transactions } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 import { nowISO } from "@/lib/date-utils";
-import { getHouseholdId } from "@/lib/auth/session";
+import { getHouseholdId, getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { getTransactions, type TransactionFilters, type TransactionPage } from "@/queries/transactions";
 
 const categoryIdSchema = z.string().min(1).nullable();
@@ -41,6 +42,10 @@ export async function updateTransactionCategory(
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const parsedTxnId = transactionIdSchema.safeParse(transactionId);
   const parsedCatId = categoryIdSchema.safeParse(categoryId);
   if (!parsedTxnId.success || !parsedCatId.success) {
@@ -74,6 +79,10 @@ export async function toggleReviewed(
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true; reviewed: boolean } | { error: string }> {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const parsedId = transactionIdSchema.safeParse(transactionId);
   if (!parsedId.success) {
     return { error: "Invalid input" };
@@ -111,6 +120,9 @@ export async function bulkUpdateCategory(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
   const scoped = scopedQuery(householdId, db);
 
   const owned = db
@@ -152,6 +164,9 @@ export async function bulkMarkReviewed(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
   const scoped = scopedQuery(householdId, db);
 
   const owned = db

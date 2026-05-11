@@ -1,6 +1,7 @@
 "use server";
 
 import { getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { saveLayoutForUser, getLayoutForUser } from "@/queries/settings";
 import type { DashboardLayout } from "@/components/organisms/widgets/registry";
 
@@ -9,6 +10,8 @@ export async function saveLayout(
 ): Promise<void> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
+  const blocked = guardDemoMode(session.user.id);
+  if (blocked) return;
   saveLayoutForUser(session.user.id, layout);
 }
 

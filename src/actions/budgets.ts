@@ -8,7 +8,8 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { budgets, budgetCategories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { nowISO } from "@/lib/date-utils";
-import { getHouseholdId } from "@/lib/auth/session";
+import { getHouseholdId, getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 
 const monthSchema = z.string().regex(/^\d{4}-\d{2}$/);
 const budgetTypeSchema = z.enum(["category", "flex"]);
@@ -36,6 +37,10 @@ export async function createBudget(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const scoped = scopedQuery(householdId, db);
 
   // Idempotent: return existing budget if one exists for this household+month
@@ -79,6 +84,10 @@ export async function setBudgetCategory(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const owned = verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
     return { error: "Budget not found" };
@@ -122,6 +131,10 @@ export async function removeBudgetCategory(
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const owned = verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
     return { error: "Budget not found" };
@@ -152,6 +165,10 @@ export async function copyBudgetFromMonth(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const scoped = scopedQuery(householdId, db);
 
   // Find source budget
@@ -218,6 +235,10 @@ export async function updateBudgetType(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const owned = verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
     return { error: "Budget not found" };

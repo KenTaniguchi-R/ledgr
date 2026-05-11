@@ -10,6 +10,7 @@ import { plaidAmountToCents } from "@/lib/money";
 import { mapPlaidAccountType, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { todayDateString as todayISO, nowISO } from "@/lib/date-utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory, institutionLogos } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -17,6 +18,8 @@ import { scopedQuery } from "@/lib/scoped-query";
 export async function createLinkToken() {
   await getHouseholdId();
   const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
 
   try {
     const response = await getPlaidClient().linkTokenCreate({
@@ -47,6 +50,11 @@ export async function exchangeAndStoreAccounts(
   | { success: true; accountCount: number; error?: never }
   | { success: false; error: string; accountCount?: never }
 > {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+  const blocked = guardDemoMode(session.user.id);
+  if (blocked) return { success: false, error: blocked.error };
+
   try {
     const exchangeRes = await getPlaidClient().itemPublicTokenExchange({
       public_token: publicToken,
@@ -191,6 +199,10 @@ export async function disconnectPlaidItem(
   db: LedgrDb = defaultDb,
 ) {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const scoped = scopedQuery(householdId, db);
 
   const item = db

@@ -4,7 +4,8 @@ import { v4 as uuid } from "uuid";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getHouseholdId } from "@/lib/auth/session";
+import { getHouseholdId, getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { todayDateString as todayISO } from "@/lib/date-utils";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, balanceHistory } from "@/db/schema";
@@ -24,6 +25,9 @@ type CreateManualAccountInput = {
 
 export async function createManualAccount(data: CreateManualAccountInput, db: LedgrDb = defaultDb) {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
 
   const parsed = createManualAccountSchema.safeParse(data);
   if (!parsed.success) {
@@ -75,6 +79,10 @@ export async function updateAccount(
   db: LedgrDb = defaultDb,
 ) {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const parsed = updateAccountSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input" };

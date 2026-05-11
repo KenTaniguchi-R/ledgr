@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { upsertMcpEnabled } from "@/queries/settings";
 import { revokeConsent } from "@/lib/mcp/auth/oauth-server";
 
@@ -15,6 +16,8 @@ export async function toggleMcpEndpoint(
 ): Promise<{ success: true } | { error: string }> {
   const session = await getSession();
   if (!session) return { error: "Not authenticated" };
+  const blocked = guardDemoMode(session.user.id);
+  if (blocked) return blocked;
 
   const parsed = toggleMcpSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -34,6 +37,8 @@ export async function revokeMcpClient(
 ): Promise<{ success: true } | { error: string }> {
   const session = await getSession();
   if (!session) return { error: "Not authenticated" };
+  const blocked = guardDemoMode(session.user.id);
+  if (blocked) return blocked;
 
   const parsed = revokeClientSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };

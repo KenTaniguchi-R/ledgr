@@ -8,7 +8,8 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { nowISO } from "@/lib/date-utils";
-import { getHouseholdId } from "@/lib/auth/session";
+import { getHouseholdId, getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { getTransactions, type TransactionRow } from "@/queries/transactions";
 
 const saveReportSchema = z.object({
@@ -32,6 +33,10 @@ export async function saveReport(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const id = uuid();
   const now = nowISO();
 
@@ -61,6 +66,10 @@ export async function deleteReport(
   }
 
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const scoped = scopedQuery(householdId, db);
 
   const result = db

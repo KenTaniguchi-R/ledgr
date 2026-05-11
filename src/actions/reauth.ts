@@ -7,7 +7,8 @@ import { getPlaidClient } from "@/lib/plaid/client";
 import { extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { nowISO } from "@/lib/date-utils";
 import { decrypt } from "@/lib/encryption";
-import { getHouseholdId } from "@/lib/auth/session";
+import { getHouseholdId, getSession } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems } from "@/db/schema";
@@ -51,6 +52,10 @@ export async function createUpdateLinkTokenDirect(
 
 export async function createUpdateLinkToken(plaidItemId: string) {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   return createUpdateLinkTokenDirect(plaidItemId, householdId);
 }
 
@@ -98,6 +103,10 @@ export async function completeReAuthDirect(
 
 export async function completeReAuth(plaidItemId: string) {
   const householdId = await getHouseholdId();
+  const session = await getSession();
+  const blocked = guardDemoMode(session!.user.id);
+  if (blocked) return blocked;
+
   const result = await completeReAuthDirect(plaidItemId, householdId);
   if ("success" in result && result.success) {
     revalidatePath("/accounts");
