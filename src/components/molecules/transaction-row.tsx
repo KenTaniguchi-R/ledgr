@@ -5,7 +5,7 @@ import { Clock } from "lucide-react";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { EntityAvatar } from "@/components/atoms/entity-avatar";
 import { CategoryPill } from "@/components/molecules/category-pill";
-import { ReviewedDot } from "@/components/atoms/reviewed-dot";
+import { ReviewedDot } from "@/components/molecules/reviewed-dot";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
