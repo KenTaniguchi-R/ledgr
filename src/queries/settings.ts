@@ -4,39 +4,6 @@ import { userSettings } from "@/db/schema";
 import { getConsentsForUser } from "@/lib/mcp/auth/oauth-server";
 import type { DashboardLayout } from "@/components/organisms/widgets/registry";
 
-export interface AiSettings {
-  aiProvider: "openai" | "anthropic" | "google" | "custom" | null;
-  aiModel: string | null;
-  hasKey: boolean;
-  rawEncryptedKey: string | null;
-  aiBaseUrl: string | null;
-  aiConfidenceThreshold: number;
-  toolCallingSupported: boolean | null;
-}
-
-export async function getUserAiSettings(
-  userId: string,
-  db: LedgrDb = defaultDb,
-): Promise<AiSettings | null> {
-  const [row] = await db
-    .select()
-    .from(userSettings)
-    .where(eq(userSettings.userId, userId))
-    .limit(1);
-
-  if (!row) return null;
-
-  return {
-    aiProvider: row.aiProvider as AiSettings["aiProvider"],
-    aiModel: row.aiModel,
-    hasKey: !!row.aiApiKey,
-    rawEncryptedKey: row.aiApiKey,
-    aiBaseUrl: row.aiBaseUrl ?? null,
-    aiConfidenceThreshold: parseFloat(row.aiConfidenceThreshold ?? "0.7"),
-    toolCallingSupported: row.toolCallingSupported ?? null,
-  };
-}
-
 export interface ConnectedClient {
   clientId: string;
   clientName: string | null;
