@@ -71,6 +71,7 @@ interface TransactionRow {
   logoUrl: string | null;
   pfcPrimary: string | null;
   pfcDetailed: string | null;
+  isTransfer: boolean;
 }
 
 export interface MerchantUpsert {
@@ -182,6 +183,9 @@ export function processBatch(
       logoUrl: txn.logo_url ?? null,
       pfcPrimary: txn.personal_finance_category?.primary ?? null,
       pfcDetailed: txn.personal_finance_category?.detailed ?? null,
+      isTransfer: ["TRANSFER_IN", "TRANSFER_OUT", "LOAN_PAYMENTS"].includes(
+        txn.personal_finance_category?.primary ?? "",
+      ),
     };
   }
 
@@ -334,6 +338,7 @@ export async function applyToDb(
           pending: row.pending,
           pfcPrimary: row.pfcPrimary,
           pfcDetailed: row.pfcDetailed,
+          isTransfer: row.isTransfer,
           createdAt: now,
           updatedAt: now,
         })
@@ -376,6 +381,7 @@ export async function applyToDb(
             pendingTransactionId: row.pendingTransactionId,
             pfcPrimary: row.pfcPrimary,
             pfcDetailed: row.pfcDetailed,
+            isTransfer: row.isTransfer,
             updatedAt: now,
             // Preserve user's manual categorization and reviewed status
           })
@@ -399,6 +405,7 @@ export async function applyToDb(
             pending: row.pending,
             pfcPrimary: row.pfcPrimary,
             pfcDetailed: row.pfcDetailed,
+            isTransfer: row.isTransfer,
             createdAt: now,
             updatedAt: now,
           })
