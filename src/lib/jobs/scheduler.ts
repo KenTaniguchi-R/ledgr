@@ -11,7 +11,7 @@ import { decrypt } from "@/lib/encryption";
 import { todayDateString } from "@/lib/date-utils";
 
 export async function snapshotBalances(dbInstance: LedgrDb = db): Promise<void> {
-  const activeAccounts = dbInstance
+  const activeAccounts = await dbInstance
     .select({ id: accounts.id, currentBalance: accounts.currentBalance })
     .from(accounts)
     .where(
@@ -21,18 +21,16 @@ export async function snapshotBalances(dbInstance: LedgrDb = db): Promise<void> 
         isNotNull(accounts.currentBalance),
         ne(accounts.householdId, DEMO_HOUSEHOLD_ID),
       )
-    )
-    .all();
+    );
 
   const date = todayDateString();
 
   for (const account of activeAccounts) {
     if (account.currentBalance === null) continue;
-    dbInstance
+    await dbInstance
       .insert(balanceHistory)
       .values({ id: uuid(), accountId: account.id, date, balance: account.currentBalance })
-      .onConflictDoNothing({ target: [balanceHistory.accountId, balanceHistory.date] })
-      .run();
+      .onConflictDoNothing({ target: [balanceHistory.accountId, balanceHistory.date] });
   }
 }
 
@@ -41,7 +39,7 @@ export function startScheduler() {
   cron.schedule("0 */4 * * *", async () => {
     console.log("[scheduler] Starting transaction sync job");
 
-    const activeItems = db
+    const activeItems = await db
       .select({
         id: plaidItems.id,
         householdId: plaidItems.householdId,
@@ -51,8 +49,7 @@ export function startScheduler() {
       .where(and(
         eq(plaidItems.status, "active"),
         ne(plaidItems.householdId, DEMO_HOUSEHOLD_ID),
-      ))
-      .all();
+      ));
 
     for (const item of activeItems) {
       try {
@@ -78,7 +75,7 @@ export function startScheduler() {
 
           // Chain investment sync for items with investment accounts
           try {
-            const investmentAccounts = db
+            const investmentAccounts = await db
               .select({ id: accounts.id })
               .from(accounts)
               .where(
@@ -87,8 +84,7 @@ export function startScheduler() {
                   eq(accounts.type, "investment"),
                   isNull(accounts.deletedAt),
                 )
-              )
-              .all();
+              );
 
             if (investmentAccounts.length > 0) {
               const invResult = await syncInvestments(item.id, item.householdId, db);

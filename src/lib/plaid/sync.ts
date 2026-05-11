@@ -251,9 +251,9 @@ export async function applyToDb(
 ): Promise<{ addedCount: number; modifiedCount: number; removedCount: number }> {
   const now = nowISO();
 
-  return db.transaction((tx) => {
+  return db.transaction(async (tx) => {
     // --- Build account lookup: plaid_account_id → internal account id ---
-    const accountRows = tx
+    const accountRows = await tx
       .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
       .from(accounts)
       .where(
@@ -261,8 +261,7 @@ export async function applyToDb(
           eq(accounts.householdId, householdId),
           eq(accounts.plaidItemId, itemId),
         ),
-      )
-      .all();
+      );
 
     const plaidToInternal = new Map<string, string>();
     for (const row of accountRows) {
@@ -274,7 +273,7 @@ export async function applyToDb(
     // --- Upsert merchants ---
     const merchantNameToId = new Map<string, string>();
     for (const mu of processed.merchantUpserts) {
-      const existing = tx
+      const [existing] = await tx
         .select({ id: merchants.id, rawNames: merchants.rawNames })
         .from(merchants)
         .where(
@@ -283,7 +282,7 @@ export async function applyToDb(
             eq(merchants.name, mu.normalizedName),
           ),
         )
-        .get();
+        .limit(1);
 
       if (existing) {
         // Merge raw names
@@ -293,18 +292,17 @@ export async function applyToDb(
         const merged = Array.from(
           new Set([...existingRaw, ...mu.rawNames]),
         );
-        tx.update(merchants)
+        await tx.update(merchants)
           .set({
             rawNames: JSON.stringify(merged),
             logoUrl: mu.logoUrl ?? undefined,
             updatedAt: now,
           })
-          .where(eq(merchants.id, existing.id))
-          .run();
+          .where(eq(merchants.id, existing.id));
         merchantNameToId.set(mu.normalizedName, existing.id);
       } else {
         const merchantId = uuid();
-        tx.insert(merchants)
+        await tx.insert(merchants)
           .values({
             id: merchantId,
             householdId,
@@ -313,8 +311,7 @@ export async function applyToDb(
             logoUrl: mu.logoUrl,
             createdAt: now,
             updatedAt: now,
-          })
-          .run();
+          });
         merchantNameToId.set(mu.normalizedName, merchantId);
       }
     }
@@ -329,7 +326,7 @@ export async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
-      tx.insert(transactions)
+      await tx.insert(transactions)
         .values({
           id: uuid(),
           accountId: internalAccountId,
@@ -349,8 +346,7 @@ export async function applyToDb(
           isTransfer: row.isTransfer,
           createdAt: now,
           updatedAt: now,
-        })
-        .run();
+        });
       addedCount++;
     }
 
@@ -364,7 +360,7 @@ export async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
-      const existingTxn = tx
+      const [existingTxn] = await tx
         .select({
           id: transactions.id,
           categoryId: transactions.categoryId,
@@ -372,10 +368,10 @@ export async function applyToDb(
         })
         .from(transactions)
         .where(eq(transactions.plaidTransactionId, row.plaidTransactionId))
-        .get();
+        .limit(1);
 
       if (existingTxn) {
-        tx.update(transactions)
+        await tx.update(transactions)
           .set({
             accountId: internalAccountId,
             merchantId,
@@ -393,10 +389,9 @@ export async function applyToDb(
             updatedAt: now,
             // Preserve user's manual categorization and reviewed status
           })
-          .where(eq(transactions.id, existingTxn.id))
-          .run();
+          .where(eq(transactions.id, existingTxn.id));
       } else {
-        tx.insert(transactions)
+        await tx.insert(transactions)
           .values({
             id: uuid(),
             accountId: internalAccountId,
@@ -416,15 +411,14 @@ export async function applyToDb(
             isTransfer: row.isTransfer,
             createdAt: now,
             updatedAt: now,
-          })
-          .run();
+          });
       }
       modifiedCount++;
     }
 
     // --- Soft-delete pending→posted replacements, inheriting category ---
     for (const pendingPlaidId of processed.pendingToRemove) {
-      const pendingRow = tx
+      const [pendingRow] = await tx
         .select({
           categoryId: transactions.categoryId,
           categorySource: transactions.categorySource,
@@ -432,16 +426,15 @@ export async function applyToDb(
         })
         .from(transactions)
         .where(eq(transactions.plaidTransactionId, pendingPlaidId))
-        .get();
+        .limit(1);
 
-      tx.update(transactions)
+      await tx.update(transactions)
         .set({ deletedAt: now, updatedAt: now })
-        .where(eq(transactions.plaidTransactionId, pendingPlaidId))
-        .run();
+        .where(eq(transactions.plaidTransactionId, pendingPlaidId));
 
       // If the pending transaction was manually categorized, copy to the posted version
       if (pendingRow?.categoryId) {
-        const postedTxn = tx
+        const [postedTxn] = await tx
           .select({ id: transactions.id })
           .from(transactions)
           .where(
@@ -450,18 +443,17 @@ export async function applyToDb(
               isNull(transactions.deletedAt),
             ),
           )
-          .get();
+          .limit(1);
 
         if (postedTxn) {
-          tx.update(transactions)
+          await tx.update(transactions)
             .set({
               categoryId: pendingRow.categoryId,
               categorySource: pendingRow.categorySource,
               reviewed: pendingRow.reviewed,
               updatedAt: now,
             })
-            .where(eq(transactions.id, postedTxn.id))
-            .run();
+            .where(eq(transactions.id, postedTxn.id));
         }
       }
     }
@@ -469,12 +461,11 @@ export async function applyToDb(
     // --- Soft-delete removed transactions ---
     let removedCount = 0;
     for (const removedPlaidId of processed.removedIds) {
-      const result = tx
+      const result = await tx
         .update(transactions)
         .set({ deletedAt: now, updatedAt: now })
-        .where(eq(transactions.plaidTransactionId, removedPlaidId))
-        .run();
-      if (result.changes > 0) removedCount++;
+        .where(eq(transactions.plaidTransactionId, removedPlaidId));
+      if (result.rowCount && result.rowCount > 0) removedCount++;
     }
 
     // --- Update account balances ---
@@ -482,25 +473,23 @@ export async function applyToDb(
       const internalId = plaidToInternal.get(ab.account_id);
       if (!internalId) continue;
 
-      tx.update(accounts)
+      await tx.update(accounts)
         .set({
           currentBalance: plaidAmountToCents(ab.balances.current),
           availableBalance: plaidAmountToCents(ab.balances.available),
           creditLimit: plaidAmountToCents(ab.balances.limit),
           updatedAt: now,
         })
-        .where(eq(accounts.id, internalId))
-        .run();
+        .where(eq(accounts.id, internalId));
     }
 
     // --- Update sync cursor ---
-    tx.update(plaidItems)
+    await tx.update(plaidItems)
       .set({ syncCursor: newCursor, updatedAt: now })
-      .where(eq(plaidItems.id, itemId))
-      .run();
+      .where(eq(plaidItems.id, itemId));
 
     // --- Write sync_log entry ---
-    tx.insert(syncLog)
+    await tx.insert(syncLog)
       .values({
         id: uuid(),
         plaidItemId: itemId,
@@ -509,17 +498,15 @@ export async function applyToDb(
         modifiedCount,
         removedCount,
         syncedAt: now,
-      })
-      .run();
+      });
 
     // --- Reset item status to active ---
-    tx.update(plaidItems)
+    await tx.update(plaidItems)
       .set({ status: "active", errorCode: null, updatedAt: now })
-      .where(eq(plaidItems.id, itemId))
-      .run();
+      .where(eq(plaidItems.id, itemId));
 
     return { addedCount, modifiedCount, removedCount };
-  }) as { addedCount: number; modifiedCount: number; removedCount: number };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -558,13 +545,13 @@ async function doSync(
 
   try {
     // Read plaid_items row
-    const item = db
+    const [item] = await db
       .select()
       .from(plaidItems)
       .where(
         and(eq(plaidItems.id, itemId), eq(plaidItems.householdId, householdId)),
       )
-      .get();
+      .limit(1);
 
     if (!item) {
       return { success: false, error: `Plaid item ${itemId} not found` };
@@ -574,7 +561,7 @@ async function doSync(
     const accessToken = decrypt(item.accessToken);
 
     // Build accountTypeMap
-    const accountRows = db
+    const accountRows = await db
       .select({
         plaidAccountId: accounts.plaidAccountId,
         type: accounts.type,
@@ -585,8 +572,7 @@ async function doSync(
           eq(accounts.householdId, householdId),
           eq(accounts.plaidItemId, itemId),
         ),
-      )
-      .all();
+      );
 
     const accountTypeMap = new Map<string, string>();
     for (const row of accountRows) {
@@ -621,7 +607,7 @@ async function doSync(
 
     // Auto-categorize newly synced transactions (non-fatal)
     try {
-      categorizeSyncedTransactions(itemId, householdId, db);
+      await categorizeSyncedTransactions(itemId, householdId, db);
     } catch (catError) {
       console.error(`Categorization failed for item ${itemId}:`, catError);
     }
@@ -648,34 +634,31 @@ async function doSync(
 
     // Classify error and update item status
     if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
-      db.update(plaidItems)
+      await db.update(plaidItems)
         .set({
           status: "reauth_required",
           errorCode,
           updatedAt: now,
         })
-        .where(eq(plaidItems.id, itemId))
-        .run();
+        .where(eq(plaidItems.id, itemId));
     } else if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
-      db.update(plaidItems)
+      await db.update(plaidItems)
         .set({
           status: "error",
           errorCode,
           updatedAt: now,
         })
-        .where(eq(plaidItems.id, itemId))
-        .run();
+        .where(eq(plaidItems.id, itemId));
     }
 
     // Write error sync_log entry
-    db.insert(syncLog)
+    await db.insert(syncLog)
       .values({
         id: uuid(),
         plaidItemId: itemId,
         error: errorCode ?? errorMessage,
         syncedAt: now,
-      })
-      .run();
+      });
 
     return { success: false, error: errorCode ?? errorMessage };
   }

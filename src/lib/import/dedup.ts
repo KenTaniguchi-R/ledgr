@@ -14,11 +14,11 @@ export interface DedupResult {
   duplicates: NormalizedRow[];
 }
 
-export function findDuplicates(
+export async function findDuplicates(
   rows: NormalizedRow[],
   accountId: string,
   db: LedgrDb = defaultDb,
-): DedupResult {
+): Promise<DedupResult> {
   if (rows.length === 0) return { unique: [], duplicates: [] };
 
   const withExternalId = rows.filter((r) => r.externalId);
@@ -28,7 +28,7 @@ export function findDuplicates(
   const unique: NormalizedRow[] = [];
 
   if (withExternalId.length > 0) {
-    const existingExternal = db
+    const existingExternal = await db
       .select({ externalId: transactions.externalId })
       .from(transactions)
       .where(
@@ -36,8 +36,7 @@ export function findDuplicates(
           eq(transactions.accountId, accountId),
           inArray(transactions.externalId, withExternalId.map((r) => r.externalId!)),
         ),
-      )
-      .all();
+      );
     const existingIds = new Set(existingExternal.map((e) => e.externalId));
 
     for (const row of withExternalId) {
@@ -50,15 +49,14 @@ export function findDuplicates(
   }
 
   if (withoutExternalId.length > 0) {
-    const existing = db
+    const existing = await db
       .select({
         date: transactions.date,
         amount: transactions.amount,
         originalName: transactions.originalName,
       })
       .from(transactions)
-      .where(eq(transactions.accountId, accountId))
-      .all();
+      .where(eq(transactions.accountId, accountId));
 
     const existingHashes = new Set(
       existing.map((t) => generateDedupHash({

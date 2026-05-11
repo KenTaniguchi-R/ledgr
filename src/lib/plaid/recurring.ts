@@ -37,7 +37,7 @@ export async function syncRecurringTransactions(
   try {
     const client = getPlaidClient();
 
-    const itemAccounts = db
+    const itemAccounts = await db
       .select({ plaidAccountId: accounts.plaidAccountId, id: accounts.id })
       .from(accounts)
       .where(
@@ -45,8 +45,7 @@ export async function syncRecurringTransactions(
           eq(accounts.householdId, householdId),
           eq(accounts.plaidItemId, plaidItemId),
         ),
-      )
-      .all();
+      );
 
     const accountIds = itemAccounts
       .map((a) => a.plaidAccountId)
@@ -72,15 +71,14 @@ export async function syncRecurringTransactions(
     const now = nowISO();
     const seenStreamIds = new Set<string>();
 
-    const result = db.transaction((tx) => {
+    const result = await db.transaction(async (tx) => {
       let upserted = 0;
       let deactivated = 0;
 
-      const existingMerchants = tx
+      const existingMerchants = await tx
         .select({ id: merchants.id, name: merchants.name })
         .from(merchants)
-        .where(eq(merchants.householdId, householdId))
-        .all();
+        .where(eq(merchants.householdId, householdId));
       const merchantNameToId = new Map(
         existingMerchants.map((m) => [m.name, m.id]),
       );
@@ -97,7 +95,7 @@ export async function syncRecurringTransactions(
           merchantId = merchantNameToId.get(merchantName) ?? null;
           if (!merchantId) {
             merchantId = uuid();
-            tx.insert(merchants)
+            await tx.insert(merchants)
               .values({
                 id: merchantId,
                 householdId,
@@ -105,8 +103,7 @@ export async function syncRecurringTransactions(
                 rawNames: JSON.stringify([stream.merchant_name]),
                 createdAt: now,
                 updatedAt: now,
-              })
-              .run();
+              });
             merchantNameToId.set(merchantName, merchantId);
           }
         }
@@ -119,14 +116,14 @@ export async function syncRecurringTransactions(
         const lastAmount = plaidAmountToCents(stream.last_amount.amount);
         const name = merchantName ?? titleCase(stream.description);
 
-        const existing = tx
+        const [existing] = await tx
           .select({ id: recurringTransactions.id })
           .from(recurringTransactions)
           .where(eq(recurringTransactions.plaidStreamId, stream.stream_id))
-          .get();
+          .limit(1);
 
         if (existing) {
-          tx.update(recurringTransactions)
+          await tx.update(recurringTransactions)
             .set({
               name,
               merchantId,
@@ -140,10 +137,9 @@ export async function syncRecurringTransactions(
               isIncome: stream.isIncome,
               updatedAt: now,
             })
-            .where(eq(recurringTransactions.id, existing.id))
-            .run();
+            .where(eq(recurringTransactions.id, existing.id));
         } else {
-          tx.insert(recurringTransactions)
+          await tx.insert(recurringTransactions)
             .values({
               id: uuid(),
               householdId,
@@ -160,21 +156,20 @@ export async function syncRecurringTransactions(
               isIncome: stream.isIncome,
               createdAt: now,
               updatedAt: now,
-            })
-            .run();
+            });
         }
         upserted++;
 
         if (stream.transaction_ids.length > 0) {
-          const recurringRow = tx
+          const [recurringRow] = await tx
             .select({ id: recurringTransactions.id })
             .from(recurringTransactions)
             .where(eq(recurringTransactions.plaidStreamId, stream.stream_id))
-            .get();
+            .limit(1);
 
           if (recurringRow) {
             for (const plaidTxnId of stream.transaction_ids) {
-              tx.update(transactions)
+              await tx.update(transactions)
                 .set({
                   recurringTransactionId: recurringRow.id,
                   updatedAt: now,
@@ -184,14 +179,13 @@ export async function syncRecurringTransactions(
                     eq(transactions.plaidTransactionId, plaidTxnId),
                     eq(transactions.householdId, householdId),
                   ),
-                )
-                .run();
+                );
             }
           }
         }
       }
 
-      const allExisting = tx
+      const allExisting = await tx
         .select({
           id: recurringTransactions.id,
           plaidStreamId: recurringTransactions.plaidStreamId,
@@ -202,21 +196,19 @@ export async function syncRecurringTransactions(
             eq(recurringTransactions.householdId, householdId),
             eq(recurringTransactions.isActive, true),
           ),
-        )
-        .all();
+        );
 
       for (const row of allExisting) {
         if (row.plaidStreamId && !seenStreamIds.has(row.plaidStreamId)) {
-          tx.update(recurringTransactions)
+          await tx.update(recurringTransactions)
             .set({ isActive: false, updatedAt: now })
-            .where(eq(recurringTransactions.id, row.id))
-            .run();
+            .where(eq(recurringTransactions.id, row.id));
           deactivated++;
         }
       }
 
       return { upserted, deactivated };
-    }) as { upserted: number; deactivated: number };
+    });
 
     return result;
   } catch (err) {

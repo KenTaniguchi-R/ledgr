@@ -5,17 +5,16 @@ import { eq, desc } from "drizzle-orm";
 
 const SYNC_COOLDOWN_MS = 60_000;
 
-export function checkSyncRateLimit(
+export async function checkSyncRateLimit(
   plaidItemId: string,
   db: LedgrDb = defaultDb,
-): { allowed: boolean; retryAfterSeconds?: number } {
-  const lastSync = db
+): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const [lastSync] = await db
     .select({ syncedAt: syncLog.syncedAt })
     .from(syncLog)
     .where(eq(syncLog.plaidItemId, plaidItemId))
     .orderBy(desc(syncLog.syncedAt))
-    .limit(1)
-    .get();
+    .limit(1);
 
   if (!lastSync) return { allowed: true };
 

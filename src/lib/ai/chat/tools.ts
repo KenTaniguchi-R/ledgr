@@ -25,7 +25,7 @@ export function financialTools(householdId: string) {
         endDate: z.string().describe("End date (YYYY-MM-DD)"),
       }),
       execute: async ({ startDate, endDate }) => {
-        const rows = db
+        const rows = await db
           .select({
             categoryName: categories.name,
             groupName: categoryGroups.name,
@@ -41,8 +41,7 @@ export function financialTools(householdId: string) {
               lte(transactions.date, endDate),
               notDeleted(transactions)
             )
-          )
-          .all();
+          );
 
         const byCategory = new Map<string, number>();
         for (const row of rows) {
@@ -85,7 +84,7 @@ export function financialTools(householdId: string) {
         if (startDate) conditions.push(gte(transactions.date, startDate));
         if (endDate) conditions.push(lte(transactions.date, endDate));
 
-        const rows = db
+        const rows = await db
           .select({
             date: transactions.date,
             name: transactions.name,
@@ -96,8 +95,7 @@ export function financialTools(householdId: string) {
           .leftJoin(categories, eq(transactions.categoryId, categories.id))
           .where(and(...conditions))
           .orderBy(desc(transactions.date))
-          .limit(20)
-          .all();
+          .limit(20);
 
         return rows.map((r) => ({
           date: r.date,
@@ -113,15 +111,14 @@ export function financialTools(householdId: string) {
       description: "Get current balances for all accounts",
       inputSchema: z.object({}),
       execute: async () => {
-        const rows = db
+        const rows = await db
           .select({
             name: accounts.name,
             type: accounts.type,
             currentBalance: accounts.currentBalance,
           })
           .from(accounts)
-          .where(and(scoped.where(accounts), notDeleted(accounts)))
-          .all();
+          .where(and(scoped.where(accounts), notDeleted(accounts)));
 
         return rows.map((r) => ({
           name: r.name,
@@ -153,7 +150,7 @@ export function financialTools(householdId: string) {
             .toISOString()
             .split("T")[0];
 
-          const rows = db
+          const rows = await db
             .select({ amount: transactions.amount })
             .from(transactions)
             .where(
@@ -163,8 +160,7 @@ export function financialTools(householdId: string) {
                 lte(transactions.date, end),
                 notDeleted(transactions)
               )
-            )
-            .all();
+            );
 
           let spending = 0;
           let income = 0;
@@ -200,7 +196,7 @@ export function financialTools(householdId: string) {
           .toISOString()
           .split("T")[0];
 
-        const rows = db
+        const rows = await db
           .select({
             name: recurringTransactions.name,
             amount: recurringTransactions.averageAmount,
@@ -215,8 +211,7 @@ export function financialTools(householdId: string) {
               gte(recurringTransactions.nextDate, today),
               lte(recurringTransactions.nextDate, endDate)
             )
-          )
-          .all();
+          );
 
         return rows.map((r) => ({
           description: r.name,
@@ -244,7 +239,7 @@ export function financialTools(householdId: string) {
         const startDate = `${targetMonth}-01`;
         const endDate = new Date(year, m, 0).toISOString().split("T")[0];
 
-        const budget = db
+        const [budget] = await db
           .select()
           .from(budgets)
           .where(
@@ -253,25 +248,24 @@ export function financialTools(householdId: string) {
               eq(budgets.month, targetMonth)
             )
           )
-          .get();
+          .limit(1);
 
         if (!budget) return { message: "No budget set for this month" };
 
-        const budgetCats = db
+        const budgetCats = await db
           .select()
           .from(budgetCategories)
-          .where(eq(budgetCategories.budgetId, budget.id))
-          .all();
+          .where(eq(budgetCategories.budgetId, budget.id));
 
         const results = [];
         for (const bc of budgetCats) {
-          const cat = db
+          const [cat] = await db
             .select({ name: categories.name })
             .from(categories)
             .where(eq(categories.id, bc.categoryId))
-            .get();
+            .limit(1);
 
-          const spent = db
+          const spentRows = await db
             .select({ amount: transactions.amount })
             .from(transactions)
             .where(
@@ -282,9 +276,8 @@ export function financialTools(householdId: string) {
                 lte(transactions.date, endDate),
                 notDeleted(transactions)
               )
-            )
-            .all()
-            .reduce((sum, r) => sum + (r.amount > 0 ? r.amount : 0), 0);
+            );
+          const spent = spentRows.reduce((sum, r) => sum + (r.amount > 0 ? r.amount : 0), 0);
 
           results.push({
             category: cat?.name ?? "Unknown",

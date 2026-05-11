@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   if (codeChallengeMethod !== "S256") {
     return NextResponse.json({ error: "invalid_request", error_description: "Only S256 code_challenge_method supported" }, { status: 400 });
   }
-  const client = getClient(clientId);
+  const client = await getClient(clientId);
   if (!client) {
     return NextResponse.json({ error: "invalid_client", error_description: "Unknown client_id" }, { status: 400 });
   }

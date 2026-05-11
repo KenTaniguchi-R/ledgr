@@ -80,14 +80,14 @@ export function categorizeTransactions(
   return assignments;
 }
 
-export function categorizeSyncedTransactions(
+export async function categorizeSyncedTransactions(
   plaidItemId: string,
   householdId: string,
   db: LedgrDb,
-): void {
+): Promise<void> {
   const scoped = scopedQuery(householdId, db);
 
-  const rules = db
+  const rules = await db
     .select({
       id: categoryRules.id,
       categoryId: categoryRules.categoryId,
@@ -96,14 +96,12 @@ export function categorizeSyncedTransactions(
       priority: categoryRules.priority,
     })
     .from(categoryRules)
-    .where(scoped.where(categoryRules))
-    .all() as CategoryRule[];
+    .where(scoped.where(categoryRules)) as CategoryRule[];
 
-  const allCategories = db
+  const allCategories = await db
     .select({ id: categories.id, name: categories.name })
     .from(categories)
-    .where(eq(categories.householdId, householdId))
-    .all();
+    .where(eq(categories.householdId, householdId));
   const catNameToId = new Map(allCategories.map((c) => [c.name, c.id]));
   const pfcCategoryMap = new Map<string, string>();
   for (const [pfcCode, catName] of Object.entries(PFC_DETAILED_TO_CATEGORY)) {
@@ -111,7 +109,7 @@ export function categorizeSyncedTransactions(
     if (catId) pfcCategoryMap.set(pfcCode, catId);
   }
 
-  const itemAccounts = db
+  const itemAccounts = await db
     .select({ id: accounts.id })
     .from(accounts)
     .where(
@@ -119,14 +117,13 @@ export function categorizeSyncedTransactions(
         eq(accounts.householdId, householdId),
         eq(accounts.plaidItemId, plaidItemId),
       ),
-    )
-    .all();
+    );
 
   if (itemAccounts.length === 0) return;
 
   const accountIds = itemAccounts.map((a) => a.id);
 
-  const uncategorized = db
+  const uncategorized = await db
     .select({
       id: transactions.id,
       name: transactions.name,
@@ -141,8 +138,7 @@ export function categorizeSyncedTransactions(
         isNull(transactions.categoryId),
         notDeleted(transactions),
       ),
-    )
-    .all();
+    );
 
   if (uncategorized.length === 0) return;
 
@@ -151,11 +147,10 @@ export function categorizeSyncedTransactions(
   )];
   const merchantMap = new Map<string, { name: string; categoryId: string | null }>();
   if (merchantIds.length > 0) {
-    const merchantRows = db
+    const merchantRows = await db
       .select({ id: merchants.id, name: merchants.name, categoryId: merchants.categoryId })
       .from(merchants)
-      .where(inArray(merchants.id, merchantIds))
-      .all();
+      .where(inArray(merchants.id, merchantIds));
     for (const m of merchantRows) {
       merchantMap.set(m.id, { name: m.name, categoryId: m.categoryId });
     }
@@ -177,16 +172,15 @@ export function categorizeSyncedTransactions(
   if (assignments.length === 0) return;
 
   const now = nowISO();
-  db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     for (const assignment of assignments) {
-      tx.update(transactions)
+      await tx.update(transactions)
         .set({
           categoryId: assignment.categoryId,
           categorySource: assignment.source,
           updatedAt: now,
         })
-        .where(eq(transactions.id, assignment.transactionId))
-        .run();
+        .where(eq(transactions.id, assignment.transactionId));
     }
   });
 }

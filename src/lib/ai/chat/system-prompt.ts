@@ -3,16 +3,15 @@ import { accounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { notDeleted } from "@/lib/query-helpers";
 
-export function buildSystemPrompt(householdId: string): string {
-  const accts = db
+export async function buildSystemPrompt(householdId: string): Promise<string> {
+  const accts = await db
     .select({
       name: accounts.name,
       type: accounts.type,
       currentBalance: accounts.currentBalance,
     })
     .from(accounts)
-    .where(and(eq(accounts.householdId, householdId), notDeleted(accounts)))
-    .all();
+    .where(and(eq(accounts.householdId, householdId), notDeleted(accounts)));
 
   const accountSummary = accts
     .map(

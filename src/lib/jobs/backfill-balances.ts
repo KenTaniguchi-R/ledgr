@@ -14,9 +14,8 @@ import { v4 as uuid } from "uuid";
  * - Non-destructive: uses onConflictDoNothing so existing rows are preserved
  */
 export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<void> {
-  // 1. Get all eligible accounts (filter currentBalance and type in JS since SQLite
-  //    isNotNull helper is less ergonomic here)
-  const eligibleAccounts = db
+  // 1. Get all eligible accounts
+  const allAccounts = await db
     .select()
     .from(accounts)
     .where(
@@ -24,14 +23,14 @@ export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<
         isNull(accounts.deletedAt),
         eq(accounts.isHidden, false),
       )
-    )
-    .all()
-    .filter(
-      (acct) =>
-        acct.currentBalance !== null &&
-        acct.currentBalance !== undefined &&
-        acct.type !== "investment"
     );
+
+  const eligibleAccounts = allAccounts.filter(
+    (acct) =>
+      acct.currentBalance !== null &&
+      acct.currentBalance !== undefined &&
+      acct.type !== "investment"
+  );
 
   const today = todayDateString();
 
@@ -39,7 +38,7 @@ export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<
     const currentBalance = acct.currentBalance as number;
 
     // 2. Get all posted, non-deleted transactions for this account, ordered newest first
-    const txns = db
+    const txns = await db
       .select({
         date: transactions.date,
         normalizedAmount: transactions.normalizedAmount,
@@ -52,8 +51,7 @@ export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<
           isNull(transactions.deletedAt)
         )
       )
-      .orderBy(desc(transactions.date))
-      .all();
+      .orderBy(desc(transactions.date));
 
     if (txns.length === 0) {
       continue;
@@ -97,10 +95,9 @@ export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<
 
     // 5. Insert rows non-destructively
     if (rowsToInsert.length > 0) {
-      db.insert(balanceHistory)
+      await db.insert(balanceHistory)
         .values(rowsToInsert)
-        .onConflictDoNothing()
-        .run();
+        .onConflictDoNothing();
     }
   }
 }

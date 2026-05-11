@@ -26,15 +26,14 @@ export async function registerClient(input: RegisterClientInput, db: LedgrDb = d
   const id = generateId();
   const clientId = generateId();
 
-  db.insert(oauthClients)
+  await db.insert(oauthClients)
     .values({
       id,
       clientId,
       clientName: input.client_name ?? null,
       redirectUris: JSON.stringify(redirectUris),
       createdAt: nowISO(),
-    })
-    .run();
+    });
 
   return {
     client_id: clientId,
@@ -57,8 +56,8 @@ export interface CreateCodeInput {
   redirectUri: string;
 }
 
-export function createAuthorizationCode(input: CreateCodeInput, db: LedgrDb = defaultDb): string {
-  const client = db.select().from(oauthClients).where(eq(oauthClients.clientId, input.clientId)).get();
+export async function createAuthorizationCode(input: CreateCodeInput, db: LedgrDb = defaultDb): Promise<string> {
+  const [client] = await db.select().from(oauthClients).where(eq(oauthClients.clientId, input.clientId)).limit(1);
   if (!client) throw new OAuthError("invalid_client", "Unknown client_id");
 
   const uris: string[] = JSON.parse(client.redirectUris);
@@ -69,7 +68,7 @@ export function createAuthorizationCode(input: CreateCodeInput, db: LedgrDb = de
   const code = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + AUTH_CODE_TTL_MS).toISOString();
 
-  db.insert(oauthCodes)
+  await db.insert(oauthCodes)
     .values({
       code,
       clientId: input.clientId,
@@ -80,9 +79,8 @@ export function createAuthorizationCode(input: CreateCodeInput, db: LedgrDb = de
       codeChallengeMethod: "S256",
       redirectUri: input.redirectUri,
       expiresAt,
-      used: 0,
-    })
-    .run();
+      used: false,
+    });
 
   return code;
 }
@@ -97,7 +95,7 @@ export interface ExchangeCodeInput {
 }
 
 export async function exchangeCode(input: ExchangeCodeInput, db: LedgrDb = defaultDb) {
-  const row = db.select().from(oauthCodes).where(eq(oauthCodes.code, input.code)).get();
+  const [row] = await db.select().from(oauthCodes).where(eq(oauthCodes.code, input.code)).limit(1);
   if (!row) throw new OAuthError("invalid_grant", "Unknown code");
   if (row.used) throw new OAuthError("invalid_grant", "Code already used");
   if (new Date(row.expiresAt) < new Date()) throw new OAuthError("invalid_grant", "Code expired");
@@ -117,9 +115,9 @@ export async function exchangeCode(input: ExchangeCodeInput, db: LedgrDb = defau
   const refreshToken = generateRefreshToken();
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS).toISOString();
 
-  db.transaction(() => {
-    db.update(oauthCodes).set({ used: 1 }).where(eq(oauthCodes.code, input.code)).run();
-    db.insert(oauthRefreshTokens)
+  await db.transaction(async (tx) => {
+    await tx.update(oauthCodes).set({ used: true }).where(eq(oauthCodes.code, input.code));
+    await tx.insert(oauthRefreshTokens)
       .values({
         token: refreshToken,
         clientId: input.clientId,
@@ -127,9 +125,8 @@ export async function exchangeCode(input: ExchangeCodeInput, db: LedgrDb = defau
         householdId: row.householdId,
         scope: row.scope,
         expiresAt: refreshExpiresAt,
-        revoked: 0,
-      })
-      .run();
+        revoked: false,
+      });
   });
 
   return {
@@ -149,11 +146,11 @@ export interface RefreshInput {
 }
 
 export async function refreshAccessToken(input: RefreshInput, db: LedgrDb = defaultDb) {
-  const row = db
+  const [row] = await db
     .select()
     .from(oauthRefreshTokens)
     .where(eq(oauthRefreshTokens.token, input.refreshToken))
-    .get();
+    .limit(1);
 
   if (!row) throw new OAuthError("invalid_grant", "Unknown refresh token");
   if (row.revoked) throw new OAuthError("invalid_grant", "Token revoked");
@@ -163,12 +160,11 @@ export async function refreshAccessToken(input: RefreshInput, db: LedgrDb = defa
   const newRefreshToken = generateRefreshToken();
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS).toISOString();
 
-  db.transaction(() => {
-    db.update(oauthRefreshTokens)
-      .set({ revoked: 1 })
-      .where(eq(oauthRefreshTokens.token, input.refreshToken))
-      .run();
-    db.insert(oauthRefreshTokens)
+  await db.transaction(async (tx) => {
+    await tx.update(oauthRefreshTokens)
+      .set({ revoked: true })
+      .where(eq(oauthRefreshTokens.token, input.refreshToken));
+    await tx.insert(oauthRefreshTokens)
       .values({
         token: newRefreshToken,
         clientId: input.clientId,
@@ -176,9 +172,8 @@ export async function refreshAccessToken(input: RefreshInput, db: LedgrDb = defa
         householdId: row.householdId,
         scope: row.scope,
         expiresAt: refreshExpiresAt,
-        revoked: 0,
-      })
-      .run();
+        revoked: false,
+      });
   });
 
   const accessToken = await signAccessToken({
@@ -198,50 +193,48 @@ export async function refreshAccessToken(input: RefreshInput, db: LedgrDb = defa
 
 // --- Token Revocation ---
 
-export function revokeToken(token: string, db: LedgrDb = defaultDb) {
-  db.update(oauthRefreshTokens).set({ revoked: 1 }).where(eq(oauthRefreshTokens.token, token)).run();
+export async function revokeToken(token: string, db: LedgrDb = defaultDb) {
+  await db.update(oauthRefreshTokens).set({ revoked: true }).where(eq(oauthRefreshTokens.token, token));
 }
 
 // --- Consent Management ---
 
-export function hasConsent(userId: string, clientId: string, db: LedgrDb = defaultDb): boolean {
-  const row = db
+export async function hasConsent(userId: string, clientId: string, db: LedgrDb = defaultDb): Promise<boolean> {
+  const [row] = await db
     .select()
     .from(oauthConsents)
     .where(and(eq(oauthConsents.userId, userId), eq(oauthConsents.clientId, clientId)))
-    .get();
+    .limit(1);
   return !!row;
 }
 
-export function grantConsent(userId: string, clientId: string, scope: string, db: LedgrDb = defaultDb) {
-  db.insert(oauthConsents)
+export async function grantConsent(userId: string, clientId: string, scope: string, db: LedgrDb = defaultDb) {
+  await db.insert(oauthConsents)
     .values({ id: generateId(), userId, clientId, scope, grantedAt: nowISO() })
     .onConflictDoUpdate({
       target: [oauthConsents.userId, oauthConsents.clientId],
       set: { scope, grantedAt: nowISO() },
-    })
-    .run();
+    });
 }
 
-export function revokeConsent(userId: string, clientId: string, db: LedgrDb = defaultDb) {
-  db.transaction(() => {
-    db.delete(oauthConsents)
-      .where(and(eq(oauthConsents.userId, userId), eq(oauthConsents.clientId, clientId)))
-      .run();
-    db.update(oauthRefreshTokens)
-      .set({ revoked: 1 })
-      .where(and(eq(oauthRefreshTokens.userId, userId), eq(oauthRefreshTokens.clientId, clientId)))
-      .run();
+export async function revokeConsent(userId: string, clientId: string, db: LedgrDb = defaultDb) {
+  await db.transaction(async (tx) => {
+    await tx.delete(oauthConsents)
+      .where(and(eq(oauthConsents.userId, userId), eq(oauthConsents.clientId, clientId)));
+    await tx.update(oauthRefreshTokens)
+      .set({ revoked: true })
+      .where(and(eq(oauthRefreshTokens.userId, userId), eq(oauthRefreshTokens.clientId, clientId)));
   });
 }
 
 // --- Client & Consent Queries ---
 
-export function getClient(clientId: string, db: LedgrDb = defaultDb) {
-  return db.select().from(oauthClients).where(eq(oauthClients.clientId, clientId)).get();
+export async function getClient(clientId: string, db: LedgrDb = defaultDb) {
+  const [row] = await db.select().from(oauthClients).where(eq(oauthClients.clientId, clientId)).limit(1);
+  return row ?? null;
 }
 
-export function getConsentsForUser(userId: string, db: LedgrDb = defaultDb) {
+export async function getConsentsForUser(userId: string, db: LedgrDb = defaultDb) {
   return db
     .select({
       clientId: oauthConsents.clientId,
@@ -251,8 +244,7 @@ export function getConsentsForUser(userId: string, db: LedgrDb = defaultDb) {
     })
     .from(oauthConsents)
     .innerJoin(oauthClients, eq(oauthConsents.clientId, oauthClients.clientId))
-    .where(eq(oauthConsents.userId, userId))
-    .all();
+    .where(eq(oauthConsents.userId, userId));
 }
 
 // --- Request Authentication ---

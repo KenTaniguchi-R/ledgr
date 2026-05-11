@@ -11,15 +11,15 @@ export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
 });
 
-export function resolveHouseholdId(
+export async function resolveHouseholdId(
   userId: string,
   db: LedgrDb = defaultDb
-): string {
-  const member = db
+): Promise<string> {
+  const [member] = await db
     .select({ householdId: householdMembers.householdId })
     .from(householdMembers)
     .where(eq(householdMembers.userId, userId))
-    .get();
+    .limit(1);
 
   if (member) {
     return member.householdId;

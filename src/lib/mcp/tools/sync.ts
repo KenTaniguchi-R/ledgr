@@ -21,11 +21,10 @@ export function registerSyncTools(server: McpServer, householdId: string) {
     async () => {
       const scoped = scopedQuery(householdId, db);
 
-      const items = db
+      const items = await db
         .select({ id: plaidItems.id, institutionName: plaidItems.institutionName, status: plaidItems.status })
         .from(plaidItems)
-        .where(scoped.where(plaidItems, eq(plaidItems.status, "active")))
-        .all();
+        .where(scoped.where(plaidItems, eq(plaidItems.status, "active")));
 
       const results: Array<{
         itemId: string;
@@ -37,7 +36,7 @@ export function registerSyncTools(server: McpServer, householdId: string) {
       }> = [];
 
       for (const item of items) {
-        const rateCheck = checkSyncRateLimit(item.id, db);
+        const rateCheck = await checkSyncRateLimit(item.id, db);
 
         if (!rateCheck.allowed) {
           results.push({

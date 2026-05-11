@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const householdId = resolveHouseholdId(session.user.id);
+  const householdId = await resolveHouseholdId(session.user.id);
   const blocked = guardDemoMode(session.user.id);
   if (blocked) {
     return NextResponse.json(blocked, { status: 403 });
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { unique, duplicates } = findDuplicates(normalized, accountId, db);
+    const { unique, duplicates } = await findDuplicates(normalized, accountId, db);
 
     if (duplicates.length > 0 && !skipDuplicates) {
       return NextResponse.json({

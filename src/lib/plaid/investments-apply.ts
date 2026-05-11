@@ -12,32 +12,30 @@ import type { HoldingRow, InvestmentTxnRow } from "./investments-process";
 
 // ─── Apply (Atomic DB Write) ────────────────────────────────────────────────
 
-export function applyInvestmentsToDb(
+export async function applyInvestmentsToDb(
   db: LedgrDb,
   holdingRows: HoldingRow[],
   txnRows: InvestmentTxnRow[],
   itemId: string,
-): { holdingsUpserted: number; txnsInserted: number } {
+): Promise<{ holdingsUpserted: number; txnsInserted: number }> {
   let holdingsUpserted = 0;
   let txnsInserted = 0;
   const today = todayDateString();
 
-  db.transaction((tx) => {
-    const itemAccounts = tx
+  await db.transaction(async (tx) => {
+    const itemAccounts = await tx
       .select({ id: accounts.id })
       .from(accounts)
-      .where(eq(accounts.plaidItemId, itemId))
-      .all();
+      .where(eq(accounts.plaidItemId, itemId));
     const itemAccountIds = itemAccounts.map((a) => a.id);
 
     if (itemAccountIds.length > 0) {
-      tx.delete(investmentHoldings)
-        .where(inArray(investmentHoldings.accountId, itemAccountIds))
-        .run();
+      await tx.delete(investmentHoldings)
+        .where(inArray(investmentHoldings.accountId, itemAccountIds));
     }
 
     for (const row of holdingRows) {
-      tx.insert(investmentHoldings)
+      await tx.insert(investmentHoldings)
         .values({
           id: row.id,
           accountId: row.accountId,
@@ -51,13 +49,12 @@ export function applyInvestmentsToDb(
           sector: row.sector,
           currency: row.currency,
           asOfDate: row.asOfDate,
-        })
-        .run();
+        });
       holdingsUpserted++;
     }
 
     for (const row of txnRows) {
-      const result = tx
+      const result = await tx
         .insert(investmentTransactions)
         .values({
           id: row.id,
@@ -72,13 +69,12 @@ export function applyInvestmentsToDb(
           fees: row.fees,
           date: row.date,
         })
-        .onConflictDoNothing()
-        .run();
-      if (result.changes > 0) txnsInserted++;
+        .onConflictDoNothing();
+      if ((result.rowCount ?? 0) > 0) txnsInserted++;
     }
 
     for (const row of holdingRows) {
-      tx.insert(holdingsHistory)
+      await tx.insert(holdingsHistory)
         .values({
           id: uuid(),
           accountId: row.accountId,
@@ -89,8 +85,7 @@ export function applyInvestmentsToDb(
           value: row.currentValue,
           date: today,
         })
-        .onConflictDoNothing()
-        .run();
+        .onConflictDoNothing();
     }
   });
 
@@ -99,12 +94,12 @@ export function applyInvestmentsToDb(
 
 // ─── Snapshot Holdings (Daily Safety Net) ───────────────────────────────────
 
-export function snapshotHoldings(dbInstance: LedgrDb = defaultDb): void {
+export async function snapshotHoldings(dbInstance: LedgrDb = defaultDb): Promise<void> {
   const today = todayDateString();
-  const allHoldings = dbInstance.select().from(investmentHoldings).all();
+  const allHoldings = await dbInstance.select().from(investmentHoldings);
 
   for (const h of allHoldings) {
-    dbInstance
+    await dbInstance
       .insert(holdingsHistory)
       .values({
         id: uuid(),
@@ -116,7 +111,6 @@ export function snapshotHoldings(dbInstance: LedgrDb = defaultDb): void {
         value: h.currentValue,
         date: today,
       })
-      .onConflictDoNothing()
-      .run();
+      .onConflictDoNothing();
   }
 }

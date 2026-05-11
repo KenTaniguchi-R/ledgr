@@ -18,9 +18,9 @@ export async function approveConsent(input: ApproveInput) {
 
   const householdId = await getHouseholdId();
 
-  grantConsent(session.user.id, input.clientId, input.scope);
+  await grantConsent(session.user.id, input.clientId, input.scope);
 
-  const code = createAuthorizationCode({
+  const code = await createAuthorizationCode({
     clientId: input.clientId,
     userId: session.user.id,
     householdId,

@@ -94,11 +94,11 @@ async function doInvestmentSync(
   householdId: string,
   db: LedgrDb,
 ): Promise<InvestmentSyncResult> {
-  const item = db
+  const [item] = await db
     .select({ accessToken: plaidItems.accessToken })
     .from(plaidItems)
     .where(and(eq(plaidItems.id, itemId), eq(plaidItems.householdId, householdId)))
-    .get();
+    .limit(1);
 
   if (!item) {
     return { success: false, error: "Item not found" };
@@ -107,11 +107,10 @@ async function doInvestmentSync(
   const accessToken = decrypt(item.accessToken);
   const client = getPlaidClient();
 
-  const itemAccounts = db
+  const itemAccounts = await db
     .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
     .from(accounts)
-    .where(eq(accounts.plaidItemId, itemId))
-    .all();
+    .where(eq(accounts.plaidItemId, itemId));
 
   const plaidToInternalAccount = new Map<string, string>();
   for (const acc of itemAccounts) {
@@ -140,7 +139,7 @@ async function doInvestmentSync(
     const holdingRows = processHoldings(rawHoldings, mergedSecurities, householdId, plaidToInternalAccount);
     const txnRows = processInvestmentTransactions(rawTxns, mergedSecurities, plaidToInternalAccount);
 
-    const result = applyInvestmentsToDb(db, holdingRows, txnRows, itemId);
+    const result = await applyInvestmentsToDb(db, holdingRows, txnRows, itemId);
 
     return {
       success: true,
@@ -155,18 +154,16 @@ async function doInvestmentSync(
     }
 
     if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
-      db.update(plaidItems)
+      await db.update(plaidItems)
         .set({ status: "reauth_required" })
-        .where(eq(plaidItems.id, itemId))
-        .run();
+        .where(eq(plaidItems.id, itemId));
       return { success: false, error: `Reauth required: ${errorCode}` };
     }
 
     if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
-      db.update(plaidItems)
+      await db.update(plaidItems)
         .set({ status: "error" })
-        .where(eq(plaidItems.id, itemId))
-        .run();
+        .where(eq(plaidItems.id, itemId));
       return { success: false, error: `Transient error: ${errorCode}` };
     }
 

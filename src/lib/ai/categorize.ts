@@ -86,7 +86,7 @@ export async function categorizeWithAi(
   householdId: string,
   db: LedgrDb = defaultDb,
 ): Promise<{ categorized: number; skipped: number }> {
-  const owner = db
+  const [owner] = await db
     .select({ userId: householdMembers.userId })
     .from(householdMembers)
     .where(
@@ -95,11 +95,11 @@ export async function categorizeWithAi(
         eq(householdMembers.role, "owner"),
       ),
     )
-    .get();
+    .limit(1);
 
   if (!owner) return { categorized: 0, skipped: 0 };
 
-  const settings = getUserAiSettings(owner.userId, db);
+  const settings = await getUserAiSettings(owner.userId, db);
   if (!settings?.aiProvider || !settings?.aiModel || !settings.hasKey) {
     return { categorized: 0, skipped: 0 };
   }
@@ -111,7 +111,7 @@ export async function categorizeWithAi(
     aiBaseUrl: settings.aiBaseUrl ?? undefined,
   });
 
-  const uncategorized = db
+  const uncategorized = await db
     .select({
       id: transactions.id,
       name: transactions.name,
@@ -125,21 +125,18 @@ export async function categorizeWithAi(
         isNull(transactions.aiCategorizationAttemptedAt),
         notDeleted(transactions),
       ),
-    )
-    .all();
+    );
 
   if (uncategorized.length === 0) return { categorized: 0, skipped: 0 };
 
-  const cats = db
+  const cats = await db
     .select()
     .from(categories)
-    .where(eq(categories.householdId, householdId))
-    .all();
-  const groups = db
+    .where(eq(categories.householdId, householdId));
+  const groups = await db
     .select()
     .from(categoryGroups)
-    .where(eq(categoryGroups.householdId, householdId))
-    .all();
+    .where(eq(categoryGroups.householdId, householdId));
   const groupMap = new Map(groups.map((g) => [g.id, g.name]));
 
   const categoryInfos: CategoryInfo[] = cats.map((c) => ({
@@ -149,7 +146,7 @@ export async function categorizeWithAi(
   }));
   const validCategoryIds = new Set(cats.map((c) => c.id));
 
-  const examples = db
+  const exampleRows = await db
     .select({ name: transactions.name, categoryId: transactions.categoryId })
     .from(transactions)
     .where(
@@ -158,8 +155,9 @@ export async function categorizeWithAi(
         eq(transactions.reviewed, true),
       ),
     )
-    .limit(10)
-    .all()
+    .limit(10);
+
+  const examples = exampleRows
     .filter((e) => e.categoryId)
     .map((e) => ({
       description: e.name,
@@ -202,18 +200,16 @@ export async function categorizeWithAi(
       console.error(`AI categorization batch failed:`, e);
     }
 
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       for (const a of aboveThreshold) {
-        tx.update(transactions)
+        await tx.update(transactions)
           .set({ categoryId: a.categoryId, categorySource: "ai", updatedAt: now })
-          .where(eq(transactions.id, a.transactionId))
-          .run();
+          .where(eq(transactions.id, a.transactionId));
       }
       for (const id of batchIds) {
-        tx.update(transactions)
+        await tx.update(transactions)
           .set({ aiCategorizationAttemptedAt: now })
-          .where(eq(transactions.id, id))
-          .run();
+          .where(eq(transactions.id, id));
       }
     });
     categorized += aboveThreshold.length;
