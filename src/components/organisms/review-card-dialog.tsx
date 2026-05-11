@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -73,8 +73,8 @@ export function ReviewCardDialog({
 
   useReviewKeyboard(phase, handlers, phase === "VIEWING");
 
-  const handleCategoryChange = useCallback(
-    (_categoryId: string | null, _categoryName: string | null) => {
+  const handleCategoryChange: (id: string | null, name: string | null) => void = useCallback(
+    () => {
       setPhase("VIEWING");
     },
     [setPhase],

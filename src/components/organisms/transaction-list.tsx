@@ -34,12 +34,15 @@ export function TransactionList({
   const isMobile = useIsMobile();
   const [rows, setRows] = useState(initialRows);
   const [cursor, setCursor] = useState(nextCursor);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [prevInitialRows, setPrevInitialRows] = useState(initialRows);
 
-  useEffect(() => {
+  if (initialRows !== prevInitialRows) {
+    setPrevInitialRows(initialRows);
     setRows(initialRows);
     setCursor(nextCursor);
-  }, [initialRows, nextCursor]);
+  }
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadingMore, setLoadingMore] = useState(false);
   const { selectedId, select, clear } = useSelectedTransaction();
   const urlSearchParams = useSearchParams();

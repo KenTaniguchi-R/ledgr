@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { Search, X, Download, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
+import { useAmountFilter } from "@/hooks/use-amount-filter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -17,7 +18,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { CategorySelectItems } from "@/components/molecules/category-select-items";
-import { parseToCents, centsToInputDisplay } from "@/lib/money";
 import type { CategoryGroup } from "@/queries/categories";
 
 interface AccountOption {
@@ -38,16 +38,11 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
   const [activePreset, setActivePreset] = useState("All");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  const initMin = searchParams.get("amountMin");
-  const initMax = searchParams.get("amountMax");
-  const [amountMinDisplay, setAmountMinDisplay] = useState(
-    initMin ? centsToInputDisplay(parseInt(initMin, 10)) : "",
-  );
-  const [amountMaxDisplay, setAmountMaxDisplay] = useState(
-    initMax ? centsToInputDisplay(parseInt(initMax, 10)) : "",
-  );
-  const minDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const maxDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const amount = useAmountFilter({
+    initialMin: searchParams.get("amountMin"),
+    initialMax: searchParams.get("amountMax"),
+    onUpdate: updateFilter,
+  });
 
   function handleSearchChange(value: string) {
     setSearchValue(value);
@@ -55,42 +50,6 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
     searchDebounceRef.current = setTimeout(() => {
       updateFilter("q", value || null);
     }, 300);
-  }
-
-  const flushAmountFilter = useCallback(
-    (key: "amountMin" | "amountMax", displayValue: string) => {
-      if (displayValue === "") {
-        updateFilter(key, null);
-        return;
-      }
-      const cents = parseToCents(displayValue);
-      if (cents !== null && cents >= 0) {
-        updateFilter(key, String(cents));
-      }
-    },
-    [updateFilter],
-  );
-
-  function handleAmountMinChange(value: string) {
-    setAmountMinDisplay(value);
-    if (minDebounceRef.current) clearTimeout(minDebounceRef.current);
-    minDebounceRef.current = setTimeout(() => {
-      flushAmountFilter("amountMin", value);
-    }, 500);
-  }
-
-  function handleAmountMaxChange(value: string) {
-    setAmountMaxDisplay(value);
-    if (maxDebounceRef.current) clearTimeout(maxDebounceRef.current);
-    maxDebounceRef.current = setTimeout(() => {
-      flushAmountFilter("amountMax", value);
-    }, 500);
-  }
-
-  function handleAmountBlur(key: "amountMin" | "amountMax", displayValue: string) {
-    const ref = key === "amountMin" ? minDebounceRef : maxDebounceRef;
-    if (ref.current) clearTimeout(ref.current);
-    flushAmountFilter(key, displayValue);
   }
 
   function handlePresetChange(range: string) {
@@ -113,8 +72,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
 
   function handleClearFilters() {
     setSearchValue("");
-    setAmountMinDisplay("");
-    setAmountMaxDisplay("");
+    amount.reset();
     setActivePreset("All");
     clearFilters();
   }
@@ -251,9 +209,9 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
           inputMode="decimal"
           placeholder="Min $"
           aria-label="Minimum amount"
-          value={amountMinDisplay}
-          onChange={(e) => handleAmountMinChange(e.target.value)}
-          onBlur={() => handleAmountBlur("amountMin", amountMinDisplay)}
+          value={amount.minDisplay}
+          onChange={(e) => amount.handleMinChange(e.target.value)}
+          onBlur={() => amount.handleBlur("amountMin")}
           className="h-8 w-[80px] text-xs"
         />
         <Input
@@ -261,9 +219,9 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
           inputMode="decimal"
           placeholder="Max $"
           aria-label="Maximum amount"
-          value={amountMaxDisplay}
-          onChange={(e) => handleAmountMaxChange(e.target.value)}
-          onBlur={() => handleAmountBlur("amountMax", amountMaxDisplay)}
+          value={amount.maxDisplay}
+          onChange={(e) => amount.handleMaxChange(e.target.value)}
+          onBlur={() => amount.handleBlur("amountMax")}
           className="h-8 w-[80px] text-xs"
         />
 

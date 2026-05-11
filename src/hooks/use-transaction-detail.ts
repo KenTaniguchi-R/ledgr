@@ -21,9 +21,11 @@ export function useTransactionDetail(
   const [reviewPending, startReviewTransition] = useTransition();
 
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
   const onUpdatedRef = useRef(onTransactionUpdated);
-  onUpdatedRef.current = onTransactionUpdated;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onUpdatedRef.current = onTransactionUpdated;
+  });
 
   const { splits, resetSplits, addSplit, updateSplit, removeSplit } = useSplitEditor();
 

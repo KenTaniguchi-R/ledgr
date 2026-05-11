@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { TransactionRow } from "@/queries/transactions";
 
 export type ReviewPhase =
@@ -18,22 +18,21 @@ export function useReviewQueue(
   const [phase, setPhase] = useState<ReviewPhase>("IDLE");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sessionReviewedCount, setSessionReviewedCount] = useState(0);
-  const queueRef = useRef<TransactionRow[]>([]);
-  const directionRef = useRef<"forward" | "back">("forward");
+  const [queue, setQueue] = useState<TransactionRow[]>([]);
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
 
-  const [queueLength, setQueueLength] = useState(0);
+  const queueLength = queue.length;
   const currentTransaction = phase !== "IDLE" && phase !== "COMPLETE"
-    ? queueRef.current[currentIndex] ?? null
+    ? queue[currentIndex] ?? null
     : null;
 
   const start = useCallback(() => {
-    const queue = rows.filter((r) => !r.reviewed && !r.pending);
-    queueRef.current = queue;
-    setQueueLength(queue.length);
+    const q = rows.filter((r) => !r.reviewed && !r.pending);
+    setQueue(q);
     setCurrentIndex(0);
     setSessionReviewedCount(0);
-    directionRef.current = "forward";
-    if (queue.length === 0) {
+    setDirection("forward");
+    if (q.length === 0) {
       setPhase("COMPLETE");
     } else {
       setPhase("VIEWING");
@@ -41,15 +40,15 @@ export function useReviewQueue(
   }, [rows]);
 
   const confirm = useCallback(async () => {
-    const txn = queueRef.current[currentIndex];
+    const txn = queue[currentIndex];
     if (!txn) return;
 
     setPhase("SAVING");
     try {
       await onConfirm?.(txn.id);
       setSessionReviewedCount((c) => c + 1);
-      directionRef.current = "forward";
-      if (currentIndex + 1 >= queueRef.current.length) {
+      setDirection("forward");
+      if (currentIndex + 1 >= queue.length) {
         setPhase("COMPLETE");
       } else {
         setCurrentIndex((i) => i + 1);
@@ -58,20 +57,20 @@ export function useReviewQueue(
     } catch {
       setPhase("VIEWING");
     }
-  }, [currentIndex, onConfirm]);
+  }, [currentIndex, queue, onConfirm]);
 
   const skip = useCallback(() => {
-    directionRef.current = "forward";
-    if (currentIndex + 1 >= queueRef.current.length) {
+    setDirection("forward");
+    if (currentIndex + 1 >= queue.length) {
       setPhase("COMPLETE");
     } else {
       setCurrentIndex((i) => i + 1);
     }
-  }, [currentIndex]);
+  }, [currentIndex, queue.length]);
 
   const retreat = useCallback(() => {
     if (currentIndex > 0) {
-      directionRef.current = "back";
+      setDirection("back");
       setCurrentIndex((i) => i - 1);
     }
   }, [currentIndex]);
@@ -87,7 +86,7 @@ export function useReviewQueue(
     currentTransaction,
     queueLength,
     sessionReviewedCount,
-    direction: directionRef.current,
+    direction,
     start,
     confirm,
     skip,
