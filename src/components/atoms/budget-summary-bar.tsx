@@ -4,11 +4,11 @@ interface BudgetSummaryBarProps {
   totalBudgeted: number;
   totalSpent: number;
   totalRemaining: number;
-  lastSyncedAt: string | null;
+  lastSyncedAt: Date | string | null;
 }
 
-function timeAgo(dateString: string): string {
-  const diff = Date.now() - new Date(dateString).getTime();
+function timeAgo(date: Date | string): string {
+  const diff = Date.now() - new Date(date).getTime();
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;

@@ -34,7 +34,7 @@ export interface DashboardData {
   accounts: { id: string; name: string; type: AccountType; currentBalance: number | null; currency: string | null }[];
   budgetData?: BudgetMonth;
   upcomingBills: BillRow[];
-  investmentsData?: ReturnType<typeof getInvestmentsSummary>;
+  investmentsData?: Awaited<ReturnType<typeof getInvestmentsSummary>>;
 }
 
 interface DashboardGridProps {

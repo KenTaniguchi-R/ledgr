@@ -25,7 +25,7 @@ export interface InstitutionGroup {
   institutionName: string;
   plaidItemId: string | null;
   status: PlaidItemStatus | null;
-  lastSyncedAt: string | null;
+  lastSyncedAt: Date | null;
   logoBase64: string | null;
   primaryColor: string | null;
   accounts: AccountRow[];

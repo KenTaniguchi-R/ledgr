@@ -47,7 +47,7 @@ export interface BudgetMonth {
   groups: BudgetGroup[];
   unbudgeted: { spent: number; categories: UnbudgetedCategory[] };
   summary: { totalBudgeted: number; totalSpent: number; totalRemaining: number };
-  lastSyncedAt: string | null;
+  lastSyncedAt: Date | null;
 }
 
 // ── Spending query ───────────────────────────────────────────────────
