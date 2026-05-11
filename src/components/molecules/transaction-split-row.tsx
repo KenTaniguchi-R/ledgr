@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useCallback } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CurrencyInput } from "@/components/atoms/currency-input";
+import { CurrencyInput } from "@/components/molecules/currency-input";
 import { CategoryPill } from "@/components/molecules/category-pill";
 import type { CategoryGroup } from "@/queries/categories";
 import type { SplitRow } from "@/queries/transactions";
