@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { resolveHouseholdId } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { scopedQuery } from "@/lib/scoped-query";
 import { db } from "@/db";
 import { transactions, accounts } from "@/db/schema";
@@ -26,6 +27,10 @@ export async function POST(request: Request) {
   }
 
   const householdId = resolveHouseholdId(session.user.id);
+  const blocked = guardDemoMode(session.user.id);
+  if (blocked) {
+    return NextResponse.json(blocked, { status: 403 });
+  }
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const step = formData.get("step") as string;

@@ -1,5 +1,6 @@
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
-import { getSession, resolveHouseholdId } from "@/lib/auth/session";
+import { getSession, getHouseholdId } from "@/lib/auth/session";
+import { guardDemoMode } from "@/lib/demo-mode";
 import { getUserAiSettings } from "@/queries/settings";
 import { createUserModel, type AiProvider } from "@/lib/ai/provider";
 import { decrypt } from "@/lib/encryption";
@@ -30,8 +31,12 @@ export async function POST(request: Request) {
     aiBaseUrl: settings.aiBaseUrl ?? undefined,
   });
 
+  const blocked = guardDemoMode(session.user.id);
+  if (blocked) {
+    return new Response(JSON.stringify(blocked), { status: 403, headers: { "Content-Type": "application/json" } });
+  }
   const { messages }: { messages: UIMessage[] } = await request.json();
-  const householdId = resolveHouseholdId(session.user.id);
+  const householdId = await getHouseholdId();
 
   const useTools = settings.toolCallingSupported !== false;
   const tools = useTools ? financialTools(householdId) : undefined;

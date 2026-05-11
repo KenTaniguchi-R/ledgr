@@ -5,6 +5,7 @@ import { syncInstitution } from "./sync";
 import { REAUTH_ERROR_CODES } from "./utils";
 import { nowISO } from "@/lib/date-utils";
 import type { WebhookPayload } from "./schemas";
+import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 
 type WebhookContext = { db: LedgrDb; payload: WebhookPayload };
 type WebhookHandler = (ctx: WebhookContext) => Promise<void>;
@@ -30,6 +31,7 @@ async function handleSyncUpdates({ db, payload }: WebhookContext): Promise<void>
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
   }
+  if (item.householdId === DEMO_HOUSEHOLD_ID) return;
   await syncInstitution(item.id, item.householdId, db);
 }
 
@@ -44,6 +46,7 @@ async function handleItemError({ db, payload }: WebhookContext): Promise<void> {
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
   }
+  if (item.householdId === DEMO_HOUSEHOLD_ID) return;
 
   const code = payload.error.error_code;
   if (REAUTH_ERROR_CODES.has(code)) {
@@ -59,6 +62,7 @@ async function handlePendingExpiration({ db, payload }: WebhookContext): Promise
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
   }
+  if (item.householdId === DEMO_HOUSEHOLD_ID) return;
   updateItemStatus(db, item.id, "reauth_required", null);
 }
 
@@ -68,6 +72,7 @@ async function handlePermissionRevoked({ db, payload }: WebhookContext): Promise
     console.warn(`[webhook] No plaid_items row for plaid_item_id=${payload.item_id}`);
     return;
   }
+  if (item.householdId === DEMO_HOUSEHOLD_ID) return;
   updateItemStatus(db, item.id, "revoked", null);
 }
 
