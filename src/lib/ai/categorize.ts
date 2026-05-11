@@ -6,12 +6,9 @@ import {
   transactions,
   categories,
   categoryGroups,
-  householdMembers,
 } from "@/db/schema";
 import { notDeleted } from "@/lib/query-helpers";
-import { createUserModel, type AiProvider } from "./provider";
-import { getUserAiSettings } from "@/queries/settings";
-import { decrypt } from "@/lib/encryption";
+import { getAiConfig, createAiModel } from "./config";
 
 const categorizationSchema = z.object({
   assignments: z.array(
@@ -77,7 +74,7 @@ export function validateAssignments(
   );
 }
 
-function getBatchSize(provider: AiProvider): number {
+function getBatchSize(provider: string): number {
   return provider === "custom" ? 20 : 50;
 }
 
@@ -85,32 +82,9 @@ export async function categorizeWithAi(
   householdId: string,
   db: LedgrDb = defaultDb,
 ): Promise<{ categorized: number; skipped: number }> {
-  const [owner] = await db
-    .select({ userId: householdMembers.userId })
-    .from(householdMembers)
-    .where(
-      and(
-        eq(householdMembers.householdId, householdId),
-        eq(householdMembers.role, "owner"),
-      ),
-    )
-    .limit(1);
-
-  if (!owner) return { categorized: 0, skipped: 0 };
-
-  const settings = await getUserAiSettings(owner.userId, db);
-  if (!settings?.aiProvider || !settings?.aiModel || !settings.hasKey) {
-    return { categorized: 0, skipped: 0 };
-  }
-
-  const model = createUserModel({
-    aiProvider: settings.aiProvider as AiProvider,
-    aiModel: settings.aiModel,
-    aiApiKey: decrypt(settings.rawEncryptedKey!),
-    aiBaseUrl: settings.aiBaseUrl ?? undefined,
-    confidenceThreshold: 0.7,
-    toolCalling: true,
-  });
+  const config = getAiConfig();
+  const model = createAiModel();
+  if (!config || !model) return { categorized: 0, skipped: 0 };
 
   const uncategorized = await db
     .select({
@@ -165,8 +139,8 @@ export async function categorizeWithAi(
       categoryName: cats.find((c) => c.id === e.categoryId)?.name ?? "Unknown",
     }));
 
-  const threshold = settings.aiConfidenceThreshold;
-  const batchSize = getBatchSize(settings.aiProvider as AiProvider);
+  const threshold = config.confidenceThreshold;
+  const batchSize = getBatchSize(config.aiProvider);
   let categorized = 0;
   const now = new Date();
 
