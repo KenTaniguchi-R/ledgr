@@ -1,17 +1,15 @@
-import { eq, gte, lt, sql, inArray, notInArray, desc } from "drizzle-orm";
+import { eq, inArray, desc } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   budgets,
   budgetCategories,
-  transactions,
-  transactionSplits,
   categories,
   categoryGroups,
   plaidItems,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
-import { shiftMonth } from "@/lib/date-utils";
+import { monthBounds } from "@/lib/date-utils";
+import { aggregateSpending } from "@/lib/spending-helpers";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -50,94 +48,6 @@ export interface BudgetMonth {
   lastSyncedAt: Date | null;
 }
 
-// ── Spending query ───────────────────────────────────────────────────
-
-/**
- * Aggregate spending per category for a given month.
- * Returns Map<categoryId | "uncategorized", spentCents>.
- *
- * Handles split transactions: when a transaction has splits,
- * the parent is excluded and splits are summed per category instead.
- */
-async function getBudgetSpending(
-  householdId: string,
-  month: string,
-  db: LedgrDb = defaultDb,
-): Promise<Map<string, number>> {
-  const scoped = scopedQuery(householdId, db);
-  const startDate = `${month}-01`;
-  const endDate = `${shiftMonth(month, 1)}-01`;
-
-  // Find transaction IDs that have splits
-  const splitParentRows = await db
-    .select({ transactionId: transactionSplits.transactionId })
-    .from(transactionSplits)
-    .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
-    .where(
-      scoped.where(
-        transactions,
-        notDeleted(transactions),
-        gte(transactions.date, startDate),
-        lt(transactions.date, endDate),
-        lt(transactions.normalizedAmount, 0),
-        eq(transactions.isTransfer, false),
-        eq(transactions.pending, false),
-      ),
-    )
-    .groupBy(transactionSplits.transactionId);
-
-  const splitParentIds = splitParentRows.map((r) => r.transactionId);
-
-  // 1) Non-split transactions: aggregate by category_id
-  const baseConditions = [
-    notDeleted(transactions),
-    gte(transactions.date, startDate),
-    lt(transactions.date, endDate),
-    lt(transactions.normalizedAmount, 0),
-    eq(transactions.isTransfer, false),
-    eq(transactions.pending, false),
-  ];
-
-  const nonSplitConditions =
-    splitParentIds.length > 0
-      ? [...baseConditions, notInArray(transactions.id, splitParentIds)]
-      : baseConditions;
-
-  const nonSplitRows = await db
-    .select({
-      categoryId: transactions.categoryId,
-      total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
-    })
-    .from(transactions)
-    .where(scoped.where(transactions, ...nonSplitConditions))
-    .groupBy(transactions.categoryId);
-
-  const spending = new Map<string, number>();
-
-  for (const row of nonSplitRows) {
-    const key = row.categoryId ?? "uncategorized";
-    spending.set(key, (spending.get(key) ?? 0) + row.total);
-  }
-
-  // 2) Split transactions: aggregate from transaction_splits per category
-  if (splitParentIds.length > 0) {
-    const splitRows = await db
-      .select({
-        categoryId: transactionSplits.categoryId,
-        total: sql<number>`COALESCE(SUM(${transactionSplits.amount}), 0)`,
-      })
-      .from(transactionSplits)
-      .where(inArray(transactionSplits.transactionId, splitParentIds))
-      .groupBy(transactionSplits.categoryId);
-
-    for (const row of splitRows) {
-      spending.set(row.categoryId, (spending.get(row.categoryId) ?? 0) + row.total);
-    }
-  }
-
-  return spending;
-}
-
 // ── Main budget query ────────────────────────────────────────────────
 
 export async function getBudgetForMonth(
@@ -154,8 +64,8 @@ export async function getBudgetForMonth(
     .where(scoped.where(budgets, eq(budgets.month, month)))
     .limit(1);
 
-  // Fetch spending map
-  const spending = await getBudgetSpending(householdId, month, db);
+  const { from: dateFrom, to: dateTo } = monthBounds(month);
+  const spending = await aggregateSpending(householdId, { dateFrom, dateTo }, db);
 
   // Last synced at
   const [syncRow] = await db

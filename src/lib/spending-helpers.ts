@@ -1,4 +1,4 @@
-import { eq, lt, gte, lte, inArray, notInArray, isNull, sql } from "drizzle-orm";
+import { eq, lt, gte, lte, inArray, notInArray, isNull } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -7,7 +7,7 @@ import {
   categoryGroups,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, sumAbs, sumCol } from "@/lib/query-helpers";
 import { notIncome } from "@/queries/shared-conditions";
 import type { ReportFilters } from "@/queries/reports";
 
@@ -20,7 +20,7 @@ export interface SpendingChartItem {
 }
 
 
-export async function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
+async function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
   const conditions = [
     notDeleted(transactions),
     lt(transactions.normalizedAmount, 0),
@@ -38,7 +38,7 @@ export async function spendingBaseConditions(filters: ReportFilters, db: LedgrDb
 }
 
 
-export async function findSplitParentIds(
+async function findSplitParentIds(
   scoped: ReturnType<typeof scopedQuery>,
   conditions: Awaited<ReturnType<typeof spendingBaseConditions>>,
   db: LedgrDb,
@@ -72,7 +72,7 @@ export async function aggregateSpending(
   const nonSplitRows = await db
     .select({
       categoryId: transactions.categoryId,
-      total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
+      total: sumAbs(transactions.normalizedAmount),
     })
     .from(transactions)
     .where(scoped.where(transactions, ...nonSplitConditions))
@@ -89,7 +89,7 @@ export async function aggregateSpending(
     const splitRows = await db
       .select({
         categoryId: transactionSplits.categoryId,
-        total: sql<number>`COALESCE(SUM(${transactionSplits.amount}), 0)`,
+        total: sumCol(transactionSplits.amount),
       })
       .from(transactionSplits)
       .where(inArray(transactionSplits.transactionId, splitParentIds))

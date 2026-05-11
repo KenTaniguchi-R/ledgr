@@ -5,7 +5,7 @@ import { SidebarNav } from "@/components/organisms/sidebar-nav";
 import { ChatPanelLoader } from "@/components/organisms/chat-panel-loader";
 import { seedDemoHousehold } from "@/db/seed/demo";
 
-seedDemoHousehold();
+seedDemoHousehold().catch((e) => console.error("[demo] seed failed:", e));
 
 export default async function DashboardLayout({
   children,

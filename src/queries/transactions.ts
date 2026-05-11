@@ -2,7 +2,7 @@ import { eq, like, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL } from
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits, type CategorySource } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, encodeCursor, decodeCursor } from "@/lib/query-helpers";
+import { notDeleted, encodeCursor, decodeCursor, countRows } from "@/lib/query-helpers";
 
 export interface TransactionFilters {
   dateFrom?: string;
@@ -166,7 +166,7 @@ export async function getTransactions(
     ? await db
         .select({
           transactionId: transactionSplits.transactionId,
-          count: sql<number>`count(*)`,
+          count: countRows(),
         })
         .from(transactionSplits)
         .where(inArray(transactionSplits.transactionId, pageIds))
@@ -225,9 +225,9 @@ export async function getTransactionSummary(
   const [result] = await base.joins(
     db
       .select({
-        count: sql<number>`count(*)`,
-        totalExpense: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} < 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN abs(${transactions.normalizedAmount}) ELSE 0 END), 0)`,
-        totalIncome: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} > 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`,
+        count: countRows(),
+        totalExpense: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} < 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN abs(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
+        totalIncome: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} > 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`.mapWith(Number),
       })
       .from(transactions)
   )

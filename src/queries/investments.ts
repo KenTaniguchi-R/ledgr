@@ -2,7 +2,7 @@ import { eq, and, sql, desc, gte, lte, isNull, inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { investmentHoldings, holdingsHistory, investmentTransactions, accounts } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { encodeCursor, decodeCursor } from "@/lib/query-helpers";
+import { encodeCursor, decodeCursor, sumCol } from "@/lib/query-helpers";
 import { todayDateString } from "@/lib/date-utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -139,12 +139,12 @@ export async function getPortfolioSummary(
   let dayChange: number | null = null;
   if (hasToday && hasYesterday) {
     const [todayTotal] = await db
-      .select({ total: sql<number>`COALESCE(SUM(${holdingsHistory.value}), 0)` })
+      .select({ total: sumCol(holdingsHistory.value) })
       .from(holdingsHistory)
       .where(and(inArray(holdingsHistory.accountId, ids), eq(holdingsHistory.date, todayStr)));
 
     const [yesterdayTotal] = await db
-      .select({ total: sql<number>`COALESCE(SUM(${holdingsHistory.value}), 0)` })
+      .select({ total: sumCol(holdingsHistory.value) })
       .from(holdingsHistory)
       .where(and(inArray(holdingsHistory.accountId, ids), eq(holdingsHistory.date, yesterdayStr)));
 
@@ -171,7 +171,7 @@ export async function getPortfolioHistory(
   return db
     .select({
       date: holdingsHistory.date,
-      value: sql<number>`SUM(${holdingsHistory.value})`,
+      value: sumCol(holdingsHistory.value),
     })
     .from(holdingsHistory)
     .where(and(
@@ -194,7 +194,7 @@ export async function getAssetAllocation(
   const rows = await db
     .select({
       type: investmentHoldings.type,
-      value: sql<number>`SUM(${investmentHoldings.currentValue})`,
+      value: sumCol(investmentHoldings.currentValue),
     })
     .from(investmentHoldings)
     .where(inArray(investmentHoldings.accountId, ids))
@@ -227,9 +227,9 @@ export async function getHoldings(
         securityName: investmentHoldings.securityName,
         type: sql<string | null>`MIN(${investmentHoldings.type})`,
         sector: sql<string | null>`MIN(${investmentHoldings.sector})`,
-        quantity: sql<number>`SUM(${investmentHoldings.quantity})`,
-        currentValue: sql<number>`SUM(${investmentHoldings.currentValue})`,
-        costBasis: sql<number | null>`SUM(${investmentHoldings.costBasis})`,
+        quantity: sumCol(investmentHoldings.quantity),
+        currentValue: sumCol(investmentHoldings.currentValue),
+        costBasis: sumCol(investmentHoldings.costBasis),
       })
       .from(investmentHoldings)
       .where(inArray(investmentHoldings.accountId, filteredAccIds))

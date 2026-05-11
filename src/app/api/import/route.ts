@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
-import { resolveHouseholdId } from "@/lib/auth/session";
+import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { scopedQuery } from "@/lib/scoped-query";
 import { db } from "@/db";
@@ -26,11 +25,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const householdId = await resolveHouseholdId(session.user.id);
-  const blocked = guardDemoMode(session.user.id);
+  const blocked = await guardDemoMode(session.user.id);
   if (blocked) {
     return NextResponse.json(blocked, { status: 403 });
   }
+
+  const householdId = await getHouseholdId();
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const step = formData.get("step") as string;

@@ -24,6 +24,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const blocked = await guardDemoMode(session.user.id);
+  if (blocked) {
+    return Response.json(blocked, { status: 403 });
+  }
+
   const model = createUserModel({
     aiProvider: settings.aiProvider as AiProvider,
     aiModel: settings.aiModel,
@@ -31,10 +36,6 @@ export async function POST(request: Request) {
     aiBaseUrl: settings.aiBaseUrl ?? undefined,
   });
 
-  const blocked = guardDemoMode(session.user.id);
-  if (blocked) {
-    return new Response(JSON.stringify(blocked), { status: 403, headers: { "Content-Type": "application/json" } });
-  }
   const { messages }: { messages: UIMessage[] } = await request.json();
   const householdId = await getHouseholdId();
 

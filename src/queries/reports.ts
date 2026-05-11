@@ -1,4 +1,4 @@
-import { eq, gte, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
+import { eq, gte, lt, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -9,17 +9,15 @@ import {
   recurringTransactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, sumAbs } from "@/lib/query-helpers";
 import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import {
-  spendingBaseConditions,
-  findSplitParentIds,
   aggregateSpending,
   enrichSpendingMap,
 } from "@/lib/spending-helpers";
 import { getCurrentMonth, monthBounds } from "@/lib/date-utils";
-import type { SankeyNode, SankeyLink } from "@/components/molecules/sankey-chart";
+import type { SankeyNode, SankeyLink } from "@/components/organisms/sankey-chart";
 
 export interface ReportFilters {
   dateFrom: string;
@@ -141,15 +139,31 @@ export async function getCategoryTrends(
   db: LedgrDb = defaultDb,
 ): Promise<CategoryTrendRow[]> {
   const scoped = scopedQuery(householdId, db);
-  const conditions = await spendingBaseConditions(filters, db);
-
+  const conditions = [
+    notDeleted(transactions),
+    lt(transactions.normalizedAmount, 0),
+    eq(transactions.pending, false),
+    eq(transactions.isTransfer, false),
+    isNull(transactions.transferPairId),
+    gte(transactions.date, filters.dateFrom),
+    lte(transactions.date, filters.dateTo),
+    await notIncome(db),
+  ];
+  if (filters.accountIds?.length) {
+    conditions.push(inArray(transactions.accountId, filters.accountIds));
+  }
   if (filters.categoryIds?.length) {
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  const splitParentIds = await findSplitParentIds(scoped, conditions, db);
+  const splitParentRows = await db
+    .select({ transactionId: transactionSplits.transactionId })
+    .from(transactionSplits)
+    .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
+    .where(scoped.where(transactions, ...conditions))
+    .groupBy(transactionSplits.transactionId);
+  const splitParentIds = splitParentRows.map((r) => r.transactionId);
 
-  // Non-split: group by month + category
   const nonSplitConditions =
     splitParentIds.length > 0
       ? [...conditions, notInArray(transactions.id, splitParentIds)]
@@ -160,7 +174,7 @@ export async function getCategoryTrends(
       month: sql<string>`substring(${transactions.date} from 1 for 7)`,
       categoryId: transactions.categoryId,
       categoryName: categories.name,
-      total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
+      total: sumAbs(transactions.normalizedAmount),
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
@@ -525,7 +539,7 @@ export async function getSafeToSpend(
     ? await db
         .select({
           recurringTransactionId: transactions.recurringTransactionId,
-          total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
+          total: sumAbs(transactions.normalizedAmount),
         })
         .from(transactions)
         .where(

@@ -1,6 +1,7 @@
 import { v4 as uuid } from "uuid";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { todayDateString } from "@/lib/date-utils";
+import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   investmentHoldings,
@@ -96,7 +97,19 @@ export async function applyInvestmentsToDb(
 
 export async function snapshotHoldings(dbInstance: LedgrDb = defaultDb): Promise<void> {
   const today = todayDateString();
-  const allHoldings = await dbInstance.select().from(investmentHoldings);
+  const allHoldings = await dbInstance
+    .select({
+      id: investmentHoldings.id,
+      accountId: investmentHoldings.accountId,
+      plaidSecurityId: investmentHoldings.plaidSecurityId,
+      securityName: investmentHoldings.securityName,
+      ticker: investmentHoldings.ticker,
+      quantity: investmentHoldings.quantity,
+      currentValue: investmentHoldings.currentValue,
+    })
+    .from(investmentHoldings)
+    .innerJoin(accounts, eq(investmentHoldings.accountId, accounts.id))
+    .where(ne(accounts.householdId, DEMO_HOUSEHOLD_ID));
 
   for (const h of allHoldings) {
     await dbInstance

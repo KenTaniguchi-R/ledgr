@@ -1,12 +1,12 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, transactionSplits } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, countRows } from "@/lib/query-helpers";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 import { getHouseholdId } from "@/lib/auth/session";
 import { getTransactionDetail, type TransactionDetail } from "@/queries/transactions";
@@ -229,7 +229,7 @@ export async function deleteSplit(
       .where(eq(transactionSplits.id, split.id));
 
     const [remaining] = await tx
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: countRows() })
       .from(transactionSplits)
       .where(eq(transactionSplits.transactionId, txn.id))
       .limit(1);
