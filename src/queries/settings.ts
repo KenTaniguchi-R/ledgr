@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { userSettings } from "@/db/schema";
 import { nowISO } from "@/lib/date-utils";
-import { v4 as uuid } from "uuid";
 import { getConsentsForUser } from "@/lib/mcp/auth/oauth-server";
+import type { DashboardLayout } from "@/components/organisms/widgets/registry";
 
 export interface AiSettings {
   aiProvider: "openai" | "anthropic" | "google" | "custom" | null;
@@ -156,5 +157,50 @@ export function upsertMcpEnabled(
       createdAt: now,
       updatedAt: now,
     }).run();
+  }
+}
+
+// ── Dashboard Layout ────────────────────────────────────────────────
+
+export function saveLayoutForUser(
+  userId: string,
+  layout: DashboardLayout,
+  db: LedgrDb = defaultDb,
+): void {
+  const layoutJson = JSON.stringify(layout);
+  const existing = db
+    .select({ id: userSettings.id })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .get();
+
+  if (existing) {
+    db.update(userSettings)
+      .set({ dashboardLayout: layoutJson })
+      .where(eq(userSettings.userId, userId))
+      .run();
+  } else {
+    db.insert(userSettings)
+      .values({ id: uuid(), userId, dashboardLayout: layoutJson })
+      .run();
+  }
+}
+
+export function getLayoutForUser(
+  userId: string,
+  db: LedgrDb = defaultDb,
+): DashboardLayout | null {
+  const row = db
+    .select({ dashboardLayout: userSettings.dashboardLayout })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .get();
+
+  if (!row?.dashboardLayout) return null;
+
+  try {
+    return JSON.parse(row.dashboardLayout) as DashboardLayout;
+  } catch {
+    return null;
   }
 }

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getUserAiSettings } from "@/queries/settings";
 import { SidebarNav } from "@/components/organisms/sidebar-nav";
-import { ChatPanel } from "@/components/organisms/chat-panel";
+import { ChatPanelLoader } from "@/components/organisms/chat-panel-loader";
 
 export default async function DashboardLayout({
   children,
@@ -28,7 +28,7 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
-      <ChatPanel hasAiConfigured={hasAiConfigured} />
+      <ChatPanelLoader hasAiConfigured={hasAiConfigured} />
     </>
   );
 }

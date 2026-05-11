@@ -1,6 +1,6 @@
 import { getHouseholdId } from "@/lib/auth/session";
 import { db } from "@/db";
-import { accounts } from "@/db/schema";
+import { accounts } from "@/db/schema/accounts";
 import { eq, and } from "drizzle-orm";
 import { notDeleted } from "@/lib/query-helpers";
 import { ImportWizard } from "@/components/organisms/import-wizard";

@@ -1,5 +1,6 @@
 import { getHouseholdId } from "@/lib/auth/session";
 import {
+  getInvestmentAccountIds,
   getPortfolioSummary,
   getPortfolioHistory,
   getAssetAllocation,
@@ -43,20 +44,19 @@ export default async function InvestmentsPage({
     type,
   };
 
+  const accIds = getInvestmentAccountIds(householdId);
+
   const [summary, history, allocation] = await Promise.all([
-    getPortfolioSummary(householdId),
-    getPortfolioHistory(householdId, {
-      dateFrom: dateFrom ?? dateTo,
-      dateTo,
-    }),
-    getAssetAllocation(householdId),
+    getPortfolioSummary(householdId, undefined, undefined, accIds),
+    getPortfolioHistory(householdId, { dateFrom: dateFrom ?? dateTo, dateTo }, undefined, accIds),
+    getAssetAllocation(householdId, undefined, accIds),
   ]);
 
   const holdings =
-    tab === "holdings" ? getHoldings(householdId, view, accountId) : null;
+    tab === "holdings" ? getHoldings(householdId, view, accountId, undefined, accIds) : null;
   const transactions =
     tab === "transactions"
-      ? getInvestmentTransactions(householdId, filters)
+      ? getInvestmentTransactions(householdId, filters, 50, null, undefined, accIds)
       : null;
 
   const allAccounts = getAccounts(householdId);

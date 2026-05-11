@@ -36,13 +36,13 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownS
   const [rows, setRows] = useState<TransactionRow[]>([]);
   const [hasMore, setHasMore] = useState(false);
 
+  const effectiveDateFrom = filter?.month ? `${filter.month}-01` : dateFrom;
+  const effectiveDateTo = filter?.month
+    ? `${filter.month}-${new Date(Number(filter.month.slice(0, 4)), Number(filter.month.slice(5, 7)), 0).getDate()}`
+    : dateTo;
+
   useEffect(() => {
     if (!filter) return;
-
-    const effectiveDateFrom = filter.month ? `${filter.month}-01` : dateFrom;
-    const effectiveDateTo = filter.month
-      ? `${filter.month}-${new Date(Number(filter.month.slice(0, 4)), Number(filter.month.slice(5, 7)), 0).getDate()}`
-      : dateTo;
 
     startTransition(async () => {
       const result = await getDrillDownTransactions({
@@ -54,7 +54,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownS
       setRows(result.rows);
       setHasMore(result.hasMore);
     });
-  }, [filter, dateFrom, dateTo]);
+  }, [filter?.categoryId, filter?.month, filter?.type, effectiveDateFrom, effectiveDateTo]);
 
   const totalAmount = rows.reduce((s, r) => s + r.normalizedAmount, 0);
 

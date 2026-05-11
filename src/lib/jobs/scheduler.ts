@@ -124,7 +124,7 @@ export function startScheduler() {
   cron.schedule("0 1 * * *", async () => {
     console.log("[scheduler] Starting holdings snapshot job");
     try {
-      snapshotHoldings();
+      await snapshotHoldings();
       console.log("[scheduler] Holdings snapshot job complete");
     } catch (e) {
       console.error("[scheduler] Unexpected error during holdings snapshot:", e);

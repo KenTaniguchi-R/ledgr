@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { PlaidItemStatus } from "@/db/schema";
+import type { PlaidItemStatus } from "@/db/schema/plaid";
 
 interface StatusBadgeProps {
   status: PlaidItemStatus;

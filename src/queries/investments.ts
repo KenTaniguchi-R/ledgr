@@ -79,7 +79,7 @@ function decodeCursor(cursor: string): { date: string; id: string } | null {
   }
 }
 
-function investmentAccountIds(householdId: string, db: LedgrDb): string[] {
+export function getInvestmentAccountIds(householdId: string, db: LedgrDb = defaultDb): string[] {
   const scoped = scopedQuery(householdId, db);
   const rows = db
     .select({ id: accounts.id })
@@ -107,18 +107,23 @@ function computeGainLoss(
   };
 }
 
+function resolveAccIds(householdId: string, db: LedgrDb, accIds?: string[]): string[] {
+  return accIds ?? getInvestmentAccountIds(householdId, db);
+}
+
 // ─── Queries ────────────────────────────────────────────────────────────────
 
 export function getPortfolioSummary(
   householdId: string,
   db: LedgrDb = defaultDb,
   today?: string,
+  accIds?: string[],
 ): PortfolioSummary {
-  const accIds = investmentAccountIds(householdId, db);
-  if (accIds.length === 0) return { totalValue: 0, dayChange: null, totalGainLoss: 0, totalCostBasis: 0 };
+  const ids = resolveAccIds(householdId, db, accIds);
+  if (ids.length === 0) return { totalValue: 0, dayChange: null, totalGainLoss: 0, totalCostBasis: 0 };
 
-  const holdingsInAccIds = inIds(investmentHoldings.accountId, accIds);
-  const historyInAccIds = inIds(holdingsHistory.accountId, accIds);
+  const holdingsInAccIds = inIds(investmentHoldings.accountId, ids);
+  const historyInAccIds = inIds(holdingsHistory.accountId, ids);
 
   const holdings = db
     .select({
@@ -184,9 +189,10 @@ export function getPortfolioHistory(
   householdId: string,
   dateRange: { dateFrom: string; dateTo: string },
   db: LedgrDb = defaultDb,
+  accIds?: string[],
 ): PortfolioPoint[] {
-  const accIds = investmentAccountIds(householdId, db);
-  if (accIds.length === 0) return [];
+  const ids = resolveAccIds(householdId, db, accIds);
+  if (ids.length === 0) return [];
 
   return db
     .select({
@@ -195,7 +201,7 @@ export function getPortfolioHistory(
     })
     .from(holdingsHistory)
     .where(and(
-      inIds(holdingsHistory.accountId, accIds),
+      inIds(holdingsHistory.accountId, ids),
       gte(holdingsHistory.date, dateRange.dateFrom),
       lte(holdingsHistory.date, dateRange.dateTo),
     ))
@@ -207,9 +213,10 @@ export function getPortfolioHistory(
 export function getAssetAllocation(
   householdId: string,
   db: LedgrDb = defaultDb,
+  accIds?: string[],
 ): AllocationSlice[] {
-  const accIds = investmentAccountIds(householdId, db);
-  if (accIds.length === 0) return [];
+  const ids = resolveAccIds(householdId, db, accIds);
+  if (ids.length === 0) return [];
 
   const rows = db
     .select({
@@ -217,7 +224,7 @@ export function getAssetAllocation(
       value: sql<number>`SUM(${investmentHoldings.currentValue})`,
     })
     .from(investmentHoldings)
-    .where(inIds(investmentHoldings.accountId, accIds))
+    .where(inIds(investmentHoldings.accountId, ids))
     .groupBy(investmentHoldings.type)
     .all();
 
@@ -235,12 +242,13 @@ export function getHoldings(
   view: "consolidated" | "by-account",
   accountId: string | undefined,
   db: LedgrDb = defaultDb,
+  accIds?: string[],
 ): InvestmentHoldingRow[] {
-  const allAccIds = investmentAccountIds(householdId, db);
-  const accIds = accountId ? allAccIds.filter((id) => id === accountId) : allAccIds;
-  if (accIds.length === 0) return [];
+  const allAccIds = resolveAccIds(householdId, db, accIds);
+  const filteredAccIds = accountId ? allAccIds.filter((id) => id === accountId) : allAccIds;
+  if (filteredAccIds.length === 0) return [];
 
-  const holdingsFilter = inIds(investmentHoldings.accountId, accIds);
+  const holdingsFilter = inIds(investmentHoldings.accountId, filteredAccIds);
 
   if (view === "consolidated") {
     const rows = db
@@ -309,15 +317,16 @@ export function getInvestmentTransactions(
   limit = 50,
   cursor: string | null = null,
   db: LedgrDb = defaultDb,
+  accIds?: string[],
 ): InvTxnPage {
-  const allAccIds = investmentAccountIds(householdId, db);
-  const accIds = filters.accountId
+  const allAccIds = resolveAccIds(householdId, db, accIds);
+  const filteredAccIds = filters.accountId
     ? allAccIds.filter((id) => id === filters.accountId)
     : allAccIds;
-  if (accIds.length === 0) return { rows: [], nextCursor: null };
+  if (filteredAccIds.length === 0) return { rows: [], nextCursor: null };
 
   const conditions = [
-    inIds(investmentTransactions.accountId, accIds),
+    inIds(investmentTransactions.accountId, filteredAccIds),
   ];
 
   if (filters.type)

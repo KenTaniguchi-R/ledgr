@@ -40,10 +40,9 @@ export interface DashboardData {
 interface DashboardGridProps {
   layout: { desktop: GridItem[]; tablet: GridItem[]; mobile: GridItem[] };
   data: DashboardData;
-  userId: string;
 }
 
-export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
+export function DashboardGrid({ layout, data }: DashboardGridProps) {
   const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 1200 });
   const [layouts, setLayouts] = useState({
     lg: layout.desktop,
@@ -53,7 +52,7 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
   const [nwRange, setNwRange] = useState("6M");
   const [nwData, setNwData] = useState(data.netWorthHistory);
   const [nwLoading, startNwTransition] = useTransition();
-  const [spendMonth, setSpendMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [spendMonth, setSpendMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [spendData, setSpendData] = useState(data.monthlySpending);
   const [spendLoading, startSpendTransition] = useTransition();
 
@@ -65,9 +64,9 @@ export function DashboardGrid({ layout, data, userId }: DashboardGridProps) {
         mobile: [...(allLayouts.sm ?? layouts.sm)],
       };
       setLayouts({ lg: newLayout.desktop, md: newLayout.tablet, sm: newLayout.mobile });
-      saveLayout(userId, newLayout);
+      saveLayout(newLayout);
     },
-    [userId, layouts],
+    [layouts],
   );
 
   function renderWidget(id: string) {

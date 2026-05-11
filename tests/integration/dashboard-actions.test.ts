@@ -3,7 +3,8 @@ import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
 import { insertHousehold } from "./helpers";
 import { userSettings } from "../../src/db/schema";
-import { saveLayout, getLayout, type DashboardLayout } from "../../src/actions/dashboard";
+import { saveLayoutForUser, getLayoutForUser } from "../../src/queries/settings";
+import type { DashboardLayout } from "../../src/components/organisms/widgets/registry";
 
 describe("dashboard actions", () => {
   const { db } = createTestDb();
@@ -23,8 +24,8 @@ describe("dashboard actions", () => {
       mobile: [{ i: "net-worth", x: 0, y: 0, w: 2, h: 2 }],
     };
 
-    await saveLayout(userId, layout, db);
-    const result = await getLayout(userId, db);
+    saveLayoutForUser(userId, layout, db);
+    const result = getLayoutForUser(userId, db);
 
     expect(result).toEqual(layout);
   });
@@ -37,7 +38,7 @@ describe("dashboard actions", () => {
       .values({ id: uuid(), userId, dashboardLayout: "not-valid-json{{{" })
       .run();
 
-    const result = await getLayout(userId, db);
+    const result = getLayoutForUser(userId, db);
 
     expect(result).toBeNull();
   });

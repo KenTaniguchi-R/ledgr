@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,11 +57,6 @@ export function TransactionList({
 
   const isPanelOpen = selectedId !== null;
 
-  // Close panel when bulk selection is active
-  useEffect(() => {
-    if (selected.size > 0 && isPanelOpen) clear();
-  }, [selected.size, isPanelOpen, clear]);
-
   const handleSelect = useCallback((id: string, checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -69,15 +64,16 @@ export function TransactionList({
       else next.delete(id);
       return next;
     });
-  }, []);
+    if (checked && isPanelOpen) clear();
+  }, [isPanelOpen, clear]);
 
   const handleSelectAll = useCallback(() => {
-    if (selected.size === rows.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(rows.map((r) => r.id)));
-    }
-  }, [rows, selected.size]);
+    setSelected((prev) => {
+      if (prev.size === rows.length) return new Set();
+      return new Set(rows.map((r) => r.id));
+    });
+    if (isPanelOpen) clear();
+  }, [rows, isPanelOpen, clear]);
 
   async function handleLoadMore() {
     if (!cursor) return;

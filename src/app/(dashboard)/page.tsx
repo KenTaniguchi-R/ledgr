@@ -1,4 +1,4 @@
-import { getHouseholdId, getSession } from "@/lib/auth/session";
+import { getHouseholdId } from "@/lib/auth/session";
 import {
   getDashboardSummary,
   getNetWorthHistory,
@@ -18,10 +18,8 @@ import type { DashboardData } from "@/components/organisms/dashboard-grid";
 
 export default async function DashboardPage() {
   const householdId = await getHouseholdId();
-  const session = await getSession();
-  const userId = session!.user.id;
 
-  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData] =
+  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
     await Promise.all([
       getDashboardSummary(householdId),
       getNetWorthHistory(householdId, "6M"),
@@ -32,13 +30,13 @@ export default async function DashboardPage() {
       getBudgetForMonth(householdId, getCurrentMonth()),
       getUpcomingBills(householdId, { limit: 5 }),
       getInvestmentsSummary(householdId),
+      getLayout(),
     ]);
 
   const accounts = allAccounts
     .filter((a) => !a.isHidden)
     .map((a) => ({ id: a.id, name: a.name, type: a.type, currentBalance: a.currentBalance, currency: a.currency }));
 
-  const savedLayout = await getLayout(userId);
   const layout = savedLayout ?? getDefaultLayout();
 
   const data: DashboardData = {
@@ -56,7 +54,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight mb-4">Dashboard</h1>
-      <DashboardGridLoader layout={layout} data={data} userId={userId} />
+      <DashboardGridLoader layout={layout} data={data} />
     </div>
   );
 }

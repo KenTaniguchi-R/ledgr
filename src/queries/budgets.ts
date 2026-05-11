@@ -271,10 +271,10 @@ function buildUnbudgetedCategories(
   db: LedgrDb,
 ): UnbudgetedCategory[] {
   const result: UnbudgetedCategory[] = [];
+  const unbudgetedIds: string[] = [];
 
   for (const [key, spent] of spending) {
     if (budgetedCategoryIds.has(key)) continue;
-
     if (key === "uncategorized") {
       result.push({
         categoryId: "uncategorized",
@@ -283,23 +283,32 @@ function buildUnbudgetedCategories(
         spent,
       });
     } else {
-      // Look up category + group name
-      const catRow = db
-        .select({
-          categoryName: categories.name,
-          groupName: categoryGroups.name,
-        })
-        .from(categories)
-        .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-        .where(eq(categories.id, key))
-        .get();
+      unbudgetedIds.push(key);
+    }
+  }
 
-      if (catRow) {
+  if (unbudgetedIds.length > 0) {
+    const catRows = db
+      .select({
+        id: categories.id,
+        categoryName: categories.name,
+        groupName: categoryGroups.name,
+      })
+      .from(categories)
+      .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+      .where(inArray(categories.id, unbudgetedIds))
+      .all();
+
+    const catMap = new Map(catRows.map((r) => [r.id, r]));
+
+    for (const id of unbudgetedIds) {
+      const cat = catMap.get(id);
+      if (cat) {
         result.push({
-          categoryId: key,
-          categoryName: catRow.categoryName,
-          groupName: catRow.groupName,
-          spent,
+          categoryId: id,
+          categoryName: cat.categoryName,
+          groupName: cat.groupName,
+          spent: spending.get(id)!,
         });
       }
     }

@@ -15,7 +15,6 @@ const DashboardGrid = dynamic(
 interface DashboardGridLoaderProps {
   layout: { desktop: GridItem[]; tablet: GridItem[]; mobile: GridItem[] };
   data: DashboardData;
-  userId: string;
 }
 
 export function DashboardGridLoader(props: DashboardGridLoaderProps) {
