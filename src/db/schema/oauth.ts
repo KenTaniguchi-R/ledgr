@@ -1,6 +1,6 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { pgTable, text, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 
-export const oauthClients = sqliteTable("oauth_clients", {
+export const oauthClients = pgTable("oauth_clients", {
   id: text("id").primaryKey(),
   clientId: text("client_id").unique().notNull(),
   clientName: text("client_name"),
@@ -8,7 +8,7 @@ export const oauthClients = sqliteTable("oauth_clients", {
   createdAt: text("created_at").notNull(),
 });
 
-export const oauthCodes = sqliteTable("oauth_codes", {
+export const oauthCodes = pgTable("oauth_codes", {
   code: text("code").primaryKey(),
   clientId: text("client_id").notNull(),
   userId: text("user_id").notNull(),
@@ -18,20 +18,20 @@ export const oauthCodes = sqliteTable("oauth_codes", {
   codeChallengeMethod: text("code_challenge_method").notNull().default("S256"),
   redirectUri: text("redirect_uri").notNull(),
   expiresAt: text("expires_at").notNull(),
-  used: integer("used").notNull().default(0),
+  used: boolean("used").notNull().default(false),
 });
 
-export const oauthRefreshTokens = sqliteTable("oauth_refresh_tokens", {
+export const oauthRefreshTokens = pgTable("oauth_refresh_tokens", {
   token: text("token").primaryKey(),
   clientId: text("client_id").notNull(),
   userId: text("user_id").notNull(),
   householdId: text("household_id").notNull(),
   scope: text("scope").notNull(),
   expiresAt: text("expires_at").notNull(),
-  revoked: integer("revoked").notNull().default(0),
+  revoked: boolean("revoked").notNull().default(false),
 });
 
-export const oauthConsents = sqliteTable(
+export const oauthConsents = pgTable(
   "oauth_consents",
   {
     id: text("id").primaryKey(),

@@ -1,9 +1,8 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, integer, pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
 import { households } from "./households";
 import { accounts } from "./accounts";
 
-export const goals = sqliteTable(
+export const goals = pgTable(
   "goals",
   {
     id: text("id").primaryKey(),
@@ -16,9 +15,9 @@ export const goals = sqliteTable(
     linkedAccountId: text("linked_account_id").references(() => accounts.id),
     icon: text("icon"),
     color: text("color"),
-    isCompleted: integer("is_completed", { mode: "boolean" }).default(false),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    isCompleted: boolean("is_completed").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("idx_goals_household").on(table.householdId)]
 );

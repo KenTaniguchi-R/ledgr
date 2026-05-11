@@ -1,35 +1,30 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, integer, pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
 
-export const notificationPreferences = sqliteTable(
+export const notificationPreferences = pgTable(
   "notification_preferences",
   {
     id: text("id").primaryKey(),
     userId: text("user_id").notNull(),
-    billReminders: integer("bill_reminders", { mode: "boolean" }).default(true),
-    overBudget: integer("over_budget", { mode: "boolean" }).default(true),
-    largeTransactions: integer("large_transactions", {
-      mode: "boolean",
-    }).default(true),
+    billReminders: boolean("bill_reminders").default(true),
+    overBudget: boolean("over_budget").default(true),
+    largeTransactions: boolean("large_transactions").default(true),
     largeTxnThreshold: integer("large_txn_threshold").default(50000),
-    weeklySummary: integer("weekly_summary", { mode: "boolean" }).default(
-      false
-    ),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    weeklySummary: boolean("weekly_summary").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   }
 );
 
-export const savedFilters = sqliteTable(
+export const savedFilters = pgTable(
   "saved_filters",
   {
     id: text("id").primaryKey(),
     userId: text("user_id").notNull(),
     name: text("name").notNull(),
     filterConfig: text("filter_config").notNull(),
-    isPinned: integer("is_pinned", { mode: "boolean" }).default(false),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    isPinned: boolean("is_pinned").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("idx_savedfilters_user").on(table.userId)]
 );

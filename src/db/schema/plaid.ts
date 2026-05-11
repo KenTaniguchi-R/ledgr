@@ -1,10 +1,9 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { households } from "./households";
 
 export type PlaidItemStatus = "active" | "error" | "reauth_required" | "revoked";
 
-export const plaidItems = sqliteTable("plaid_items", {
+export const plaidItems = pgTable("plaid_items", {
   id: text("id").primaryKey(),
   householdId: text("household_id")
     .notNull()
@@ -19,20 +18,20 @@ export const plaidItems = sqliteTable("plaid_items", {
   }).default("active"),
   errorCode: text("error_code"),
   primaryColor: text("primary_color"),
-  createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-  updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index("idx_plaid_items_household").on(table.householdId),
   index("idx_plaid_items_household_institution").on(table.householdId, table.plaidInstitutionId),
   uniqueIndex("idx_plaid_items_plaid_item_id").on(table.plaidItemId),
 ]);
 
-export const syncLog = sqliteTable("sync_log", {
+export const syncLog = pgTable("sync_log", {
   id: text("id").primaryKey(),
   plaidItemId: text("plaid_item_id")
     .notNull()
     .references(() => plaidItems.id, { onDelete: "cascade" }),
-  syncedAt: text("synced_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
   cursorBefore: text("cursor_before"),
   cursorAfter: text("cursor_after"),
   addedCount: integer("added_count").default(0),
@@ -43,7 +42,7 @@ export const syncLog = sqliteTable("sync_log", {
   index("idx_sync_log_plaid_item_id").on(table.plaidItemId),
 ]);
 
-export const institutionLogos = sqliteTable("institution_logos", {
+export const institutionLogos = pgTable("institution_logos", {
   id: text("id").primaryKey(),
   plaidItemId: text("plaid_item_id")
     .notNull()

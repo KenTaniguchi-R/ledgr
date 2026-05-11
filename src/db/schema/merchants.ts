@@ -1,9 +1,8 @@
-import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { households } from "./households";
 import { categories } from "./categories";
 
-export const merchants = sqliteTable(
+export const merchants = pgTable(
   "merchants",
   {
     id: text("id").primaryKey(),
@@ -14,8 +13,8 @@ export const merchants = sqliteTable(
     rawNames: text("raw_names"),
     logoUrl: text("logo_url"),
     categoryId: text("category_id").references(() => categories.id),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_merchants_household").on(table.householdId),
