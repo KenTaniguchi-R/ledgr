@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { todayDateString } from "@/lib/date-utils";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
@@ -26,7 +26,7 @@ export async function applyInvestmentsToDb(
     const itemAccounts = await tx
       .select({ id: accounts.id })
       .from(accounts)
-      .where(eq(accounts.plaidItemId, itemId));
+      .where(and(eq(accounts.plaidItemId, itemId), isNull(accounts.deletedAt)));
     const itemAccountIds = itemAccounts.map((a) => a.id);
 
     if (itemAccountIds.length > 0) {

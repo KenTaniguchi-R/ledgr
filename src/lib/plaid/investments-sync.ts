@@ -11,7 +11,7 @@ import { PlaidHoldingsResponseSchema, PlaidInvestmentTxnsResponseSchema } from "
 import { getPlaidClient } from "./client";
 import { decrypt } from "@/lib/encryption";
 import { todayDateString } from "@/lib/date-utils";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
 import { accounts, plaidItems } from "@/db/schema";
 import type { PlaidHolding, PlaidInvestmentTxn } from "./schemas";
@@ -110,7 +110,7 @@ async function doInvestmentSync(
   const itemAccounts = await db
     .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
     .from(accounts)
-    .where(eq(accounts.plaidItemId, itemId));
+    .where(and(eq(accounts.plaidItemId, itemId), isNull(accounts.deletedAt)));
 
   const plaidToInternalAccount = new Map<string, string>();
   for (const acc of itemAccounts) {
