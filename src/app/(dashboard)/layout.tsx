@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { getUserAiSettings } from "@/queries/settings";
+import { isAiConfigured } from "@/lib/ai/config";
 import { DashboardShell } from "@/components/organisms/dashboard-shell";
 import { ChatPanelLoader } from "@/components/organisms/chat-panel-loader";
 import { seedDemoHousehold } from "@/db/seed/demo";
@@ -18,11 +18,8 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const [aiSettings, cookieStore] = await Promise.all([
-    getUserAiSettings(session.user.id),
-    cookies(),
-  ]);
-  const hasAiConfigured = !!(aiSettings?.hasKey && aiSettings?.aiProvider);
+  const cookieStore = await cookies();
+  const hasAiConfigured = isAiConfigured();
   const sidebarDefaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
