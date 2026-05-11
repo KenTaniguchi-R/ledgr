@@ -9,6 +9,7 @@ import { registerRecurringTools } from "./recurring";
 import { registerInvestmentTools } from "./investments";
 import { registerCategoryReadTools, registerCategoryWriteTools } from "./categories";
 import { registerSyncTools } from "./sync";
+import { registerAppTools } from "../apps/register";
 
 export function registerAllTools(server: McpServer, claims: AccessTokenClaims) {
   const householdId = claims.household_id;
@@ -23,6 +24,7 @@ export function registerAllTools(server: McpServer, claims: AccessTokenClaims) {
     registerRecurringTools(server, householdId);
     registerInvestmentTools(server, householdId);
     registerCategoryReadTools(server, householdId);
+    registerAppTools(server, householdId);
   }
 
   if (scopes.includes("ledgr:write")) {
