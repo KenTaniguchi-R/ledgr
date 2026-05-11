@@ -46,6 +46,7 @@ export interface FetchAllPagesResult {
   modified: PlaidTransaction[];
   removed: PlaidRemovedTransaction[];
   nextCursor: string;
+  accounts: AccountBalanceInfo[];
 }
 
 export interface ProcessedBatch {
@@ -92,6 +93,7 @@ export async function fetchAllPages(
   const allAdded: PlaidTransaction[] = [];
   const allModified: PlaidTransaction[] = [];
   const allRemoved: PlaidRemovedTransaction[] = [];
+  const accountsMap = new Map<string, AccountBalanceInfo>();
   let currentCursor = cursor;
 
   let hasMore = true;
@@ -118,6 +120,11 @@ export async function fetchAllPages(
     allAdded.push(...parsed.added);
     allModified.push(...parsed.modified);
     allRemoved.push(...parsed.removed);
+    if (parsed.accounts) {
+      for (const account of parsed.accounts) {
+        accountsMap.set(account.account_id, account);
+      }
+    }
     currentCursor = parsed.next_cursor;
     hasMore = parsed.has_more;
   }
@@ -127,6 +134,7 @@ export async function fetchAllPages(
     modified: allModified,
     removed: allRemoved,
     nextCursor: currentCursor!,
+    accounts: Array.from(accountsMap.values()),
   };
 }
 
@@ -608,6 +616,7 @@ async function doSync(
       itemId,
       householdId,
       fetchResult.nextCursor,
+      fetchResult.accounts,
     );
 
     // Auto-categorize newly synced transactions (non-fatal)
