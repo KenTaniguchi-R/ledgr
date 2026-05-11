@@ -1,13 +1,30 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { Pool } from "pg";
+import { randomUUID } from "crypto";
 import * as schema from "../../src/db/schema";
 import path from "node:path";
 
-export function createTestDb() {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "src/db/migrations") });
-  return { db, close: () => sqlite.close() };
+export async function createTestDb() {
+  const connectionString =
+    process.env.DATABASE_URL || "postgresql://ledgr:ledgr@localhost:5432/ledgr_test";
+
+  const schemaName = `test_${randomUUID().replace(/-/g, "")}`;
+  const pool = new Pool({ connectionString });
+
+  await pool.query(`CREATE SCHEMA "${schemaName}"`);
+  await pool.query(`SET search_path TO "${schemaName}"`);
+
+  const db = drizzle({ client: pool, schema });
+  await migrate(db, {
+    migrationsFolder: path.join(process.cwd(), "src/db/migrations"),
+  });
+
+  return {
+    db,
+    async close() {
+      await pool.query(`DROP SCHEMA "${schemaName}" CASCADE`);
+      await pool.end();
+    },
+  };
 }

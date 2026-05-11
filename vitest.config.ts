@@ -9,6 +9,8 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
     exclude: ["e2e/**", "node_modules/**"],
+    globalSetup: ["./tests/global-setup.ts"],
+    testTimeout: 30_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
