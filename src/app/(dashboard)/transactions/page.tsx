@@ -8,6 +8,7 @@ import { getCategories } from "@/queries/categories";
 import { getAccounts } from "@/queries/accounts";
 import { TransactionFilters as FilterBar } from "@/components/molecules/transaction-filters";
 import { FilterSummaryBar } from "@/components/molecules/filter-summary-bar";
+import { ReviewEntryButton } from "@/components/molecules/review-entry-button";
 import { TransactionList } from "@/components/organisms/transaction-list";
 import { TransactionEmptyState } from "@/components/molecules/transaction-empty-state";
 
@@ -18,6 +19,8 @@ export default async function TransactionsPage({
 }) {
   const householdId = await getHouseholdId();
   const params = await searchParams;
+
+  const isReviewMode = params.mode === "review";
 
   const rawAmountMin = typeof params.amountMin === "string" ? parseInt(params.amountMin, 10) : undefined;
   const amountMin = rawAmountMin !== undefined && Number.isInteger(rawAmountMin) && rawAmountMin >= 0 ? rawAmountMin : undefined;
@@ -41,7 +44,7 @@ export default async function TransactionsPage({
     dateFrom: typeof params.from === "string" ? params.from : undefined,
     dateTo: typeof params.to === "string" ? params.to : undefined,
     search: typeof params.q === "string" ? params.q : undefined,
-    reviewed: params.reviewed === "true" ? true : undefined,
+    reviewed: isReviewMode ? false : (params.reviewed === "true" ? true : undefined),
     amountMin,
     amountMax,
     transactionType,
@@ -53,11 +56,15 @@ export default async function TransactionsPage({
 
   const hasAnyFilters = Object.values(filters).some((v) => v !== undefined);
   const summary = hasAnyFilters ? getTransactionSummary(householdId, filters) : null;
+  const unreviewedSummary = getTransactionSummary(householdId, { reviewed: false });
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
+        <ReviewEntryButton unreviewedCount={unreviewedSummary.count} />
+      </div>
 
       <FilterBar accounts={accountOptions} categories={allCategories} />
 
