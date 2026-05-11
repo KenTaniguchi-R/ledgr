@@ -1,28 +1,29 @@
 "use server";
 
 import { v4 as uuid } from "uuid";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { Products, CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
-import { encrypt } from "@/lib/encryption";
+import { encrypt, decrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
-import { mapPlaidAccountType, todayISO } from "@/lib/plaid/utils";
-import { getSession, getHouseholdId } from "@/lib/auth/session";
+import { mapPlaidAccountType, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
+import { todayDateString } from "@/lib/date-utils";
+import { getHouseholdId } from "@/lib/auth/session";
+import { authorizeAction } from "@/lib/auth/authorize-action";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { plaidItems, accounts, balanceHistory } from "@/db/schema";
+import { plaidItems, accounts, balanceHistory, institutionLogos } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 
 export async function createLinkToken() {
-  await getHouseholdId();
-  const session = await getSession();
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
 
   try {
     const response = await getPlaidClient().linkTokenCreate({
-      user: { client_user_id: session!.user.id },
+      user: { client_user_id: auth.userId },
       client_name: "Ledgr",
-      products: [Products.Transactions],
+      products: [Products.Transactions, Products.Investments],
       country_codes: [CountryCode.Us],
       language: "en",
       ...(process.env.PLAID_WEBHOOK_URL
@@ -34,9 +35,8 @@ export async function createLinkToken() {
     });
     return { linkToken: response.data.link_token };
   } catch (e: unknown) {
-    const plaidErr = e as { response?: { data?: { error_code?: string; error_message?: string } } };
-    console.error("Failed to create link token:", plaidErr?.response?.data ?? e);
-    return { error: plaidErr?.response?.data?.error_message ?? "Failed to initialize bank connection" };
+    console.error("Failed to create link token:", e);
+    return { error: extractPlaidErrorMessage(e) ?? "Failed to initialize bank connection" };
   }
 }
 
@@ -48,6 +48,9 @@ export async function exchangeAndStoreAccounts(
   | { success: true; accountCount: number; error?: never }
   | { success: false; error: string; accountCount?: never }
 > {
+  const auth = await authorizeAction();
+  if ("error" in auth) return { success: false, error: auth.error };
+
   try {
     const exchangeRes = await getPlaidClient().itemPublicTokenExchange({
       public_token: publicToken,
@@ -58,20 +61,25 @@ export async function exchangeAndStoreAccounts(
     const institutionId = itemRes.data.item.institution_id ?? null;
 
     let institutionName = "Unknown Institution";
+    let institutionLogo: string | null = null;
+    let institutionPrimaryColor: string | null = null;
     if (institutionId) {
       try {
         const instRes = await getPlaidClient().institutionsGetById({
           institution_id: institutionId,
           country_codes: [CountryCode.Us],
+          options: { include_optional_metadata: true },
         });
         institutionName = instRes.data.institution.name;
+        institutionLogo = instRes.data.institution.logo ?? null;
+        institutionPrimaryColor = instRes.data.institution.primary_color ?? null;
       } catch {
         // Fall back to "Unknown Institution" if lookup fails
       }
     }
 
     if (institutionId) {
-      const existing = db
+      const [existing] = await db
         .select({ id: plaidItems.id })
         .from(plaidItems)
         .where(
@@ -80,7 +88,7 @@ export async function exchangeAndStoreAccounts(
             eq(plaidItems.plaidInstitutionId, institutionId)
           )
         )
-        .get();
+        .limit(1);
       if (existing) {
         return { success: false, error: "This institution is already connected" };
       }
@@ -92,54 +100,88 @@ export async function exchangeAndStoreAccounts(
     const plaidAccounts = accountsRes.data.accounts;
 
     const plaidItemId = uuid();
-    const today = todayISO();
+    const today = todayDateString();
 
-    db.transaction((tx) => {
-      tx.insert(plaidItems)
+    await db.transaction(async (tx) => {
+      await tx.insert(plaidItems)
         .values({
           id: plaidItemId,
           householdId,
           accessToken: encrypt(accessToken),
           plaidInstitutionId: institutionId,
+          plaidItemId: itemRes.data.item.item_id,
           institutionName,
+          primaryColor: institutionPrimaryColor,
           status: "active",
-        })
-        .run();
+        });
+
+      if (institutionLogo) {
+        await tx.insert(institutionLogos)
+          .values({
+            id: uuid(),
+            plaidItemId: plaidItemId,
+            logo: institutionLogo,
+          });
+      }
 
       for (const acct of plaidAccounts) {
-        const accountId = uuid();
-        const currentBalance = plaidAmountToCents(acct.balances.current ?? null);
-        const availableBalance = plaidAmountToCents(
-          acct.balances.available ?? null
-        );
-        const creditLimit = plaidAmountToCents(acct.balances.limit ?? null);
+        const accountFields = {
+          name: acct.name,
+          officialName: acct.official_name ?? null,
+          type: mapPlaidAccountType(acct.type, acct.subtype ?? null),
+          subtype: acct.subtype ?? null,
+          currentBalance: plaidAmountToCents(acct.balances.current ?? null),
+          availableBalance: plaidAmountToCents(acct.balances.available ?? null),
+          creditLimit: plaidAmountToCents(acct.balances.limit ?? null),
+          currency: acct.balances.iso_currency_code ?? "USD",
+        };
 
-        tx.insert(accounts)
-          .values({
-            id: accountId,
-            householdId,
-            plaidItemId,
-            plaidAccountId: acct.account_id,
-            name: acct.name,
-            officialName: acct.official_name ?? null,
-            type: mapPlaidAccountType(acct.type, acct.subtype ?? null),
-            subtype: acct.subtype ?? null,
-            currentBalance,
-            availableBalance,
-            creditLimit,
-            currency: acct.balances.iso_currency_code ?? "USD",
-          })
-          .run();
+        const [existingDeleted] = await tx
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(
+            and(
+              eq(accounts.plaidAccountId, acct.account_id),
+              eq(accounts.householdId, householdId),
+              isNotNull(accounts.deletedAt),
+            ),
+          )
+          .orderBy(desc(accounts.deletedAt))
+          .limit(1);
 
-        if (currentBalance !== null) {
-          tx.insert(balanceHistory)
+        let accountId: string;
+
+        if (existingDeleted) {
+          accountId = existingDeleted.id;
+          await tx.update(accounts)
+            .set({ ...accountFields, deletedAt: null, plaidItemId, updatedAt: new Date() })
+            .where(eq(accounts.id, existingDeleted.id));
+          console.log(`[plaid] Resurrected account ${accountId} (plaid: ${acct.account_id})`);
+        } else {
+          accountId = uuid();
+          await tx.insert(accounts)
+            .values({
+              id: accountId,
+              householdId,
+              plaidItemId,
+              plaidAccountId: acct.account_id,
+              ...accountFields,
+            });
+          console.log(`[plaid] Created new account ${accountId} (plaid: ${acct.account_id})`);
+        }
+
+        if (accountFields.currentBalance !== null) {
+          await tx.insert(balanceHistory)
             .values({
               id: uuid(),
               accountId,
               date: today,
-              balance: currentBalance,
+              balance: accountFields.currentBalance,
             })
-            .run();
+            .onConflictDoUpdate({
+              target: [balanceHistory.accountId, balanceHistory.date],
+              set: { balance: accountFields.currentBalance },
+            });
         }
       }
     });
@@ -147,8 +189,7 @@ export async function exchangeAndStoreAccounts(
     return { success: true, accountCount: plaidAccounts.length };
   } catch (e: unknown) {
     console.error("Exchange failed:", e);
-    const plaidError = e as { response?: { data?: { error_code?: string } } };
-    const errorCode = plaidError?.response?.data?.error_code;
+    const errorCode = extractPlaidErrorCode(e);
     if (
       errorCode === "INSTITUTION_DOWN" ||
       errorCode === "INSTITUTION_NOT_RESPONDING"
@@ -171,96 +212,48 @@ export async function exchangePublicToken(publicToken: string) {
   return result;
 }
 
-const createManualAccountSchema = z.object({
-  name: z.string().min(1).max(100),
-  type: z.enum(["checking", "savings", "credit", "loan", "investment", "other"]),
-  balance: z.number().transform((v) => Math.round(v)),
-});
+export async function disconnectPlaidItem(
+  plaidItemId: string,
+  db: LedgrDb = defaultDb,
+) {
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
-type CreateManualAccountInput = {
-  name: string;
-  type: "checking" | "savings" | "credit" | "loan" | "investment" | "other";
-  balance: number;
-};
+  const scoped = scopedQuery(householdId, db);
 
-export async function createManualAccount(data: CreateManualAccountInput, db: LedgrDb = defaultDb) {
-  const householdId = await getHouseholdId();
+  const [item] = await db
+    .select({
+      id: plaidItems.id,
+      accessToken: plaidItems.accessToken,
+    })
+    .from(plaidItems)
+    .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
+    .limit(1);
 
-  const parsed = createManualAccountSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: "Invalid input" };
+  if (!item) {
+    return { error: "Item not found" };
   }
 
-  const accountId = uuid();
-  const today = todayISO();
+  try {
+    await getPlaidClient().itemRemove({
+      access_token: decrypt(item.accessToken),
+    });
+  } catch {
+    // Best-effort — continue with local cleanup even if Plaid call fails
+  }
 
-  db.transaction((tx) => {
-    tx.insert(accounts)
-      .values({
-        id: accountId,
-        householdId,
-        name: parsed.data.name,
-        type: parsed.data.type,
-        currentBalance: parsed.data.balance,
-        isManual: true,
-      })
-      .run();
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.update(accounts)
+      .set({ deletedAt: now, plaidItemId: null })
+      .where(eq(accounts.plaidItemId, plaidItemId));
 
-    tx.insert(balanceHistory)
-      .values({
-        id: uuid(),
-        accountId,
-        date: today,
-        balance: parsed.data.balance,
-      })
-      .run();
+    await tx.delete(plaidItems)
+      .where(eq(plaidItems.id, plaidItemId));
   });
 
   revalidatePath("/accounts");
-  return { success: true, accountId };
-}
-
-const updateAccountSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  isHidden: z.boolean().optional(),
-});
-
-type UpdateAccountInput = {
-  name?: string;
-  isHidden?: boolean;
-};
-
-export async function updateAccount(accountId: string, data: UpdateAccountInput) {
-  const householdId = await getHouseholdId();
-
-  const parsed = updateAccountSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: "Invalid input" };
-  }
-
-  const scoped = scopedQuery(householdId);
-  const existing = defaultDb
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(scoped.where(accounts, eq(accounts.id, accountId)))
-    .get();
-
-  if (!existing) {
-    return { error: "Account not found" };
-  }
-
-  const updates: Partial<typeof accounts.$inferInsert> = {};
-  if (parsed.data.name !== undefined) updates.name = parsed.data.name;
-  if (parsed.data.isHidden !== undefined) updates.isHidden = parsed.data.isHidden;
-
-  if (Object.keys(updates).length > 0) {
-    defaultDb
-      .update(accounts)
-      .set(updates)
-      .where(eq(accounts.id, accountId))
-      .run();
-  }
-
-  revalidatePath("/accounts");
+  revalidatePath("/investments");
   return { success: true };
 }

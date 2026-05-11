@@ -1,12 +1,32 @@
 "use client";
 
+import { useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, LogOut } from "lucide-react";
+import {
+  LayoutDashboard,
+  Building2,
+  ArrowLeftRight,
+  TrendingUp,
+  Wallet,
+  BarChart3,
+  Receipt,
+  LogOut,
+  Upload,
+  Settings,
+} from "lucide-react";
 import { authClient } from "@/lib/auth/client";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
 
 interface SidebarNavProps {
   userName: string;
@@ -16,11 +36,20 @@ interface SidebarNavProps {
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/accounts", label: "Accounts", icon: Building2 },
+  { href: "/investments", label: "Investments", icon: TrendingUp },
+  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { href: "/budgets", label: "Budgets", icon: Wallet },
+  { href: "/bills", label: "Bills", icon: Receipt },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/import", label: "Import", icon: Upload },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { setOpenMobile } = useSidebar();
+  const closeMobile = useCallback(() => setOpenMobile(false), [setOpenMobile]);
 
   async function handleSignOut() {
     await authClient.signOut();
@@ -28,58 +57,60 @@ export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
   }
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="px-4 py-4">
-        <span className="text-lg font-bold tracking-tight">Ledgr</span>
-      </div>
+    <Sidebar variant="inset" collapsible="offcanvas">
+      <SidebarHeader className="px-4 py-4">
+        <Link href="/" className="text-lg font-bold tracking-tight">
+          Ledgr
+        </Link>
+      </SidebarHeader>
 
-      <Separator />
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu>
+            {NAV_ITEMS.map((item) => {
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    render={
+                      <Link
+                        href={item.href}
+                        onClick={closeMobile}
+                      />
+                    }
+                    isActive={isActive}
+                    tooltip={item.label}
+                  >
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
 
-      <nav className="flex-1 px-2 py-2 space-y-0.5">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              )}
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <Separator />
-
-      <div className="px-3 py-3">
-        <div className="flex items-center justify-between">
+      <SidebarFooter className="pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-center justify-between px-2">
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{userName}</p>
             <p className="text-xs text-sidebar-foreground/60 truncate">
               {userEmail}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={handleSignOut}
             aria-label="Sign out"
-            className="text-sidebar-foreground/60 hover:text-sidebar-foreground h-7 w-7 p-0"
+            className="text-sidebar-foreground/60 hover:text-sidebar-foreground p-1.5 rounded-md hover:bg-sidebar-accent transition-colors"
           >
             <LogOut className="size-4" />
-          </Button>
+          </button>
         </div>
-      </div>
-    </aside>
+      </SidebarFooter>
+    </Sidebar>
   );
 }

@@ -9,24 +9,21 @@ import {
   categoryGroups,
   categories,
 } from "../../src/db/schema";
+import type { LedgrDb } from "../../src/db";
 
 describe("scopedQuery - household data isolation", () => {
-  let db: ReturnType<typeof createTestDb>["db"];
-  let close: () => void;
+  let db: LedgrDb;
+  let close: () => Promise<void>;
 
-  beforeEach(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+  beforeEach(async () => {
+    ({ db, close } = await createTestDb());
 
-    // Seed two households
-    db.insert(households).values([
+    await db.insert(households).values([
       { id: "hh-a", name: "Household A" },
       { id: "hh-b", name: "Household B" },
-    ]).run();
+    ]);
 
-    // Seed accounts for each household
-    db.insert(accounts).values([
+    await db.insert(accounts).values([
       {
         id: "acc-a1",
         householdId: "hh-a",
@@ -39,21 +36,19 @@ describe("scopedQuery - household data isolation", () => {
         name: "Checking B",
         type: "checking",
       },
-    ]).run();
+    ]);
 
-    // Seed category groups and categories for transactions
-    db.insert(categoryGroups).values([
+    await db.insert(categoryGroups).values([
       { id: "cg-a", householdId: "hh-a", name: "Expenses A" },
       { id: "cg-b", householdId: "hh-b", name: "Expenses B" },
-    ]).run();
+    ]);
 
-    db.insert(categories).values([
+    await db.insert(categories).values([
       { id: "cat-a", householdId: "hh-a", groupId: "cg-a", name: "Food A" },
       { id: "cat-b", householdId: "hh-b", groupId: "cg-b", name: "Food B" },
-    ]).run();
+    ]);
 
-    // Seed transactions
-    db.insert(transactions).values([
+    await db.insert(transactions).values([
       {
         id: "txn-a1",
         accountId: "acc-a1",
@@ -74,53 +69,50 @@ describe("scopedQuery - household data isolation", () => {
         amount: 3000,
         normalizedAmount: -3000,
       },
-    ]).run();
+    ]);
   });
 
-  afterEach(() => {
-    close();
+  afterEach(async () => {
+    await close();
   });
 
-  it("where() filters to only the specified household", () => {
+  it("where() filters to only the specified household", async () => {
     const scoped = scopedQuery("hh-a", db);
-    const result = db
+    const result = await db
       .select()
       .from(accounts)
-      .where(scoped.where(accounts))
-      .all();
+      .where(scoped.where(accounts));
 
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Checking A");
   });
 
-  it("household A cannot see household B transactions", () => {
+  it("household A cannot see household B transactions", async () => {
     const scoped = scopedQuery("hh-a", db);
-    const result = db
+    const result = await db
       .select()
       .from(transactions)
-      .where(scoped.where(transactions))
-      .all();
+      .where(scoped.where(transactions));
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("txn-a1");
     expect(result.every((t) => t.householdId === "hh-a")).toBe(true);
   });
 
-  it("household B cannot see household A transactions", () => {
+  it("household B cannot see household A transactions", async () => {
     const scoped = scopedQuery("hh-b", db);
-    const result = db
+    const result = await db
       .select()
       .from(transactions)
-      .where(scoped.where(transactions))
-      .all();
+      .where(scoped.where(transactions));
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("txn-b1");
     expect(result.every((t) => t.householdId === "hh-b")).toBe(true);
   });
 
-  it("where() combines with additional conditions", () => {
-    db.insert(transactions).values({
+  it("where() combines with additional conditions", async () => {
+    await db.insert(transactions).values({
       id: "txn-a2",
       accountId: "acc-a1",
       householdId: "hh-a",
@@ -129,26 +121,24 @@ describe("scopedQuery - household data isolation", () => {
       name: "Coffee Shop",
       amount: 500,
       normalizedAmount: -500,
-    }).run();
+    });
 
     const scoped = scopedQuery("hh-a", db);
-    const result = db
+    const result = await db
       .select()
       .from(transactions)
-      .where(scoped.where(transactions, eq(transactions.id, "txn-a2")))
-      .all();
+      .where(scoped.where(transactions, eq(transactions.id, "txn-a2")));
 
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Coffee Shop");
   });
 
-  it("non-existent household returns empty results", () => {
+  it("non-existent household returns empty results", async () => {
     const scoped = scopedQuery("hh-nonexistent", db);
-    const result = db
+    const result = await db
       .select()
       .from(transactions)
-      .where(scoped.where(transactions))
-      .all();
+      .where(scoped.where(transactions));
 
     expect(result).toHaveLength(0);
   });

@@ -8,15 +8,15 @@ import {
 } from "@/db/schema";
 import { seedDefaultCategories } from "@/db/seed/categories";
 
-export function provisionHousehold(
+export async function provisionHousehold(
   userId: string,
   db: LedgrDb = defaultDb
-): string {
-  const existing = db
+): Promise<string> {
+  const [existing] = await db
     .select({ householdId: householdMembers.householdId })
     .from(householdMembers)
     .where(eq(householdMembers.userId, userId))
-    .get();
+    .limit(1);
 
   if (existing) {
     return existing.householdId;
@@ -24,25 +24,25 @@ export function provisionHousehold(
 
   const householdId = uuid();
 
-  db.transaction((tx) => {
-    tx.insert(households).values({
+  await db.transaction(async (tx) => {
+    await tx.insert(households).values({
       id: householdId,
       name: "My Finances",
-    }).run();
+    });
 
-    tx.insert(householdMembers).values({
+    await tx.insert(householdMembers).values({
       id: uuid(),
       householdId,
       userId,
       role: "owner",
-    }).run();
+    });
 
-    tx.insert(userSettings).values({
+    await tx.insert(userSettings).values({
       id: uuid(),
       userId,
-    }).run();
+    });
 
-    seedDefaultCategories(tx, householdId);
+    await seedDefaultCategories(tx, householdId);
   });
 
   return householdId;

@@ -9,15 +9,25 @@ export function displayToCents(display: number): number {
   return Math.round(display * 100);
 }
 
-const FLIP_SIGN_TYPES = new Set(["depository", "checking", "savings", "other"]);
-
-export function normalizeAmount(amountCents: number, accountType: string): number {
-  const shouldFlip = FLIP_SIGN_TYPES.has(accountType);
-  const normalized = shouldFlip ? -amountCents : amountCents;
-  return normalized === 0 ? 0 : normalized;
+// Plaid convention: positive = money out, negative = money in (all account types).
+// We flip universally so: negative = expense, positive = income.
+export function normalizeAmount(amountCents: number, _accountType: string): number {
+  return amountCents === 0 ? 0 : -amountCents;
 }
 
 export function plaidAmountToCents(plaidAmount: number | null | undefined): number | null {
   if (plaidAmount === null || plaidAmount === undefined) return null;
   return Math.round(plaidAmount * 100);
+}
+
+export function centsToInputDisplay(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+export function parseToCents(input: string): number | null {
+  const cleaned = input.replace(/[$,\s]/g, "");
+  if (cleaned === "") return null;
+  const parsed = Number(cleaned);
+  if (Number.isNaN(parsed)) return null;
+  return Math.round(parsed * 100);
 }

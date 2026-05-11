@@ -130,3 +130,34 @@
     @apply font-sans;
   }
 }
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.18);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(48px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-48px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

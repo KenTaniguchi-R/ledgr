@@ -1,8 +1,7 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, integer, pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
 import { households } from "./households";
 
-export const categoryGroups = sqliteTable(
+export const categoryGroups = pgTable(
   "category_groups",
   {
     id: text("id").primaryKey(),
@@ -12,13 +11,13 @@ export const categoryGroups = sqliteTable(
     name: text("name").notNull(),
     icon: text("icon"),
     sortOrder: integer("sort_order").default(0),
-    isSystem: integer("is_system", { mode: "boolean" }).default(false),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    isSystem: boolean("is_system").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("idx_catgroups_household").on(table.householdId)]
 );
 
-export const categories = sqliteTable(
+export const categories = pgTable(
   "categories",
   {
     id: text("id").primaryKey(),
@@ -30,10 +29,10 @@ export const categories = sqliteTable(
       .references(() => categoryGroups.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     icon: text("icon"),
-    isIncome: integer("is_income", { mode: "boolean" }).default(false),
-    isSystem: integer("is_system", { mode: "boolean" }).default(false),
+    isIncome: boolean("is_income").default(false),
+    isSystem: boolean("is_system").default(false),
     sortOrder: integer("sort_order").default(0),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_categories_household").on(table.householdId),
@@ -41,7 +40,7 @@ export const categories = sqliteTable(
   ]
 );
 
-export const categoryRules = sqliteTable(
+export const categoryRules = pgTable(
   "category_rules",
   {
     id: text("id").primaryKey(),
@@ -56,7 +55,7 @@ export const categoryRules = sqliteTable(
     ),
     matchPattern: text("match_pattern").notNull(),
     priority: integer("priority").default(0),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_catrules_household").on(table.householdId, table.priority),

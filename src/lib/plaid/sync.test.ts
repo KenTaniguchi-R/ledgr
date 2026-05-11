@@ -52,7 +52,7 @@ describe("processBatch", () => {
     expect(result.inserts[0].normalizedAmount).toBe(-1250);
   });
 
-  it("normalizes amount for credit (preserves sign)", () => {
+  it("normalizes amount for credit (flips sign)", () => {
     const result = processBatch(
       [makeTxn({ account_id: "acc-credit", amount: 12.5 })],
       [],
@@ -61,8 +61,8 @@ describe("processBatch", () => {
       accountTypeMap,
     );
 
-    // credit → sign preserved: 1250 stays 1250
-    expect(result.inserts[0].normalizedAmount).toBe(1250);
+    // credit → sign flipped: 1250 → -1250 (expense)
+    expect(result.inserts[0].normalizedAmount).toBe(-1250);
   });
 
   it("builds merchant upsert payload with title-cased name", () => {

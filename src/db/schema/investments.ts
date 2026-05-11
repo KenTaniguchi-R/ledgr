@@ -1,14 +1,15 @@
 import {
   index,
   integer,
-  real,
-  sqliteTable,
+  doublePrecision,
+  pgTable,
   text,
-} from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { accounts } from "./accounts";
 
-export const investmentHoldings = sqliteTable(
+export const investmentHoldings = pgTable(
   "investment_holdings",
   {
     id: text("id").primaryKey(),
@@ -18,24 +19,26 @@ export const investmentHoldings = sqliteTable(
     plaidSecurityId: text("plaid_security_id"),
     securityName: text("security_name").notNull(),
     ticker: text("ticker"),
-    quantity: real("quantity"),
+    quantity: doublePrecision("quantity"),
     costBasis: integer("cost_basis"),
     currentValue: integer("current_value"),
     type: text("type", {
       enum: ["stock", "etf", "mutual_fund", "bond", "crypto", "cash", "other"],
     }),
+    sector: text("sector"),
     currency: text("currency").default("USD"),
     asOfDate: text("as_of_date").notNull(),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_holdings_account").on(table.accountId),
     index("idx_holdings_date").on(table.accountId, table.asOfDate),
+    index("idx_holdings_security").on(table.plaidSecurityId),
   ]
 );
 
-export const holdingsHistory = sqliteTable(
+export const holdingsHistory = pgTable(
   "holdings_history",
   {
     id: text("id").primaryKey(),
@@ -45,18 +48,23 @@ export const holdingsHistory = sqliteTable(
     plaidSecurityId: text("plaid_security_id"),
     securityName: text("security_name"),
     ticker: text("ticker"),
-    quantity: real("quantity"),
+    quantity: doublePrecision("quantity"),
     value: integer("value"),
     date: text("date").notNull(),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_holdingshistory_account_date").on(table.accountId, table.date),
     index("idx_holdingshistory_security").on(table.plaidSecurityId, table.date),
+    uniqueIndex("uq_holdingshistory_account_security_date").on(
+      table.accountId,
+      table.plaidSecurityId,
+      table.date,
+    ),
   ]
 );
 
-export const investmentTransactions = sqliteTable(
+export const investmentTransactions = pgTable(
   "investment_transactions",
   {
     id: text("id").primaryKey(),
@@ -69,14 +77,15 @@ export const investmentTransactions = sqliteTable(
     type: text("type", {
       enum: ["buy", "sell", "dividend", "transfer", "fee", "other"],
     }),
-    quantity: real("quantity"),
+    quantity: doublePrecision("quantity"),
     price: integer("price"),
     amount: integer("amount").notNull(),
     fees: integer("fees").default(0),
     date: text("date").notNull(),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_invtxn_account_date").on(table.accountId, table.date),
+    uniqueIndex("uq_invtxn_plaid_id").on(table.plaidInvestmentTransactionId),
   ]
 );

@@ -1,5 +1,6 @@
 import { v4 as uuid } from "uuid";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
+import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import type { PlaidApi } from "plaid";
 import {
   PlaidSyncResponseSchema,
@@ -9,6 +10,13 @@ import {
 import { plaidAmountToCents, normalizeAmount } from "@/lib/money";
 import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "./client";
+import {
+  extractPlaidErrorCode,
+  titleCase,
+  REAUTH_ERROR_CODES,
+  TRANSIENT_ERROR_CODES,
+  retryWithBackoff,
+} from "./utils";
 import type { LedgrDb } from "@/db";
 import {
   plaidItems,
@@ -37,6 +45,7 @@ export interface FetchAllPagesResult {
   modified: PlaidTransaction[];
   removed: PlaidRemovedTransaction[];
   nextCursor: string;
+  accounts: AccountBalanceInfo[];
 }
 
 export interface ProcessedBatch {
@@ -60,87 +69,15 @@ interface TransactionRow {
   pendingTransactionId: string | null;
   merchantName: string | null;
   logoUrl: string | null;
-  plaidCategory: string | null;
-  plaidCategoryDetailed: string | null;
+  pfcPrimary: string | null;
+  pfcDetailed: string | null;
+  isTransfer: boolean;
 }
 
 export interface MerchantUpsert {
   normalizedName: string;
   rawNames: string[];
   logoUrl: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// Error classification
-// ---------------------------------------------------------------------------
-
-const REAUTH_ERROR_CODES = new Set([
-  "ITEM_LOGIN_REQUIRED",
-  "INVALID_CREDENTIALS",
-  "INVALID_MFA",
-  "ITEM_LOCKED",
-  "USER_SETUP_REQUIRED",
-  "MFA_NOT_SUPPORTED",
-  "INSUFFICIENT_CREDENTIALS",
-]);
-
-const TRANSIENT_ERROR_CODES = new Set([
-  "INSTITUTION_DOWN",
-  "INSTITUTION_NOT_RESPONDING",
-  "INSTITUTION_NOT_AVAILABLE",
-  "TRANSACTIONS_LIMIT",
-  "RATE_LIMIT_EXCEEDED",
-  "INTERNAL_SERVER_ERROR",
-]);
-
-// ---------------------------------------------------------------------------
-// Retry helper
-// ---------------------------------------------------------------------------
-
-async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-): Promise<T> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err: unknown) {
-      const errorCode = extractPlaidErrorCode(err);
-      if (errorCode !== "RATE_LIMIT_EXCEEDED" || attempt === maxAttempts) {
-        throw err;
-      }
-      const baseDelay = Math.pow(2, attempt) * 500;
-      const jitter = Math.random() * 500;
-      await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
-    }
-  }
-  // Should be unreachable, but TypeScript needs it
-  throw new Error("retryWithBackoff exhausted");
-}
-
-function extractPlaidErrorCode(err: unknown): string | null {
-  if (
-    err &&
-    typeof err === "object" &&
-    "response" in err &&
-    (err as { response?: { data?: { error_code?: string } } }).response?.data
-      ?.error_code
-  ) {
-    return (err as { response: { data: { error_code: string } } }).response.data
-      .error_code;
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// Title-case helper
-// ---------------------------------------------------------------------------
-
-function titleCase(str: string): string {
-  return str
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ---------------------------------------------------------------------------
@@ -155,12 +92,18 @@ export async function fetchAllPages(
   const allAdded: PlaidTransaction[] = [];
   const allModified: PlaidTransaction[] = [];
   const allRemoved: PlaidRemovedTransaction[] = [];
+  const accountsMap = new Map<string, AccountBalanceInfo>();
   let currentCursor = cursor;
 
   let hasMore = true;
   while (hasMore) {
-    const requestBody: { access_token: string; cursor?: string } = {
+    const requestBody: {
+      access_token: string;
+      cursor?: string;
+      options?: { include_personal_finance_category: boolean };
+    } = {
       access_token: accessToken,
+      options: { include_personal_finance_category: true },
     };
     if (currentCursor !== null) {
       requestBody.cursor = currentCursor;
@@ -176,6 +119,11 @@ export async function fetchAllPages(
     allAdded.push(...parsed.added);
     allModified.push(...parsed.modified);
     allRemoved.push(...parsed.removed);
+    if (parsed.accounts) {
+      for (const account of parsed.accounts) {
+        accountsMap.set(account.account_id, account);
+      }
+    }
     currentCursor = parsed.next_cursor;
     hasMore = parsed.has_more;
   }
@@ -185,6 +133,7 @@ export async function fetchAllPages(
     modified: allModified,
     removed: allRemoved,
     nextCursor: currentCursor!,
+    accounts: Array.from(accountsMap.values()),
   };
 }
 
@@ -239,8 +188,11 @@ export function processBatch(
       pendingTransactionId: txn.pending_transaction_id ?? null,
       merchantName: txn.merchant_name ? titleCase(txn.merchant_name) : null,
       logoUrl: txn.logo_url ?? null,
-      plaidCategory: txn.personal_finance_category?.primary ?? null,
-      plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
+      pfcPrimary: txn.personal_finance_category?.primary ?? null,
+      pfcDetailed: txn.personal_finance_category?.detailed ?? null,
+      isTransfer: ["TRANSFER_IN", "TRANSFER_OUT", "LOAN_PAYMENTS"].includes(
+        txn.personal_finance_category?.primary ?? "",
+      ),
     };
   }
 
@@ -252,19 +204,15 @@ export function processBatch(
     }
   }
 
-  // Process added
-  const inserts: TransactionRow[] = [];
-  for (const txn of added) {
-    collectMerchant(txn);
-    inserts.push(toRow(txn));
+  function processTransactions(txns: PlaidTransaction[]): TransactionRow[] {
+    return txns.map((txn) => {
+      collectMerchant(txn);
+      return toRow(txn);
+    });
   }
 
-  // Process modified
-  const upserts: TransactionRow[] = [];
-  for (const txn of modified) {
-    collectMerchant(txn);
-    upserts.push(toRow(txn));
-  }
+  const inserts = processTransactions(added);
+  const upserts = processTransactions(modified);
 
   // Removed IDs
   const removedIds = removed.map((r) => r.transaction_id);
@@ -300,20 +248,20 @@ export async function applyToDb(
   newCursor: string,
   accountBalances: AccountBalanceInfo[] = [],
 ): Promise<{ addedCount: number; modifiedCount: number; removedCount: number }> {
-  const now = new Date().toISOString();
+  const now = new Date();
 
-  return db.transaction((tx) => {
+  return db.transaction(async (tx) => {
     // --- Build account lookup: plaid_account_id → internal account id ---
-    const accountRows = tx
+    const accountRows = await tx
       .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
       .from(accounts)
       .where(
         and(
           eq(accounts.householdId, householdId),
           eq(accounts.plaidItemId, itemId),
+          isNull(accounts.deletedAt),
         ),
-      )
-      .all();
+      );
 
     const plaidToInternal = new Map<string, string>();
     for (const row of accountRows) {
@@ -325,7 +273,7 @@ export async function applyToDb(
     // --- Upsert merchants ---
     const merchantNameToId = new Map<string, string>();
     for (const mu of processed.merchantUpserts) {
-      const existing = tx
+      const [existing] = await tx
         .select({ id: merchants.id, rawNames: merchants.rawNames })
         .from(merchants)
         .where(
@@ -334,7 +282,7 @@ export async function applyToDb(
             eq(merchants.name, mu.normalizedName),
           ),
         )
-        .get();
+        .limit(1);
 
       if (existing) {
         // Merge raw names
@@ -344,18 +292,17 @@ export async function applyToDb(
         const merged = Array.from(
           new Set([...existingRaw, ...mu.rawNames]),
         );
-        tx.update(merchants)
+        await tx.update(merchants)
           .set({
             rawNames: JSON.stringify(merged),
             logoUrl: mu.logoUrl ?? undefined,
             updatedAt: now,
           })
-          .where(eq(merchants.id, existing.id))
-          .run();
+          .where(eq(merchants.id, existing.id));
         merchantNameToId.set(mu.normalizedName, existing.id);
       } else {
         const merchantId = uuid();
-        tx.insert(merchants)
+        await tx.insert(merchants)
           .values({
             id: merchantId,
             householdId,
@@ -364,8 +311,7 @@ export async function applyToDb(
             logoUrl: mu.logoUrl,
             createdAt: now,
             updatedAt: now,
-          })
-          .run();
+          });
         merchantNameToId.set(mu.normalizedName, merchantId);
       }
     }
@@ -380,7 +326,7 @@ export async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
-      tx.insert(transactions)
+      await tx.insert(transactions)
         .values({
           id: uuid(),
           accountId: internalAccountId,
@@ -395,10 +341,12 @@ export async function applyToDb(
           normalizedAmount: row.normalizedAmount,
           currency: row.currency,
           pending: row.pending,
+          pfcPrimary: row.pfcPrimary,
+          pfcDetailed: row.pfcDetailed,
+          isTransfer: row.isTransfer,
           createdAt: now,
           updatedAt: now,
-        })
-        .run();
+        });
       addedCount++;
     }
 
@@ -412,14 +360,18 @@ export async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
-      const existingTxn = tx
-        .select({ id: transactions.id })
+      const [existingTxn] = await tx
+        .select({
+          id: transactions.id,
+          categoryId: transactions.categoryId,
+          reviewed: transactions.reviewed,
+        })
         .from(transactions)
         .where(eq(transactions.plaidTransactionId, row.plaidTransactionId))
-        .get();
+        .limit(1);
 
       if (existingTxn) {
-        tx.update(transactions)
+        await tx.update(transactions)
           .set({
             accountId: internalAccountId,
             merchantId,
@@ -431,12 +383,15 @@ export async function applyToDb(
             currency: row.currency,
             pending: row.pending,
             pendingTransactionId: row.pendingTransactionId,
+            pfcPrimary: row.pfcPrimary,
+            pfcDetailed: row.pfcDetailed,
+            isTransfer: row.isTransfer,
             updatedAt: now,
+            // Preserve user's manual categorization and reviewed status
           })
-          .where(eq(transactions.id, existingTxn.id))
-          .run();
+          .where(eq(transactions.id, existingTxn.id));
       } else {
-        tx.insert(transactions)
+        await tx.insert(transactions)
           .values({
             id: uuid(),
             accountId: internalAccountId,
@@ -451,31 +406,66 @@ export async function applyToDb(
             normalizedAmount: row.normalizedAmount,
             currency: row.currency,
             pending: row.pending,
+            pfcPrimary: row.pfcPrimary,
+            pfcDetailed: row.pfcDetailed,
+            isTransfer: row.isTransfer,
             createdAt: now,
             updatedAt: now,
-          })
-          .run();
+          });
       }
       modifiedCount++;
     }
 
-    // --- Soft-delete pending→posted replacements ---
+    // --- Soft-delete pending→posted replacements, inheriting category ---
     for (const pendingPlaidId of processed.pendingToRemove) {
-      tx.update(transactions)
-        .set({ deletedAt: now, updatedAt: now })
+      const [pendingRow] = await tx
+        .select({
+          categoryId: transactions.categoryId,
+          categorySource: transactions.categorySource,
+          reviewed: transactions.reviewed,
+        })
+        .from(transactions)
         .where(eq(transactions.plaidTransactionId, pendingPlaidId))
-        .run();
+        .limit(1);
+
+      await tx.update(transactions)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(eq(transactions.plaidTransactionId, pendingPlaidId));
+
+      // If the pending transaction was manually categorized, copy to the posted version
+      if (pendingRow?.categoryId) {
+        const [postedTxn] = await tx
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.pendingTransactionId, pendingPlaidId),
+              isNull(transactions.deletedAt),
+            ),
+          )
+          .limit(1);
+
+        if (postedTxn) {
+          await tx.update(transactions)
+            .set({
+              categoryId: pendingRow.categoryId,
+              categorySource: pendingRow.categorySource,
+              reviewed: pendingRow.reviewed,
+              updatedAt: now,
+            })
+            .where(eq(transactions.id, postedTxn.id));
+        }
+      }
     }
 
     // --- Soft-delete removed transactions ---
     let removedCount = 0;
     for (const removedPlaidId of processed.removedIds) {
-      const result = tx
+      const result = await tx
         .update(transactions)
         .set({ deletedAt: now, updatedAt: now })
-        .where(eq(transactions.plaidTransactionId, removedPlaidId))
-        .run();
-      if (result.changes > 0) removedCount++;
+        .where(eq(transactions.plaidTransactionId, removedPlaidId));
+      if (result.rowCount && result.rowCount > 0) removedCount++;
     }
 
     // --- Update account balances ---
@@ -483,25 +473,23 @@ export async function applyToDb(
       const internalId = plaidToInternal.get(ab.account_id);
       if (!internalId) continue;
 
-      tx.update(accounts)
+      await tx.update(accounts)
         .set({
           currentBalance: plaidAmountToCents(ab.balances.current),
           availableBalance: plaidAmountToCents(ab.balances.available),
           creditLimit: plaidAmountToCents(ab.balances.limit),
           updatedAt: now,
         })
-        .where(eq(accounts.id, internalId))
-        .run();
+        .where(eq(accounts.id, internalId));
     }
 
     // --- Update sync cursor ---
-    tx.update(plaidItems)
+    await tx.update(plaidItems)
       .set({ syncCursor: newCursor, updatedAt: now })
-      .where(eq(plaidItems.id, itemId))
-      .run();
+      .where(eq(plaidItems.id, itemId));
 
     // --- Write sync_log entry ---
-    tx.insert(syncLog)
+    await tx.insert(syncLog)
       .values({
         id: uuid(),
         plaidItemId: itemId,
@@ -510,11 +498,15 @@ export async function applyToDb(
         modifiedCount,
         removedCount,
         syncedAt: now,
-      })
-      .run();
+      });
+
+    // --- Reset item status to active ---
+    await tx.update(plaidItems)
+      .set({ status: "active", errorCode: null, updatedAt: now })
+      .where(eq(plaidItems.id, itemId));
 
     return { addedCount, modifiedCount, removedCount };
-  }) as { addedCount: number; modifiedCount: number; removedCount: number };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -549,17 +541,17 @@ async function doSync(
   householdId: string,
   db: LedgrDb,
 ): Promise<SyncResult> {
-  const now = new Date().toISOString();
+  const now = new Date();
 
   try {
     // Read plaid_items row
-    const item = db
+    const [item] = await db
       .select()
       .from(plaidItems)
       .where(
         and(eq(plaidItems.id, itemId), eq(plaidItems.householdId, householdId)),
       )
-      .get();
+      .limit(1);
 
     if (!item) {
       return { success: false, error: `Plaid item ${itemId} not found` };
@@ -569,7 +561,7 @@ async function doSync(
     const accessToken = decrypt(item.accessToken);
 
     // Build accountTypeMap
-    const accountRows = db
+    const accountRows = await db
       .select({
         plaidAccountId: accounts.plaidAccountId,
         type: accounts.type,
@@ -579,9 +571,9 @@ async function doSync(
         and(
           eq(accounts.householdId, householdId),
           eq(accounts.plaidItemId, itemId),
+          isNull(accounts.deletedAt),
         ),
-      )
-      .all();
+      );
 
     const accountTypeMap = new Map<string, string>();
     for (const row of accountRows) {
@@ -611,20 +603,30 @@ async function doSync(
       itemId,
       householdId,
       fetchResult.nextCursor,
+      fetchResult.accounts,
     );
 
-    // Reset status to active on success
-    db.update(plaidItems)
-      .set({ status: "active", errorCode: null, updatedAt: now })
-      .where(eq(plaidItems.id, itemId))
-      .run();
+    // Auto-categorize newly synced transactions (non-fatal)
+    try {
+      await categorizeSyncedTransactions(itemId, householdId, db);
+    } catch (catError) {
+      console.error(`Categorization failed for item ${itemId}:`, catError);
+    }
+
+    // AI categorization (async, non-fatal, separate from sync engine)
+    try {
+      const { categorizeWithAi } = await import("@/lib/ai/categorize");
+      await categorizeWithAi(householdId, db);
+    } catch (aiError) {
+      console.error(`AI categorization failed for item ${itemId}:`, aiError);
+    }
 
     return {
       success: true,
       addedCount: counts.addedCount,
       modifiedCount: counts.modifiedCount,
       removedCount: counts.removedCount,
-      syncedAt: now,
+      syncedAt: now.toISOString(),
     };
   } catch (err: unknown) {
     const errorCode = extractPlaidErrorCode(err);
@@ -633,34 +635,31 @@ async function doSync(
 
     // Classify error and update item status
     if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
-      db.update(plaidItems)
+      await db.update(plaidItems)
         .set({
           status: "reauth_required",
           errorCode,
           updatedAt: now,
         })
-        .where(eq(plaidItems.id, itemId))
-        .run();
+        .where(eq(plaidItems.id, itemId));
     } else if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
-      db.update(plaidItems)
+      await db.update(plaidItems)
         .set({
           status: "error",
           errorCode,
           updatedAt: now,
         })
-        .where(eq(plaidItems.id, itemId))
-        .run();
+        .where(eq(plaidItems.id, itemId));
     }
 
     // Write error sync_log entry
-    db.insert(syncLog)
+    await db.insert(syncLog)
       .values({
         id: uuid(),
         plaidItemId: itemId,
         error: errorCode ?? errorMessage,
         syncedAt: now,
-      })
-      .run();
+      });
 
     return { success: false, error: errorCode ?? errorMessage };
   }

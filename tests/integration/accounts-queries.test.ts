@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
 import { provisionHousehold } from "@/lib/auth/provision";
@@ -8,71 +8,69 @@ import {
   getAccountSummary,
 } from "@/queries/accounts";
 import { accounts, plaidItems } from "@/db/schema";
+import type { LedgrDb } from "@/db";
 
 describe("account queries", () => {
-  let db: ReturnType<typeof createTestDb>["db"];
-  let close: () => void;
+  let db: LedgrDb;
+  let close: () => Promise<void>;
 
-  afterEach(() => close?.());
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
+  });
 
-  function setup() {
-    const result = createTestDb();
-    db = result.db;
-    close = result.close;
-    return db;
-  }
+  afterAll(async () => {
+    await close();
+  });
 
-  function insertPlaidItem(testDb: typeof db, householdId: string) {
+  async function insertPlaidItem(testDb: LedgrDb, householdId: string) {
     const itemId = uuid();
-    testDb.insert(plaidItems).values({
+    await testDb.insert(plaidItems).values({
       id: itemId,
       householdId,
       accessToken: "encrypted-token",
       plaidInstitutionId: "ins_1",
       institutionName: "Chase",
       status: "active",
-    }).run();
+    });
     return itemId;
   }
 
-  function insertAccount(
-    testDb: typeof db,
+  async function insertAccount(
+    testDb: LedgrDb,
     householdId: string,
     overrides: Partial<typeof accounts.$inferInsert> = {}
   ) {
     const id = uuid();
-    testDb.insert(accounts).values({
+    await testDb.insert(accounts).values({
       id,
       householdId,
       name: "Test Account",
       type: "checking",
       currentBalance: 100000,
       ...overrides,
-    }).run();
+    });
     return id;
   }
 
-  it("getAccounts returns only non-deleted accounts for given household", () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-1", testDb);
+  it("getAccounts returns only non-deleted accounts for given household", async () => {
+    const hh = await provisionHousehold("user-1", db);
 
-    insertAccount(testDb, hh, { name: "Active" });
-    insertAccount(testDb, hh, { name: "Deleted", deletedAt: "2026-01-01" });
+    await insertAccount(db, hh, { name: "Active" });
+    await insertAccount(db, hh, { name: "Deleted", deletedAt: new Date("2026-01-01") });
 
-    const result = getAccounts(hh, testDb);
+    const result = await getAccounts(hh, db);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Active");
   });
 
-  it("getAccountsByInstitution groups Plaid accounts under institution, manual under 'Manual Accounts'", () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-2", testDb);
-    const itemId = insertPlaidItem(testDb, hh);
+  it("getAccountsByInstitution groups Plaid accounts under institution, manual under 'Manual Accounts'", async () => {
+    const hh = await provisionHousehold("user-2", db);
+    const itemId = await insertPlaidItem(db, hh);
 
-    insertAccount(testDb, hh, { name: "Checking", plaidItemId: itemId, plaidAccountId: "pa-1" });
-    insertAccount(testDb, hh, { name: "Cash", isManual: true });
+    await insertAccount(db, hh, { name: "Checking", plaidItemId: itemId, plaidAccountId: "pa-1" });
+    await insertAccount(db, hh, { name: "Cash", isManual: true });
 
-    const groups = getAccountsByInstitution(hh, testDb);
+    const groups = await getAccountsByInstitution(hh, db);
 
     const plaidGroup = groups.find((g) => g.institutionName === "Chase");
     expect(plaidGroup).toBeDefined();
@@ -84,46 +82,43 @@ describe("account queries", () => {
     expect(manualGroup!.accounts).toHaveLength(1);
   });
 
-  it("getAccountSummary computes assets - liabilities = net worth", () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-3", testDb);
+  it("getAccountSummary computes assets - liabilities = net worth", async () => {
+    const hh = await provisionHousehold("user-3", db);
 
-    insertAccount(testDb, hh, { name: "Checking", type: "checking", currentBalance: 500000 });
-    insertAccount(testDb, hh, { name: "Savings", type: "savings", currentBalance: 1000000 });
-    insertAccount(testDb, hh, { name: "Credit Card", type: "credit", currentBalance: 50000 });
+    await insertAccount(db, hh, { name: "Checking", type: "checking", currentBalance: 500000 });
+    await insertAccount(db, hh, { name: "Savings", type: "savings", currentBalance: 1000000 });
+    await insertAccount(db, hh, { name: "Credit Card", type: "credit", currentBalance: 50000 });
 
-    const summary = getAccountSummary(hh, testDb);
+    const summary = await getAccountSummary(hh, db);
     expect(summary.totalAssets).toBe(1500000);
     expect(summary.totalLiabilities).toBe(50000);
     expect(summary.netWorth).toBe(1450000);
   });
 
-  it("getAccountSummary excludes null balances from sums", () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-4", testDb);
+  it("getAccountSummary excludes null balances from sums", async () => {
+    const hh = await provisionHousehold("user-4", db);
 
-    insertAccount(testDb, hh, { name: "Known", type: "checking", currentBalance: 500000 });
-    insertAccount(testDb, hh, { name: "Unknown", type: "investment", currentBalance: null });
+    await insertAccount(db, hh, { name: "Known", type: "checking", currentBalance: 500000 });
+    await insertAccount(db, hh, { name: "Unknown", type: "investment", currentBalance: null });
 
-    const summary = getAccountSummary(hh, testDb);
+    const summary = await getAccountSummary(hh, db);
     expect(summary.totalAssets).toBe(500000);
   });
 
-  it("soft-deleted accounts excluded from all queries", () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-5", testDb);
+  it("soft-deleted accounts excluded from all queries", async () => {
+    const hh = await provisionHousehold("user-5", db);
 
-    insertAccount(testDb, hh, { name: "Active", currentBalance: 100000 });
-    insertAccount(testDb, hh, { name: "Deleted", currentBalance: 200000, deletedAt: "2026-01-01" });
+    await insertAccount(db, hh, { name: "Active", currentBalance: 100000 });
+    await insertAccount(db, hh, { name: "Deleted", currentBalance: 200000, deletedAt: new Date("2026-01-01") });
 
-    const all = getAccounts(hh, testDb);
+    const all = await getAccounts(hh, db);
     expect(all).toHaveLength(1);
 
-    const groups = getAccountsByInstitution(hh, testDb);
+    const groups = await getAccountsByInstitution(hh, db);
     const totalAccounts = groups.reduce((sum, g) => sum + g.accounts.length, 0);
     expect(totalAccounts).toBe(1);
 
-    const summary = getAccountSummary(hh, testDb);
+    const summary = await getAccountSummary(hh, db);
     expect(summary.totalAssets).toBe(100000);
   });
 });

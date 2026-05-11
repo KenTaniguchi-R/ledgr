@@ -1,0 +1,1 @@
+CREATE INDEX "idx_accounts_resurrection" ON "accounts" USING btree ("plaid_account_id","household_id") WHERE deleted_at IS NOT NULL;

@@ -40,7 +40,7 @@ export function AccountCard({ account, onEdit }: AccountCardProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity h-7 w-7 p-0"
+          className="sm:opacity-0 sm:group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity h-7 w-7 p-0"
           onClick={() => onEdit(account)}
           aria-label={`Edit ${account.name}`}
         >

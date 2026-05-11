@@ -1,14 +1,61 @@
 import { getHouseholdId } from "@/lib/auth/session";
+import {
+  getDashboardSummary,
+  getNetWorthHistory,
+  getMonthlySpending,
+  getCashFlow,
+  getRecentTransactions,
+  getInvestmentsSummary,
+} from "@/queries/dashboard";
+import { getAccounts } from "@/queries/accounts";
+import { getBudgetForMonth } from "@/queries/budgets";
+import { getUpcomingBills } from "@/queries/recurring";
+import { getCurrentMonth } from "@/lib/date-utils";
+import { getLayoutForUser } from "@/queries/dashboard-layout";
+import { getDefaultLayout } from "@/components/organisms/widgets/registry";
+import { getSession } from "@/lib/auth/session";
+import { DashboardGridLoader } from "@/components/organisms/dashboard-grid-loader";
+import type { DashboardData } from "@/components/organisms/dashboard-grid";
 
 export default async function DashboardPage() {
-  await getHouseholdId();
+  const [session, householdId] = await Promise.all([getSession(), getHouseholdId()]);
+
+  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
+    await Promise.all([
+      getDashboardSummary(householdId),
+      getNetWorthHistory(householdId, "6M"),
+      getMonthlySpending(householdId),
+      getCashFlow(householdId, 6),
+      getRecentTransactions(householdId, 5),
+      getAccounts(householdId),
+      getBudgetForMonth(householdId, getCurrentMonth()),
+      getUpcomingBills(householdId, { limit: 5 }),
+      getInvestmentsSummary(householdId),
+      session ? getLayoutForUser(session.user.id) : null,
+    ]);
+
+  const accounts = allAccounts
+    .filter((a) => !a.isHidden)
+    .map((a) => ({ id: a.id, name: a.name, type: a.type, currentBalance: a.currentBalance, currency: a.currency }));
+
+  const layout = savedLayout ?? getDefaultLayout();
+
+  const data: DashboardData = {
+    summary,
+    netWorthHistory,
+    monthlySpending,
+    cashFlow,
+    recentTransactions,
+    accounts,
+    budgetData,
+    upcomingBills,
+    investmentsData,
+  };
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-      <p className="mt-2 text-muted-foreground">
-        Your financial overview. Coming in Phase 6.
-      </p>
+      <h1 className="text-2xl font-semibold tracking-tight mb-4">Dashboard</h1>
+      <DashboardGridLoader layout={layout} data={data} />
     </div>
   );
 }

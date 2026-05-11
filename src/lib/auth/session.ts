@@ -5,20 +5,21 @@ import { eq } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { householdMembers } from "@/db/schema";
 import { provisionHousehold } from "./provision";
+import { isDemoMode, DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 
 export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
 });
 
-export function resolveHouseholdId(
+export async function resolveHouseholdId(
   userId: string,
   db: LedgrDb = defaultDb
-): string {
-  const member = db
+): Promise<string> {
+  const [member] = await db
     .select({ householdId: householdMembers.householdId })
     .from(householdMembers)
     .where(eq(householdMembers.userId, userId))
-    .get();
+    .limit(1);
 
   if (member) {
     return member.householdId;
@@ -31,6 +32,10 @@ export const getHouseholdId = cache(async (): Promise<string> => {
   const session = await getSession();
   if (!session) {
     throw new Error("Not authenticated");
+  }
+
+  if (await isDemoMode(session.user.id)) {
+    return DEMO_HOUSEHOLD_ID;
   }
 
   try {

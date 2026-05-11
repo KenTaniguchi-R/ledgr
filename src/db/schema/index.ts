@@ -1,5 +1,6 @@
 export * from "./auth";
 export * from "./households";
+export * from "./user-settings";
 export * from "./plaid";
 export * from "./accounts";
 export * from "./categories";
@@ -7,6 +8,6 @@ export * from "./merchants";
 export * from "./transactions";
 export * from "./budgets";
 export * from "./recurring";
-export * from "./goals";
 export * from "./investments";
-export * from "./notifications";
+export * from "./reports";
+export * from "./oauth";

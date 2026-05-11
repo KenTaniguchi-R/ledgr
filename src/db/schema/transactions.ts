@@ -1,11 +1,14 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, integer, pgTable, text, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { accounts } from "./accounts";
 import { households } from "./households";
 import { merchants } from "./merchants";
 import { categories } from "./categories";
+import { recurringTransactions } from "./recurring";
 
-export const transactions = sqliteTable(
+export const CATEGORY_SOURCES = ["rule", "merchant_default", "pfc", "ai", "manual"] as const;
+export type CategorySource = (typeof CATEGORY_SOURCES)[number];
+
+export const transactions = pgTable(
   "transactions",
   {
     id: text("id").primaryKey(),
@@ -19,7 +22,7 @@ export const transactions = sqliteTable(
     pendingTransactionId: text("pending_transaction_id"),
     merchantId: text("merchant_id").references(() => merchants.id),
     categoryId: text("category_id").references(() => categories.id),
-    recurringTransactionId: text("recurring_transaction_id"),
+    recurringTransactionId: text("recurring_transaction_id").references(() => recurringTransactions.id),
     transferPairId: text("transfer_pair_id"),
     date: text("date").notNull(),
     originalName: text("original_name").notNull(),
@@ -27,14 +30,19 @@ export const transactions = sqliteTable(
     amount: integer("amount").notNull(),
     normalizedAmount: integer("normalized_amount").notNull(),
     currency: text("currency").default("USD"),
-    pending: integer("pending", { mode: "boolean" }).default(false),
-    reviewed: integer("reviewed", { mode: "boolean" }).default(false),
+    pending: boolean("pending").default(false),
+    reviewed: boolean("reviewed").default(false),
     notes: text("notes"),
     tags: text("tags"),
-    isTransfer: integer("is_transfer", { mode: "boolean" }).default(false),
-    deletedAt: text("deleted_at"),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    isTransfer: boolean("is_transfer").default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    externalId: text("external_id"),
+    aiCategorizationAttemptedAt: timestamp("ai_categorization_attempted_at", { withTimezone: true }),
+    pfcPrimary: text("pfc_primary"),
+    pfcDetailed: text("pfc_detailed"),
+    categorySource: text("category_source"),
   },
   (table) => [
     index("idx_txn_account_date").on(table.accountId, table.date),
@@ -44,10 +52,14 @@ export const transactions = sqliteTable(
     uniqueIndex("idx_txn_plaid_id_unique").on(table.plaidTransactionId),
     index("idx_txn_merchant").on(table.merchantId),
     index("idx_txn_transfer").on(table.transferPairId),
+    index("idx_txn_external_id").on(table.accountId, table.externalId),
+    index("idx_txn_household_reviewed_date").on(table.householdId, table.reviewed, table.date),
+    index("idx_txn_household_transfer_date").on(table.householdId, table.isTransfer, table.date),
+    index("idx_txn_household_date_id").on(table.householdId, table.date, table.id),
   ]
 );
 
-export const transactionSplits = sqliteTable(
+export const transactionSplits = pgTable(
   "transaction_splits",
   {
     id: text("id").primaryKey(),
@@ -59,23 +71,10 @@ export const transactionSplits = sqliteTable(
       .references(() => categories.id),
     amount: integer("amount").notNull(),
     notes: text("notes"),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("idx_splits_txn").on(table.transactionId)]
-);
-
-export const transactionAttachments = sqliteTable(
-  "transaction_attachments",
-  {
-    id: text("id").primaryKey(),
-    transactionId: text("transaction_id")
-      .notNull()
-      .references(() => transactions.id, { onDelete: "cascade" }),
-    filename: text("filename").notNull(),
-    filePath: text("file_path").notNull(),
-    mimeType: text("mime_type"),
-    sizeBytes: integer("size_bytes"),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-  },
-  (table) => [index("idx_attachments_txn").on(table.transactionId)]
+  (table) => [
+    index("idx_splits_txn").on(table.transactionId),
+    index("idx_splits_category").on(table.categoryId),
+  ]
 );

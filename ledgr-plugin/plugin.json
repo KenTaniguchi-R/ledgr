@@ -1,0 +1,7 @@
+{
+  "name": "ledgr",
+  "version": "1.0.0",
+  "description": "Connect AI assistants to your Ledgr personal finance data",
+  "homepage": "https://github.com/yourusername/ledgr",
+  "license": "AGPL-3.0"
+}

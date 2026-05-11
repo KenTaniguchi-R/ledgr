@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Ledgr** — a self-hostable, open-source personal finance app (AGPLv3). Currently being rebuilt from a Python/Flask/DuckDB prototype into a full-stack TypeScript app.
+**Ledgr** — a self-hostable, open-source personal finance app (AGPLv3).
 
 **Design spec:** `docs/superpowers/specs/2026-05-09-ledgr-design.md` — the authoritative reference for architecture, data model, and feature design. Read this before making architectural decisions.
 
-## Stack (New — Being Built)
+## Stack
 
 | Layer | Choice |
 |-------|--------|
@@ -17,11 +17,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | UI | shadcn/ui v4 + Tailwind v4 |
 | Charts | Recharts v3 (via shadcn Chart) |
 | ORM | Drizzle ORM 0.45 |
-| Database | SQLite (WAL mode) |
+| Database | PostgreSQL 18 (via node-postgres Pool) |
 | Auth | Better Auth |
 | Bank Sync | Plaid Node SDK (optional — CSV import is first-class) |
 | AI | Vercel AI SDK (BYOK — user brings own API key) |
-| Background Jobs | node-cron |
+| Background Jobs | Standalone job functions (snapshot-balances, backfill-balances) |
 | Testing | Vitest + fast-check + Playwright + Stryker + MSW |
 
 ## Key Conventions
@@ -31,14 +31,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Ownership enforcement:** Use `scopedQuery(householdId)` wrapper to auto-inject `household_id` filtering on all queries. Never write manual WHERE clauses for tenant isolation.
 - **Encryption:** Plaid access tokens and AI API keys encrypted at app layer (aes-256-gcm, key from `ENCRYPTION_KEY` env var).
 - **Plaid is the primary feature.** Bank sync via Plaid is the core experience. CSV/OFX import is available as a supplementary option for accounts not supported by Plaid.
-- **No serverless.** SQLite requires persistent filesystem. Deployment target is Docker on VPS.
+- **Timestamps:** Use `new Date()` for all Postgres `timestamp` columns. Use `nowISO()` from `@/lib/date-utils` only for text date columns. Never use `new Date().toISOString()` for timestamp columns — Drizzle handles Date→Postgres conversion.
+- **Deployment target:** Docker, self-hosted. `docker compose up` starts both Postgres and the app. Migrations run automatically on container startup via `scripts/docker-entrypoint.sh`.
 
-## Commands (New App)
+## Commands
 
 ```bash
 # Development
 pnpm install                     # Install dependencies
-pnpm dev                         # Next.js dev server
+pnpm dev:db                      # Start Postgres (Docker)
+pnpm dev:setup                   # Start Postgres + migrate + dev server
+pnpm dev                         # Next.js dev server (requires running Postgres)
 pnpm db:generate                 # Generate Drizzle migrations
 pnpm db:migrate                  # Run migrations
 pnpm db:seed                     # Seed default categories + demo data
@@ -60,16 +63,6 @@ docker compose up                # Run the full app
 docker compose up --build        # Rebuild and run
 ```
 
-## Commands (Legacy Prototype — Python)
-
-The `*.py` files in the root and `react-dashboard/` are the old prototype. They use `uv` for package management and DuckDB.
-
-```bash
-uv sync                          # Install Python dependencies
-uv run python app.py             # Old Plaid Link flow (port 8000)
-uv run python sync_to_db.py      # Old sync script
-```
-
 ## Architecture
 
 ```
@@ -79,10 +72,10 @@ Browser ──▶ Next.js App Router
               ├── API Routes ──────── Plaid webhooks, AI streaming, CSV import
               └── Client Components ── interactive UI (charts, forms)
                     │
-              Drizzle ORM ──▶ SQLite (data/ledgr.db, WAL mode)
+              Drizzle ORM ──▶ PostgreSQL (via node-postgres Pool)
               Plaid Node SDK ──▶ Plaid API (sandbox/production via PLAID_ENV)
               Vercel AI SDK ──▶ User's LLM provider (Claude/OpenAI/Gemini)
-              node-cron ──▶ Background jobs (sync, snapshots, categorization)
+              Jobs ──▶ Background tasks (sync, snapshots, categorization)
 ```
 
 ## Project Structure
@@ -98,40 +91,46 @@ ledgr/
 │   ├── db/
 │   │   ├── schema/             # Drizzle schema files (one per domain)
 │   │   ├── seed/               # Default categories + demo data
-│   │   └── index.ts            # Drizzle client + SQLite PRAGMAs
+│   │   └── index.ts            # Drizzle client + node-postgres Pool
 │   ├── lib/
 │   │   ├── plaid/              # Plaid client, sync logic
+│   │   ├── categorization/     # Rule engine, PFC mapping, orchestrator
 │   │   ├── ai/                 # AI categorization, chat
 │   │   ├── auth/               # Better Auth config + adapter
 │   │   ├── import/             # CSV/OFX parsers
-│   │   ├── jobs/               # node-cron scheduler
+│   │   ├── jobs/               # Background job functions (snapshots, backfill)
 │   │   ├── scoped-query.ts     # Household-scoped query wrapper
 │   │   ├── encryption.ts       # AES encrypt/decrypt
+│   │   ├── date-utils.ts       # Timestamp and date helpers (nowISO, todayDateString)
 │   │   └── money.ts            # Cents ↔ display helpers
 │   ├── actions/                # Server Actions
 │   └── queries/                # Server-side data fetching
 ├── tests/
 │   ├── integration/
-│   │   ├── setup.ts                # In-memory SQLite test DB factory
+│   │   ├── setup.ts                # Postgres test DB factory (per-file schema isolation)
 │   │   ├── db-factory.test.ts      # DB factory smoke tests
 │   │   └── scoped-query.test.ts    # Household isolation integration tests
+│   ├── global-setup.ts             # Testcontainers Postgres lifecycle
 │   └── mocks/
 │       ├── handlers.ts             # MSW handlers (Plaid API)
 │       └── server.ts               # MSW server setup for Vitest
 ├── e2e/
 │   └── health.spec.ts              # Playwright health check E2E
-├── data/                           # SQLite DB + attachments (Docker volume)
+├── scripts/
+│   ├── docker-entrypoint.sh        # Container startup (migrate + serve)
+│   ├── migrate.mjs                 # Standalone Drizzle migration runner
+│   └── install-migrate-deps.mjs    # Installs migration deps from package.json versions
+├── docker-compose.yml              # Postgres 18 + app services
+├── Dockerfile                      # Multi-stage production build (Node 24 LTS)
 ├── vitest.config.ts
 ├── playwright.config.ts
 ├── stryker.config.json
-├── Dockerfile
-├── docker-compose.yml
 └── .env.example
 ```
 
 ## Data Model Highlights
 
-20+ tables. Key entities: `households`, `accounts`, `transactions` (with `transaction_splits`, `transfer_pair_id`), `merchants`, `category_groups`/`categories`/`category_rules`, `budgets`/`budget_categories`, `recurring_transactions`, `goals`, `investment_holdings`/`holdings_history`/`investment_transactions`, `plaid_items`/`sync_log`.
+29 tables. Key entities: `households`, `accounts`, `transactions` (with `transaction_splits`, `transfer_pair_id`), `merchants`, `category_groups`/`categories`/`category_rules`, `budgets`/`budget_categories`, `recurring_transactions`, `investment_holdings`/`holdings_history`/`investment_transactions`, `plaid_items`/`sync_log`, `saved_reports`, `oauth_clients`/`oauth_codes`/`oauth_consents`/`oauth_refresh_tokens`.
 
 See the design spec for full schema with indexes and constraints.
 
@@ -142,7 +141,7 @@ See the design spec for full schema with indexes and constraints.
 | Layer | Tool | What It Tests |
 |-------|------|--------------|
 | Unit + Property | Vitest + fast-check | Pure logic (money, encryption, categorization rules) |
-| Integration | Vitest + real SQLite (in-memory) | Drizzle queries, scoped-query isolation, server actions |
+| Integration | Vitest + Postgres (testcontainers) | Drizzle queries, scoped-query isolation, server actions |
 | Mutation | Stryker (incremental) | Whether tests actually catch bugs (not just coverage) |
 | E2E | Playwright | Critical user journeys end-to-end |
 | Contract | MSW + Zod | Plaid API response shapes |
@@ -153,7 +152,7 @@ See the design spec for full schema with indexes and constraints.
 - **Integration tests** (need DB) go in `tests/integration/`.
 - **E2E tests** go in `e2e/`.
 - **No tests for declarative code** (schemas, configs, type definitions).
-- **Test DB factory:** `createTestDb()` from `tests/integration/setup.ts` — fresh in-memory SQLite per test file with migrations applied and `foreign_keys = ON`.
+- **Test DB factory:** `createTestDb()` from `tests/integration/setup.ts` — async, creates a unique Postgres schema per test file for isolation. Shared testcontainer started via `tests/global-setup.ts`. Use `beforeAll(async () => { ({ db, close } = await createTestDb()); })` pattern.
 - **Property-based tests** use `@fast-check/vitest`. API: `test.prop([arb])("name", fn)` — not `fc.test()`.
 - **Scoped-query** accepts optional `db` parameter for testability: `scopedQuery(householdId, testDb)`.
 - **MSW mocks** for Plaid API in `tests/mocks/`. Use `server` from `tests/mocks/server.ts` in Vitest.
@@ -169,7 +168,10 @@ See the design spec for full schema with indexes and constraints.
 
 ## Auto-Categorization Pipeline
 
-1. User's manual category rules (pattern match, ordered by priority)
-2. Merchant default category
-3. LLM fallback (batch uncategorized → user's AI provider)
-4. Uncategorized (flagged for review)
+1. **User rules** — pattern matching on transaction name or merchant (ordered by priority)
+2. **Merchant default** — if `merchant.categoryId` is set by user
+3. **PFC mapping** — Plaid's `personal_finance_category.detailed` code mapped to seed categories via static map in `lib/categorization/pfc-map.ts`
+4. **AI fallback** — batch uncategorized transactions → user's AI provider (confidence-gated)
+5. Uncategorized — flagged for manual review
+
+Each tier sets `categorySource` on the transaction (`"rule"` | `"merchant_default"` | `"pfc"` | `"ai"` | `"manual"`) to track provenance. Manual user edits always set `"manual"` and are never overwritten by lower tiers.

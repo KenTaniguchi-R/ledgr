@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AccountCard } from "@/components/molecules/account-card";
 import { InstitutionHeader } from "@/components/molecules/institution-header";
+import { PlaidLinkFlow } from "./plaid-link-flow";
 import { EditAccountDialog } from "./edit-account-dialog";
 import { triggerSync } from "@/actions/sync";
+import { disconnectPlaidItem } from "@/actions/plaid";
 import type { InstitutionGroup, AccountRow } from "@/queries/accounts";
 import type { SyncStatus } from "@/components/atoms/sync-status-badge";
 
@@ -25,6 +27,8 @@ interface AccountListProps {
 export function AccountList({ groups }: AccountListProps) {
   const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
   const [syncStates, setSyncStates] = useState<Map<string, SyncState>>(new Map());
+  const [reAuthingItemId, setReAuthingItemId] = useState<string | null>(null);
+  const [reAuthError, setReAuthError] = useState<string | null>(null);
   const router = useRouter();
 
   const plaidItemIds = groups
@@ -71,6 +75,24 @@ export function AccountList({ groups }: AccountListProps) {
   const getSyncState = (itemId: string | null): SyncState =>
     (itemId ? syncStates.get(itemId) : undefined) ?? { status: "idle" };
 
+  const handleReAuthSuccess = useCallback(() => {
+    setReAuthingItemId(null);
+    setReAuthError(null);
+    router.refresh();
+  }, [router]);
+
+  const handleReAuthError = useCallback((itemId: string, error: string) => {
+    setReAuthingItemId(itemId);
+    setReAuthError(error);
+  }, []);
+
+  const handleDisconnect = useCallback(async (itemId: string) => {
+    await disconnectPlaidItem(itemId);
+    router.refresh();
+  }, [router]);
+
+  const isSyncing = plaidItemIds.some((id) => getSyncState(id).status === "syncing");
+
   return (
     <>
       {plaidItemIds.length > 0 && (
@@ -79,7 +101,7 @@ export function AccountList({ groups }: AccountListProps) {
             variant="ghost"
             size="sm"
             onClick={handleSyncAll}
-            disabled={plaidItemIds.some((id) => getSyncState(id).status === "syncing")}
+            disabled={isSyncing || reAuthingItemId !== null}
           >
             <RefreshCw className="size-3.5 mr-1" />
             Sync All
@@ -94,6 +116,8 @@ export function AccountList({ groups }: AccountListProps) {
             <Card key={group.plaidItemId ?? "__manual__"}>
               <InstitutionHeader
                 institutionName={group.institutionName}
+                logoBase64={group.logoBase64}
+                primaryColor={group.primaryColor}
                 status={group.status}
                 accountCount={group.accounts.length}
                 plaidItemId={group.plaidItemId}
@@ -101,6 +125,19 @@ export function AccountList({ groups }: AccountListProps) {
                 syncStatus={state.status}
                 syncError={state.error}
                 onSync={() => group.plaidItemId && handleSync(group.plaidItemId)}
+                onDisconnect={group.plaidItemId ? () => handleDisconnect(group.plaidItemId!) : undefined}
+                reconnectButton={
+                  group.status === "reauth_required" && group.plaidItemId ? (
+                    <PlaidLinkFlow
+                      mode="update"
+                      variant="reconnect-inline"
+                      plaidItemId={group.plaidItemId}
+                      onReAuthSuccess={handleReAuthSuccess}
+                      onError={(err) => handleReAuthError(group.plaidItemId!, err)}
+                    />
+                  ) : undefined
+                }
+                reAuthError={group.plaidItemId === reAuthingItemId ? reAuthError : null}
               />
               <Separator />
               <div>

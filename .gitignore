@@ -16,9 +16,11 @@ build/
 .env.*.local
 
 # Database
-data/*.db
-data/*.db-wal
-data/*.db-shm
+data/
+
+# Local tooling
+.mcp.json
+.serena/
 
 # OS
 .DS_Store
@@ -42,7 +44,9 @@ pnpm-debug.log*
 .vercel
 
 # Test reports
-reports/
+/reports/
 playwright-report/
 test-results/
 .stryker-tmp/
+docs/*
+!docs/images/

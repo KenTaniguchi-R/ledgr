@@ -1,13 +1,15 @@
 import { cn } from "@/lib/utils";
+import type { PlaidItemStatus } from "@/db/schema/plaid";
 
 interface StatusBadgeProps {
-  status: "active" | "error" | "reauth_required";
+  status: PlaidItemStatus;
 }
 
 const config = {
   active: { label: "Connected", dotClass: "bg-emerald-500" },
   error: { label: "Error", dotClass: "bg-amber-500" },
   reauth_required: { label: "Reconnect needed", dotClass: "bg-destructive" },
+  revoked: { label: "Access revoked", dotClass: "bg-destructive" },
 } as const;
 
 export function StatusBadge({ status }: StatusBadgeProps) {

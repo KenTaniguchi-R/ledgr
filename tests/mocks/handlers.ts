@@ -263,4 +263,341 @@ export const syncEmptyHandler = http.post(
     })
 );
 
-export const allHandlers = [...plaidHandlers];
+export const webhookKeyHandler = http.post(
+  "https://sandbox.plaid.com/webhook_verification_key/get",
+  () =>
+    HttpResponse.json({
+      key: {
+        alg: "ES256",
+        crv: "P-256",
+        kid: "test-key-1",
+        kty: "EC",
+        use: "sig",
+        x: "mock-x-coordinate",
+        y: "mock-y-coordinate",
+        created_at: 1700000000,
+        expired_at: null,
+      },
+      request_id: "req-key-test",
+    })
+);
+
+export const TEST_STREAM_IDS = {
+  netflix: "stream-netflix-1",
+  salary: "stream-salary-1",
+  gym: "stream-gym-1",
+} as const;
+
+export const recurringGetHandler = http.post(
+  "https://sandbox.plaid.com/transactions/recurring/get",
+  () =>
+    HttpResponse.json({
+      inflow_streams: [
+        {
+          stream_id: TEST_STREAM_IDS.salary,
+          account_id: "plaid-acc-checking",
+          description: "DIRECT DEPOSIT EMPLOYER",
+          merchant_name: null,
+          first_date: "2025-01-15",
+          last_date: "2026-04-15",
+          predicted_next_date: "2026-05-15",
+          average_amount: { amount: -3000.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          last_amount: { amount: -3000.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          frequency: "MONTHLY",
+          is_active: true,
+          transaction_ids: [TEST_TXN_IDS.added2],
+          personal_finance_category: { primary: "INCOME", detailed: "INCOME_WAGES", confidence_level: "VERY_HIGH" },
+          status: "MATURE",
+        },
+      ],
+      outflow_streams: [
+        {
+          stream_id: TEST_STREAM_IDS.netflix,
+          account_id: "plaid-acc-checking",
+          description: "NETFLIX.COM",
+          merchant_name: "Netflix",
+          first_date: "2025-06-01",
+          last_date: "2026-04-01",
+          predicted_next_date: "2026-05-01",
+          average_amount: { amount: 15.99, iso_currency_code: "USD", unofficial_currency_code: null },
+          last_amount: { amount: 15.99, iso_currency_code: "USD", unofficial_currency_code: null },
+          frequency: "MONTHLY",
+          is_active: true,
+          transaction_ids: [],
+          personal_finance_category: { primary: "ENTERTAINMENT", detailed: "ENTERTAINMENT_TV_AND_MOVIES", confidence_level: "VERY_HIGH" },
+          status: "MATURE",
+        },
+        {
+          stream_id: TEST_STREAM_IDS.gym,
+          account_id: "plaid-acc-checking",
+          description: "PLANET FITNESS",
+          merchant_name: "Planet Fitness",
+          first_date: "2025-03-01",
+          last_date: "2026-04-01",
+          predicted_next_date: "2026-05-01",
+          average_amount: { amount: 25.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          last_amount: { amount: 25.0, iso_currency_code: "USD", unofficial_currency_code: null },
+          frequency: "MONTHLY",
+          is_active: true,
+          transaction_ids: [],
+          personal_finance_category: null,
+          status: "MATURE",
+        },
+      ],
+      request_id: "req-recurring-test",
+    })
+);
+
+export const recurringEmptyHandler = http.post(
+  "https://sandbox.plaid.com/transactions/recurring/get",
+  () =>
+    HttpResponse.json({
+      inflow_streams: [],
+      outflow_streams: [],
+      request_id: "req-recurring-empty",
+    })
+);
+
+export const recurringErrorHandler = http.post(
+  "https://sandbox.plaid.com/transactions/recurring/get",
+  () =>
+    HttpResponse.json(
+      { error_type: "INVALID_REQUEST", error_code: "PRODUCT_NOT_READY", error_message: "Recurring not ready" },
+      { status: 400 }
+    )
+);
+
+export const allHandlers = [...plaidHandlers, webhookKeyHandler];
+
+// ─── Investment Mock Handlers ───────────────────────────────────────────────
+
+export const TEST_SECURITY_IDS = {
+  aapl: "sec-aapl",
+  voo: "sec-voo",
+  btc: "sec-btc",
+  warrant: "sec-warrant",
+} as const;
+
+export const investmentsHoldingsGetHandler = http.post(
+  "https://sandbox.plaid.com/investments/holdings/get",
+  () =>
+    HttpResponse.json({
+      accounts: [
+        {
+          account_id: "plaid-acc-null",
+          name: "Plaid IRA",
+          type: "investment",
+          subtype: "ira",
+          mask: "5555",
+          balances: { current: 23000.0, available: null, limit: null, iso_currency_code: "USD" },
+        },
+      ],
+      holdings: [
+        {
+          account_id: "plaid-acc-null",
+          security_id: TEST_SECURITY_IDS.aapl,
+          quantity: 10,
+          institution_price: 150.0,
+          institution_price_as_of: "2026-05-10",
+          institution_value: 1500.0,
+          cost_basis: 1200.0,
+          iso_currency_code: "USD",
+        },
+        {
+          account_id: "plaid-acc-null",
+          security_id: TEST_SECURITY_IDS.voo,
+          quantity: 5,
+          institution_price: 400.0,
+          institution_price_as_of: "2026-05-10",
+          institution_value: 2000.0,
+          cost_basis: null,
+          iso_currency_code: "USD",
+        },
+        {
+          account_id: "plaid-acc-null",
+          security_id: TEST_SECURITY_IDS.btc,
+          quantity: 0.5,
+          institution_price: 60000.0,
+          institution_price_as_of: "2026-05-10",
+          institution_value: 30000.0,
+          cost_basis: 25000.0,
+          iso_currency_code: "USD",
+        },
+        {
+          account_id: "plaid-acc-null",
+          security_id: TEST_SECURITY_IDS.warrant,
+          quantity: 100,
+          institution_price: 2.0,
+          institution_price_as_of: null,
+          institution_value: 200.0,
+          cost_basis: 150.0,
+          iso_currency_code: "USD",
+        },
+      ],
+      securities: [
+        {
+          security_id: TEST_SECURITY_IDS.aapl,
+          name: "Apple Inc",
+          ticker_symbol: "AAPL",
+          type: "equity",
+          iso_currency_code: "USD",
+          close_price: 150.0,
+          sector: "Technology",
+          is_cash_equivalent: false,
+        },
+        {
+          security_id: TEST_SECURITY_IDS.voo,
+          name: "Vanguard S&P 500 ETF",
+          ticker_symbol: "VOO",
+          type: "etf",
+          iso_currency_code: "USD",
+          close_price: 400.0,
+          sector: null,
+          is_cash_equivalent: false,
+        },
+        {
+          security_id: TEST_SECURITY_IDS.btc,
+          name: "Bitcoin",
+          ticker_symbol: "BTC",
+          type: "cryptocurrency",
+          iso_currency_code: "USD",
+          close_price: 60000.0,
+          sector: null,
+          is_cash_equivalent: false,
+        },
+        {
+          security_id: TEST_SECURITY_IDS.warrant,
+          name: "Some Warrant XYZ",
+          ticker_symbol: null,
+          type: "warrant",
+          iso_currency_code: "USD",
+          close_price: 2.0,
+          sector: null,
+          is_cash_equivalent: false,
+        },
+      ],
+      request_id: "req-inv-holdings",
+    })
+);
+
+export const investmentsHoldingsEmptyHandler = http.post(
+  "https://sandbox.plaid.com/investments/holdings/get",
+  () =>
+    HttpResponse.json({
+      accounts: [],
+      holdings: [],
+      securities: [],
+      request_id: "req-inv-holdings-empty",
+    })
+);
+
+export const investmentsTransactionsPageOneHandler = http.post(
+  "https://sandbox.plaid.com/investments/transactions/get",
+  () =>
+    HttpResponse.json({
+      investment_transactions: [
+        {
+          investment_transaction_id: "inv-txn-buy-aapl",
+          account_id: "plaid-acc-null",
+          security_id: TEST_SECURITY_IDS.aapl,
+          date: "2026-04-15",
+          name: "Buy AAPL",
+          quantity: 10,
+          amount: 1500.0,
+          price: 150.0,
+          fees: 4.95,
+          type: "buy",
+          subtype: "buy",
+          iso_currency_code: "USD",
+        },
+        {
+          investment_transaction_id: "inv-txn-div-voo",
+          account_id: "plaid-acc-null",
+          security_id: TEST_SECURITY_IDS.voo,
+          date: "2026-04-20",
+          name: "Dividend VOO",
+          quantity: 0,
+          amount: -25.0,
+          price: 0,
+          fees: 0,
+          type: "cash",
+          subtype: "dividend",
+          iso_currency_code: "USD",
+        },
+      ],
+      securities: [
+        {
+          security_id: TEST_SECURITY_IDS.aapl,
+          name: "Apple Inc",
+          ticker_symbol: "AAPL",
+          type: "equity",
+          iso_currency_code: "USD",
+          close_price: 150.0,
+          sector: "Technology",
+          is_cash_equivalent: false,
+        },
+        {
+          security_id: TEST_SECURITY_IDS.voo,
+          name: "Vanguard S&P 500 ETF",
+          ticker_symbol: "VOO",
+          type: "etf",
+          iso_currency_code: "USD",
+          close_price: 400.0,
+          sector: null,
+          is_cash_equivalent: false,
+        },
+      ],
+      total_investment_transactions: 3,
+      request_id: "req-inv-txns-page1",
+    })
+);
+
+export const investmentsTransactionsPageTwoHandler = http.post(
+  "https://sandbox.plaid.com/investments/transactions/get",
+  () =>
+    HttpResponse.json({
+      investment_transactions: [
+        {
+          investment_transaction_id: "inv-txn-sell-aapl",
+          account_id: "plaid-acc-null",
+          security_id: TEST_SECURITY_IDS.aapl,
+          date: "2026-05-01",
+          name: "Sell AAPL",
+          quantity: -5,
+          amount: -800.0,
+          price: 160.0,
+          fees: 4.95,
+          type: "sell",
+          subtype: "sell",
+          iso_currency_code: "USD",
+        },
+      ],
+      securities: [
+        {
+          security_id: TEST_SECURITY_IDS.aapl,
+          name: "Apple Inc",
+          ticker_symbol: "AAPL",
+          type: "equity",
+          iso_currency_code: "USD",
+          close_price: 160.0,
+          sector: "Technology",
+          is_cash_equivalent: false,
+        },
+      ],
+      total_investment_transactions: 3,
+      request_id: "req-inv-txns-page2",
+    })
+);
+
+export const investmentsProductsNotSupportedHandler = http.post(
+  "https://sandbox.plaid.com/investments/holdings/get",
+  () =>
+    HttpResponse.json(
+      {
+        error_type: "INVALID_REQUEST",
+        error_code: "PRODUCTS_NOT_SUPPORTED",
+        error_message: "the products specified are not supported by this institution",
+      },
+      { status: 400 }
+    )
+);

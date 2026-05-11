@@ -5,6 +5,7 @@ import {
   displayToCents,
   plaidAmountToCents,
   normalizeAmount,
+  parseToCents,
 } from "./money";
 
 describe("money utilities", () => {
@@ -36,39 +37,39 @@ describe("money utilities", () => {
   });
 
   describe("normalizeAmount", () => {
-    it("flips sign for depository accounts (expense positive → negative)", () => {
+    it("flips sign for checking expense (positive → negative)", () => {
+      expect(normalizeAmount(1250, "checking")).toBe(-1250);
+    });
+    it("flips sign for checking income (negative → positive)", () => {
+      expect(normalizeAmount(-5000, "checking")).toBe(5000);
+    });
+    it("flips sign for credit card expense (positive → negative)", () => {
+      expect(normalizeAmount(5000, "credit")).toBe(-5000);
+    });
+    it("flips sign for credit card payment (negative → positive)", () => {
+      expect(normalizeAmount(-20000, "credit")).toBe(20000);
+    });
+    it("flips sign for investment accounts", () => {
+      expect(normalizeAmount(100000, "investment")).toBe(-100000);
+    });
+    it("flips sign for depository accounts", () => {
       expect(normalizeAmount(1250, "depository")).toBe(-1250);
     });
-    it("flips sign for depository accounts (income negative → positive)", () => {
-      expect(normalizeAmount(-5000, "depository")).toBe(5000);
-    });
-    it("preserves sign for credit accounts", () => {
-      expect(normalizeAmount(-5000, "credit")).toBe(-5000);
-    });
-    it("preserves sign for credit account payments (positive stays positive)", () => {
-      expect(normalizeAmount(20000, "credit")).toBe(20000);
-    });
-    it("preserves sign for investment accounts", () => {
-      expect(normalizeAmount(-100000, "investment")).toBe(-100000);
-    });
-    it("returns 0 (not -0) for zero amount on depository", () => {
-      expect(Object.is(normalizeAmount(0, "depository"), -0)).toBe(false);
-      expect(normalizeAmount(0, "depository")).toBe(0);
+    it("returns 0 (not -0) for zero amount on checking", () => {
+      expect(Object.is(normalizeAmount(0, "checking"), -0)).toBe(false);
+      expect(normalizeAmount(0, "checking")).toBe(0);
     });
     it("returns 0 (not -0) for zero amount on credit", () => {
       expect(Object.is(normalizeAmount(0, "credit"), -0)).toBe(false);
     });
-    it("treats unknown account types as depository (safe default)", () => {
+    it("flips sign for other account types", () => {
       expect(normalizeAmount(1250, "other")).toBe(-1250);
     });
-    it("treats savings as depository", () => {
+    it("flips sign for savings", () => {
       expect(normalizeAmount(1250, "savings")).toBe(-1250);
     });
-    it("treats checking as depository", () => {
-      expect(normalizeAmount(1250, "checking")).toBe(-1250);
-    });
-    it("treats loan as credit-like (no flip)", () => {
-      expect(normalizeAmount(-5000, "loan")).toBe(-5000);
+    it("flips sign for loan", () => {
+      expect(normalizeAmount(-5000, "loan")).toBe(5000);
     });
   });
 
@@ -91,6 +92,33 @@ describe("money utilities", () => {
   });
 });
 
+describe("parseToCents", () => {
+  it("parses a simple dollar string", () => {
+    expect(parseToCents("125.00")).toBe(12500);
+  });
+  it("parses a string without decimals", () => {
+    expect(parseToCents("125")).toBe(12500);
+  });
+  it("parses a string with $ prefix", () => {
+    expect(parseToCents("$125.00")).toBe(12500);
+  });
+  it("parses a string with commas", () => {
+    expect(parseToCents("$1,250.00")).toBe(125000);
+  });
+  it("returns null for invalid input", () => {
+    expect(parseToCents("abc")).toBeNull();
+  });
+  it("returns null for empty string", () => {
+    expect(parseToCents("")).toBeNull();
+  });
+  it("returns 0 for '0'", () => {
+    expect(parseToCents("0")).toBe(0);
+  });
+  it("handles whitespace", () => {
+    expect(parseToCents("  125.50  ")).toBe(12550);
+  });
+});
+
 describe("money property-based tests", () => {
   test.prop([fc.double({ min: -999999.99, max: 999999.99, noNaN: true, noDefaultInfinity: true })])(
     "plaidAmountToCents always returns an integer",
@@ -107,17 +135,21 @@ describe("money property-based tests", () => {
   );
 
   test.prop([fc.integer({ min: -9999999, max: 9999999 })])(
-    "normalizeAmount sign symmetry for depository",
+    "normalizeAmount flips sign for all account types",
     (amount) => {
-      expect(normalizeAmount(amount, "depository")).toBe(
-        -normalizeAmount(-amount, "depository")
-      );
+      for (const type of ["checking", "savings", "credit", "loan", "investment", "other"]) {
+        expect(normalizeAmount(amount, type)).toBe(amount === 0 ? 0 : -amount);
+      }
     }
   );
   test.prop([fc.integer({ min: -9999999, max: 9999999 })])(
-    "normalizeAmount is identity for credit accounts",
+    "normalizeAmount sign symmetry for all account types",
     (amount) => {
-      expect(normalizeAmount(amount, "credit")).toBe(amount === 0 ? 0 : amount);
+      for (const type of ["checking", "credit", "loan"]) {
+        const left = normalizeAmount(amount, type);
+        const right = -normalizeAmount(-amount, type);
+        expect(left).toBe(amount === 0 ? 0 : right);
+      }
     }
   );
 });
