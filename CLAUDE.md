@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Ledgr** — a self-hostable, open-source personal finance app (AGPLv3). Currently being rebuilt from a Python/Flask/DuckDB prototype into a full-stack TypeScript app.
+**Ledgr** — a self-hostable, open-source personal finance app (AGPLv3).
 
 **Design spec:** `docs/superpowers/specs/2026-05-09-ledgr-design.md` — the authoritative reference for architecture, data model, and feature design. Read this before making architectural decisions.
 
-## Stack (New — Being Built)
+## Stack
 
 | Layer | Choice |
 |-------|--------|
@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | UI | shadcn/ui v4 + Tailwind v4 |
 | Charts | Recharts v3 (via shadcn Chart) |
 | ORM | Drizzle ORM 0.45 |
-| Database | PostgreSQL 17 (via node-postgres Pool) |
+| Database | PostgreSQL 18 (via node-postgres Pool) |
 | Auth | Better Auth |
 | Bank Sync | Plaid Node SDK (optional — CSV import is first-class) |
 | AI | Vercel AI SDK (BYOK — user brings own API key) |
@@ -32,9 +32,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Encryption:** Plaid access tokens and AI API keys encrypted at app layer (aes-256-gcm, key from `ENCRYPTION_KEY` env var).
 - **Plaid is the primary feature.** Bank sync via Plaid is the core experience. CSV/OFX import is available as a supplementary option for accounts not supported by Plaid.
 - **Timestamps:** Use `new Date()` for all Postgres `timestamp` columns. Use `nowISO()` from `@/lib/date-utils` only for text date columns. Never use `new Date().toISOString()` for timestamp columns — Drizzle handles Date→Postgres conversion.
-- **Deployment target:** Docker on VPS. `docker compose up` starts both Postgres and the app.
+- **Deployment target:** Docker, self-hosted. `docker compose up` starts both Postgres and the app. Migrations run automatically on container startup via `scripts/docker-entrypoint.sh`.
 
-## Commands (New App)
+## Commands
 
 ```bash
 # Development
@@ -61,16 +61,6 @@ pnpm typecheck                   # TypeScript type checking
 # Docker
 docker compose up                # Run the full app
 docker compose up --build        # Rebuild and run
-```
-
-## Commands (Legacy Prototype — Python)
-
-The `*.py` files in the root and `react-dashboard/` are the old prototype. They use `uv` for package management and DuckDB.
-
-```bash
-uv sync                          # Install Python dependencies
-uv run python app.py             # Old Plaid Link flow (port 8000)
-uv run python sync_to_db.py      # Old sync script
 ```
 
 ## Architecture
@@ -126,12 +116,15 @@ ledgr/
 │       └── server.ts               # MSW server setup for Vitest
 ├── e2e/
 │   └── health.spec.ts              # Playwright health check E2E
-├── docker-compose.yml              # Postgres 17 + app services
+├── scripts/
+│   ├── docker-entrypoint.sh        # Container startup (migrate + serve)
+│   ├── migrate.mjs                 # Standalone Drizzle migration runner
+│   └── install-migrate-deps.mjs    # Installs migration deps from package.json versions
+├── docker-compose.yml              # Postgres 18 + app services
+├── Dockerfile                      # Multi-stage production build (Node 24 LTS)
 ├── vitest.config.ts
 ├── playwright.config.ts
 ├── stryker.config.json
-├── Dockerfile
-├── docker-compose.yml
 └── .env.example
 ```
 

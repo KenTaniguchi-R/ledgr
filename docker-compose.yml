@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: ledgr
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledgr}
@@ -27,13 +27,13 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     env_file: .env
     environment:
       DATABASE_URL: postgresql://ledgr:${POSTGRES_PASSWORD:-ledgr}@db:5432/ledgr
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)throw 1}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3

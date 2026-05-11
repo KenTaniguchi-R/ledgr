@@ -160,15 +160,26 @@ docker compose pull
 docker compose up -d
 ```
 
+Database migrations run automatically on container startup — no manual steps needed.
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Host port for the app |
+| `POSTGRES_PASSWORD` | `ledgr` | Database password |
+
+See `.env.example` for all available options including Plaid, AI, and MCP configuration.
+
 ## Development
 
 > **If you're trying to self-host Ledgr, use the [Quick Start](#quick-start) above.** The instructions below are for contributors.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/) 9+
-- Running PostgreSQL (or use `pnpm dev:db` to start one in Docker)
+- [Node.js](https://nodejs.org/) 24+ (LTS)
+- [pnpm](https://pnpm.io/) 10+
+- Running PostgreSQL 18 (or use `pnpm dev:db` to start one in Docker)
 
 ### Setup
 
@@ -201,7 +212,7 @@ pnpm db:studio                    # Drizzle Studio (DB browser)
 | Language | TypeScript |
 | UI | shadcn/ui + Tailwind CSS 4 |
 | Charts | Recharts 3 |
-| Database | PostgreSQL 17 via Drizzle ORM |
+| Database | PostgreSQL 18 via Drizzle ORM |
 | Auth | Better Auth |
 | Bank Sync | Plaid Node SDK |
 | AI | Vercel AI SDK (BYOK) |
