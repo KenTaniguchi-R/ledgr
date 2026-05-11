@@ -28,8 +28,8 @@ export function BudgetSummaryBar({
   const values = [totalBudgeted, totalSpent, totalRemaining];
 
   return (
-    <div className="flex items-center justify-between rounded-lg border bg-card p-4">
-      <div className="flex gap-8">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-card p-4 gap-3 sm:gap-0">
+      <div className="flex gap-4 sm:gap-8 overflow-x-auto">
         {labels.map((label, i) => (
           <div key={label}>
             <p className="text-xs text-muted-foreground">{label}</p>

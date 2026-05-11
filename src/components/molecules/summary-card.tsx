@@ -12,7 +12,7 @@ interface SummaryCardProps {
 export function SummaryCard({ label, amount, currency, variant = "default" }: SummaryCardProps) {
   return (
     <Card>
-      <CardContent className="pt-4 pb-3 px-4">
+      <CardContent className="pt-3 pb-2 px-2 sm:pt-4 sm:pb-3 sm:px-4">
         <div
           className={cn(
             variant === "positive" && "text-emerald-600",
@@ -21,7 +21,7 @@ export function SummaryCard({ label, amount, currency, variant = "default" }: Su
         >
           <BalanceDisplay amount={amount} currency={currency} size="lg" />
         </div>
-        <p className="text-xs text-muted-foreground mt-1">{label}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">{label}</p>
       </CardContent>
     </Card>
   );

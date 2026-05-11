@@ -204,48 +204,52 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
           </SelectContent>
         </Select>
 
-        <Input
-          type="text"
-          inputMode="decimal"
-          placeholder="Min $"
-          aria-label="Minimum amount"
-          value={amount.minDisplay}
-          onChange={(e) => amount.handleMinChange(e.target.value)}
-          onBlur={() => amount.handleBlur("amountMin")}
-          className="h-8 w-[80px] text-xs"
-        />
-        <Input
-          type="text"
-          inputMode="decimal"
-          placeholder="Max $"
-          aria-label="Maximum amount"
-          value={amount.maxDisplay}
-          onChange={(e) => amount.handleMaxChange(e.target.value)}
-          onBlur={() => amount.handleBlur("amountMax")}
-          className="h-8 w-[80px] text-xs"
-        />
+        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+          <Input
+            type="text"
+            inputMode="decimal"
+            placeholder="Min $"
+            aria-label="Minimum amount"
+            value={amount.minDisplay}
+            onChange={(e) => amount.handleMinChange(e.target.value)}
+            onBlur={() => amount.handleBlur("amountMin")}
+            className="h-8 sm:w-[80px] text-xs"
+          />
+          <Input
+            type="text"
+            inputMode="decimal"
+            placeholder="Max $"
+            aria-label="Maximum amount"
+            value={amount.maxDisplay}
+            onChange={(e) => amount.handleMaxChange(e.target.value)}
+            onBlur={() => amount.handleBlur("amountMax")}
+            className="h-8 sm:w-[80px] text-xs"
+          />
+        </div>
 
-        <Input
-          type="date"
-          aria-label="From date"
-          value={searchParams.get("from") ?? ""}
-          onChange={(e) => {
-            setActivePreset("");
-            updateFilter("from", e.target.value || null);
-          }}
-          className="h-8 w-full sm:w-[130px] text-xs"
-        />
-        <span className="text-xs text-muted-foreground">to</span>
-        <Input
-          type="date"
-          aria-label="To date"
-          value={searchParams.get("to") ?? ""}
-          onChange={(e) => {
-            setActivePreset("");
-            updateFilter("to", e.target.value || null);
-          }}
-          className="h-8 w-full sm:w-[130px] text-xs"
-        />
+        <div className="grid grid-cols-[1fr_auto_1fr] sm:flex items-center gap-2 w-full sm:w-auto">
+          <Input
+            type="date"
+            aria-label="From date"
+            value={searchParams.get("from") ?? ""}
+            onChange={(e) => {
+              setActivePreset("");
+              updateFilter("from", e.target.value || null);
+            }}
+            className="h-8 sm:w-[130px] text-xs"
+          />
+          <span className="text-xs text-muted-foreground">to</span>
+          <Input
+            type="date"
+            aria-label="To date"
+            value={searchParams.get("to") ?? ""}
+            onChange={(e) => {
+              setActivePreset("");
+              updateFilter("to", e.target.value || null);
+            }}
+            className="h-8 sm:w-[130px] text-xs"
+          />
+        </div>
 
         <div className="flex items-center gap-1.5">
           <Switch

@@ -10,7 +10,7 @@ interface BalanceDisplayProps {
 const sizeClasses = {
   sm: "text-sm",
   md: "text-base",
-  lg: "text-2xl font-semibold tracking-tight",
+  lg: "text-lg sm:text-2xl font-semibold tracking-tight",
 };
 
 export function BalanceDisplay({
