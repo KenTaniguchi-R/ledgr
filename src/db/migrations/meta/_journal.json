@@ -1,117 +1,12 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1778360361483,
-      "tag": "0000_lean_snowbird",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1778366253333,
-      "tag": "0001_ambitious_cable",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1778379763803,
-      "tag": "0002_boring_the_fallen",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1778383692444,
-      "tag": "0003_heavy_wildside",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1778387564397,
-      "tag": "0004_brief_daimon_hellstrom",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1778391955261,
-      "tag": "0005_spotty_thor",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1778394876780,
-      "tag": "0006_slim_the_liberteens",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1778400635866,
-      "tag": "0007_clever_avengers",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1778402480615,
-      "tag": "0008_thin_paladin",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1778405584225,
-      "tag": "0009_silent_thor_girl",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1778408025092,
-      "tag": "0010_damp_marvel_apes",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1747094400000,
-      "tag": "0011_oauth_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1747180800000,
-      "tag": "0012_add_reviewed_transfer_indexes",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "6",
-      "when": 1747267200000,
-      "tag": "0013_add_mcp_enabled",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "6",
-      "when": 1747353600000,
-      "tag": "0014_add_consent_unique_index",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "6",
-      "when": 1747440000000,
-      "tag": "0015_add_demo_mode",
+      "version": "7",
+      "when": 1778486175697,
+      "tag": "0000_loud_cassandra_nova",
       "breakpoints": true
     }
   ]
