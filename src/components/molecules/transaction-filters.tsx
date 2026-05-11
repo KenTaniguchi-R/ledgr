@@ -118,6 +118,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
           placeholder="Search..."
+          aria-label="Search transactions"
           value={searchValue}
           onChange={(e) => handleSearchChange(e.target.value)}
           className="h-8 w-[180px] pl-7 text-sm"
@@ -176,6 +177,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         type="text"
         inputMode="decimal"
         placeholder="Min $"
+        aria-label="Minimum amount"
         value={amountMinDisplay}
         onChange={(e) => handleAmountMinChange(e.target.value)}
         onBlur={() => handleAmountBlur("amountMin", amountMinDisplay)}
@@ -185,6 +187,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
         type="text"
         inputMode="decimal"
         placeholder="Max $"
+        aria-label="Maximum amount"
         value={amountMaxDisplay}
         onChange={(e) => handleAmountMaxChange(e.target.value)}
         onBlur={() => handleAmountBlur("amountMax", amountMaxDisplay)}
@@ -193,6 +196,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
 
       <Input
         type="date"
+        aria-label="From date"
         value={searchParams.get("from") ?? ""}
         onChange={(e) => updateFilter("from", e.target.value || null)}
         className="h-8 w-[130px] text-xs"
@@ -200,6 +204,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
       <span className="text-xs text-muted-foreground">to</span>
       <Input
         type="date"
+        aria-label="To date"
         value={searchParams.get("to") ?? ""}
         onChange={(e) => updateFilter("to", e.target.value || null)}
         className="h-8 w-[130px] text-xs"

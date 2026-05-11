@@ -42,7 +42,7 @@ export function BulkActionBar({ selectedIds, categories, onComplete }: BulkActio
       <span className="text-sm font-medium">{selectedIds.length} selected</span>
 
       <Select onValueChange={handleCategorize} disabled={isPending}>
-        <SelectTrigger className="h-7 w-[160px] text-xs">
+        <SelectTrigger className="h-7 w-[160px] text-xs" aria-label="Set category for selected transactions">
           <SelectValue placeholder="Set category..." />
         </SelectTrigger>
         <SelectContent>
