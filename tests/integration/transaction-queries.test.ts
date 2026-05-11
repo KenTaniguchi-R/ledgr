@@ -105,4 +105,59 @@ describe("getTransactions", () => {
     expect(page.rows[0].categoryGroupName).toBe("Food");
     expect(page.rows[0].accountName).toBe("Chase Checking");
   });
+
+  it("filters by transaction type — expense (negative normalizedAmount, not transfer)", () => {
+    insertTransaction(db, householdId, accountId, {
+      name: "Transfer Out",
+      date: "2026-05-06",
+      amount: -5000,
+      normalizedAmount: 5000,
+      isTransfer: true,
+    });
+
+    const page = getTransactions(
+      householdId,
+      { transactionType: "expense" },
+      50, null, db,
+    );
+    for (const row of page.rows) {
+      expect(row.normalizedAmount).toBeLessThan(0);
+      expect(row.isTransfer).toBe(false);
+    }
+  });
+
+  it("filters by transaction type — credits (positive normalizedAmount, not transfer)", () => {
+    const page = getTransactions(
+      householdId,
+      { transactionType: "credits" },
+      50, null, db,
+    );
+    for (const row of page.rows) {
+      expect(row.normalizedAmount).toBeGreaterThan(0);
+      expect(row.isTransfer).toBe(false);
+    }
+  });
+
+  it("filters by transaction type — transfer", () => {
+    const page = getTransactions(
+      householdId,
+      { transactionType: "transfer" },
+      50, null, db,
+    );
+    for (const row of page.rows) {
+      expect(row.isTransfer).toBe(true);
+    }
+  });
+
+  it("filters by amount range (absolute value)", () => {
+    const page = getTransactions(
+      householdId,
+      { amountMin: 1000, amountMax: 3000 },
+      50, null, db,
+    );
+    for (const row of page.rows) {
+      expect(Math.abs(row.normalizedAmount)).toBeGreaterThanOrEqual(1000);
+      expect(Math.abs(row.normalizedAmount)).toBeLessThanOrEqual(3000);
+    }
+  });
 });

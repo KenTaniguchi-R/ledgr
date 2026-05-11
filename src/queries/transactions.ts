@@ -1,4 +1,4 @@
-import { eq, like, gte, lte, isNull, desc, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, like, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -11,6 +11,9 @@ export interface TransactionFilters {
   categoryId?: string | null;
   reviewed?: boolean;
   search?: string;
+  amountMin?: number;
+  amountMax?: number;
+  transactionType?: "expense" | "credits" | "transfer";
 }
 
 export interface TransactionRow {
@@ -126,6 +129,23 @@ export function buildTransactionConditions(filters: TransactionFilters): (SQL | 
   }
   if (filters.search) {
     conditions.push(like(transactions.name, `%${filters.search}%`));
+  }
+  if (filters.amountMin !== undefined) {
+    conditions.push(sql`abs(${transactions.normalizedAmount}) >= ${filters.amountMin}`);
+  }
+  if (filters.amountMax !== undefined) {
+    conditions.push(sql`abs(${transactions.normalizedAmount}) <= ${filters.amountMax}`);
+  }
+  if (filters.transactionType === "expense") {
+    conditions.push(lt(transactions.normalizedAmount, 0));
+    conditions.push(eq(transactions.isTransfer, false));
+  }
+  if (filters.transactionType === "credits") {
+    conditions.push(gt(transactions.normalizedAmount, 0));
+    conditions.push(eq(transactions.isTransfer, false));
+  }
+  if (filters.transactionType === "transfer") {
+    conditions.push(eq(transactions.isTransfer, true));
   }
 
   return conditions;
