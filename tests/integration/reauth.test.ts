@@ -7,6 +7,7 @@ import { server } from "../mocks/server";
 import { encrypt } from "@/lib/encryption";
 import { resetPlaidClient } from "@/lib/plaid/client";
 import { households, householdMembers, plaidItems, accounts, syncLog } from "@/db/schema";
+import type { LedgrDb } from "@/db";
 
 const HOUSEHOLD_ID = "hh-reauth-test";
 const USER_ID = "user-reauth-1";
@@ -26,30 +27,28 @@ afterAll(() => {
 });
 
 describe("re-auth server actions", () => {
-  let db: ReturnType<typeof createTestDb>["db"];
-  let close: () => void;
+  let db: LedgrDb;
+  let close: () => Promise<void>;
 
   beforeEach(() => {
     resetPlaidClient();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     server.resetHandlers();
-    close?.();
+    await close?.();
   });
 
-  function setup() {
-    const result = createTestDb();
-    db = result.db;
-    close = result.close;
+  async function setup() {
+    ({ db, close } = await createTestDb());
     return db;
   }
 
-  function seedItem(testDb: typeof db, status: "active" | "error" | "reauth_required" | "revoked" = "reauth_required") {
+  async function seedItem(testDb: LedgrDb, status: "active" | "error" | "reauth_required" | "revoked" = "reauth_required") {
     const now = new Date().toISOString();
-    testDb.insert(households).values({ id: HOUSEHOLD_ID, name: "Test", createdAt: now, updatedAt: now }).run();
-    testDb.insert(householdMembers).values({ id: uuid(), householdId: HOUSEHOLD_ID, userId: USER_ID, role: "owner", createdAt: now }).run();
-    testDb.insert(plaidItems).values({
+    await testDb.insert(households).values({ id: HOUSEHOLD_ID, name: "Test", createdAt: now, updatedAt: now });
+    await testDb.insert(householdMembers).values({ id: uuid(), householdId: HOUSEHOLD_ID, userId: USER_ID, role: "owner", createdAt: now });
+    await testDb.insert(plaidItems).values({
       id: ITEM_ID,
       householdId: HOUSEHOLD_ID,
       accessToken: encrypt("access-sandbox-reauth-token"),
@@ -59,8 +58,8 @@ describe("re-auth server actions", () => {
       errorCode: status === "reauth_required" ? "ITEM_LOGIN_REQUIRED" : null,
       createdAt: now,
       updatedAt: now,
-    }).run();
-    testDb.insert(accounts).values({
+    });
+    await testDb.insert(accounts).values({
       id: "acc-reauth-1",
       householdId: HOUSEHOLD_ID,
       plaidItemId: ITEM_ID,
@@ -69,13 +68,13 @@ describe("re-auth server actions", () => {
       type: "checking",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
   }
 
   it("createUpdateLinkToken returns link token for owned reauth_required item", async () => {
     const { createUpdateLinkTokenDirect } = await import("@/actions/reauth");
-    const testDb = setup();
-    seedItem(testDb);
+    await setup();
+    await seedItem(db);
 
     server.use(
       http.post("https://sandbox.plaid.com/link/token/create", () =>
@@ -83,23 +82,23 @@ describe("re-auth server actions", () => {
       )
     );
 
-    const result = await createUpdateLinkTokenDirect(ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await createUpdateLinkTokenDirect(ITEM_ID, HOUSEHOLD_ID, db);
     expect(result).toEqual({ linkToken: "link-update-token-123" });
   });
 
   it("createUpdateLinkToken rejects wrong household", async () => {
     const { createUpdateLinkTokenDirect } = await import("@/actions/reauth");
-    const testDb = setup();
-    seedItem(testDb);
+    await setup();
+    await seedItem(db);
 
-    const result = await createUpdateLinkTokenDirect(ITEM_ID, "wrong-household", testDb);
+    const result = await createUpdateLinkTokenDirect(ITEM_ID, "wrong-household", db);
     expect(result).toEqual({ error: "Institution not found" });
   });
 
   it("completeReAuth resets status and triggers sync", async () => {
     const { completeReAuthDirect } = await import("@/actions/reauth");
-    const testDb = setup();
-    seedItem(testDb);
+    await setup();
+    await seedItem(db);
 
     server.use(
       http.post("https://sandbox.plaid.com/item/get", () =>
@@ -113,14 +112,14 @@ describe("re-auth server actions", () => {
       )
     );
 
-    const result = await completeReAuthDirect(ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await completeReAuthDirect(ITEM_ID, HOUSEHOLD_ID, db);
     expect(result).toEqual({ success: true });
 
-    const item = testDb.select().from(plaidItems).where(eq(plaidItems.id, ITEM_ID)).get()!;
-    expect(item.status).toBe("active");
-    expect(item.errorCode).toBeNull();
+    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, ITEM_ID));
+    expect(item!.status).toBe("active");
+    expect(item!.errorCode).toBeNull();
 
-    const logs = testDb.select().from(syncLog).where(eq(syncLog.plaidItemId, ITEM_ID)).all();
+    const logs = await db.select().from(syncLog).where(eq(syncLog.plaidItemId, ITEM_ID));
     expect(logs).toHaveLength(1);
   });
 });

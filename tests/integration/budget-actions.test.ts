@@ -17,7 +17,6 @@ import {
 import { budgetCategories } from "../../src/db/schema";
 import type { LedgrDb } from "../../src/db";
 
-// Mock auth + revalidation
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("../../src/lib/demo-mode", () => ({ guardDemoMode: vi.fn(() => null) }));
 
@@ -30,31 +29,29 @@ vi.mock("../../src/lib/auth/session", () => ({
 
 describe("budget actions", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
   let categoryId1: string;
   let categoryId2: string;
   let otherHouseholdId: string;
 
-  beforeAll(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
 
-    // Primary household
-    const hh = insertHousehold(db);
+    const hh = await insertHousehold(db);
     mockHouseholdId = hh.householdId;
-    const { groupId } = insertCategoryGroup(db, hh.householdId);
-    ({ categoryId: categoryId1 } = insertCategory(db, hh.householdId, groupId, { name: "Groceries" }));
-    ({ categoryId: categoryId2 } = insertCategory(db, hh.householdId, groupId, { name: "Dining" }));
+    const { groupId } = await insertCategoryGroup(db, hh.householdId);
+    ({ categoryId: categoryId1 } = await insertCategory(db, hh.householdId, groupId, { name: "Groceries" }));
+    ({ categoryId: categoryId2 } = await insertCategory(db, hh.householdId, groupId, { name: "Dining" }));
 
-    // Second household for isolation tests
-    const hh2 = insertHousehold(db, "Other Household");
+    const hh2 = await insertHousehold(db, "Other Household");
     otherHouseholdId = hh2.householdId;
-    const { groupId: groupId2 } = insertCategoryGroup(db, otherHouseholdId, { name: "Other Group" });
-    insertCategory(db, otherHouseholdId, groupId2, { name: "Other Cat" });
+    const { groupId: groupId2 } = await insertCategoryGroup(db, otherHouseholdId, { name: "Other Group" });
+    await insertCategory(db, otherHouseholdId, groupId2, { name: "Other Cat" });
   });
 
-  afterAll(() => close());
+  afterAll(async () => {
+    await close();
+  });
 
   describe("createBudget", () => {
     it("creates a budget and returns same budgetId on repeat call (idempotent)", async () => {
@@ -72,29 +69,25 @@ describe("budget actions", () => {
 
   describe("setBudgetCategory", () => {
     it("upserts: insert then update same category = same row, new limitAmount", async () => {
-      const { budgetId } = insertBudget(db, mockHouseholdId, { month: "2026-07" });
+      const { budgetId } = await insertBudget(db, mockHouseholdId, { month: "2026-07" });
 
-      // Insert
       const r1 = await setBudgetCategory(budgetId, categoryId1, 50000, db);
       expect(r1).toEqual({ success: true });
 
-      const rows1 = db
+      const rows1 = await db
         .select()
         .from(budgetCategories)
-        .where(and(eq(budgetCategories.budgetId, budgetId), eq(budgetCategories.categoryId, categoryId1)))
-        .all();
+        .where(and(eq(budgetCategories.budgetId, budgetId), eq(budgetCategories.categoryId, categoryId1)));
       expect(rows1).toHaveLength(1);
       expect(rows1[0].limitAmount).toBe(50000);
 
-      // Update (upsert same category)
       const r2 = await setBudgetCategory(budgetId, categoryId1, 75000, db);
       expect(r2).toEqual({ success: true });
 
-      const rows2 = db
+      const rows2 = await db
         .select()
         .from(budgetCategories)
-        .where(and(eq(budgetCategories.budgetId, budgetId), eq(budgetCategories.categoryId, categoryId1)))
-        .all();
+        .where(and(eq(budgetCategories.budgetId, budgetId), eq(budgetCategories.categoryId, categoryId1)));
       expect(rows2).toHaveLength(1);
       expect(rows2[0].limitAmount).toBe(75000);
     });
@@ -102,63 +95,56 @@ describe("budget actions", () => {
 
   describe("removeBudgetCategory", () => {
     it("deletes the budget category row", async () => {
-      const { budgetId } = insertBudget(db, mockHouseholdId, { month: "2026-08" });
-      insertBudgetCategory(db, budgetId, categoryId1, { limitAmount: 30000 });
+      const { budgetId } = await insertBudget(db, mockHouseholdId, { month: "2026-08" });
+      await insertBudgetCategory(db, budgetId, categoryId1, { limitAmount: 30000 });
 
       const r = await removeBudgetCategory(budgetId, categoryId1, db);
       expect(r).toEqual({ success: true });
 
-      const remaining = db
+      const remaining = await db
         .select()
         .from(budgetCategories)
-        .where(eq(budgetCategories.budgetId, budgetId))
-        .all();
+        .where(eq(budgetCategories.budgetId, budgetId));
       expect(remaining).toHaveLength(0);
     });
   });
 
   describe("copyBudgetFromMonth", () => {
     it("copies category limits to new month and merges if target exists", async () => {
-      // Source budget with two categories
-      const { budgetId: srcId } = insertBudget(db, mockHouseholdId, { month: "2026-03" });
-      insertBudgetCategory(db, srcId, categoryId1, { limitAmount: 40000 });
-      insertBudgetCategory(db, srcId, categoryId2, { limitAmount: 20000 });
+      const { budgetId: srcId } = await insertBudget(db, mockHouseholdId, { month: "2026-03" });
+      await insertBudgetCategory(db, srcId, categoryId1, { limitAmount: 40000 });
+      await insertBudgetCategory(db, srcId, categoryId2, { limitAmount: 20000 });
 
-      // Target budget already has category1 with different limit
-      const { budgetId: tgtId } = insertBudget(db, mockHouseholdId, { month: "2026-04" });
-      insertBudgetCategory(db, tgtId, categoryId1, { limitAmount: 99999 });
+      const { budgetId: tgtId } = await insertBudget(db, mockHouseholdId, { month: "2026-04" });
+      await insertBudgetCategory(db, tgtId, categoryId1, { limitAmount: 99999 });
 
       const r = await copyBudgetFromMonth("2026-03", "2026-04", db);
       expect(r).toHaveProperty("success", true);
 
-      // category1 should keep original target limit (not overwritten)
-      const cat1Row = db
+      const [cat1Row] = await db
         .select()
         .from(budgetCategories)
-        .where(and(eq(budgetCategories.budgetId, tgtId), eq(budgetCategories.categoryId, categoryId1)))
-        .get();
+        .where(and(eq(budgetCategories.budgetId, tgtId), eq(budgetCategories.categoryId, categoryId1)));
       expect(cat1Row!.limitAmount).toBe(99999);
 
-      // category2 should be copied from source
-      const cat2Row = db
+      const [cat2Row] = await db
         .select()
         .from(budgetCategories)
-        .where(and(eq(budgetCategories.budgetId, tgtId), eq(budgetCategories.categoryId, categoryId2)))
-        .get();
+        .where(and(eq(budgetCategories.budgetId, tgtId), eq(budgetCategories.categoryId, categoryId2)));
       expect(cat2Row!.limitAmount).toBe(20000);
     });
   });
 
   describe("household isolation", () => {
     it("setBudgetCategory rejects when budget belongs to another household", async () => {
-      const { budgetId: otherBudgetId } = insertBudget(db, otherHouseholdId, { month: "2026-09" });
+      const { budgetId: otherBudgetId } = await insertBudget(db, otherHouseholdId, { month: "2026-09" });
 
       const r = await setBudgetCategory(otherBudgetId, categoryId1, 10000, db);
       expect(r).toEqual({ error: "Budget not found" });
     });
 
     it("removeBudgetCategory rejects when budget belongs to another household", async () => {
-      const { budgetId: otherBudgetId } = insertBudget(db, otherHouseholdId, { month: "2026-10" });
+      const { budgetId: otherBudgetId } = await insertBudget(db, otherHouseholdId, { month: "2026-10" });
 
       const r = await removeBudgetCategory(otherBudgetId, categoryId1, db);
       expect(r).toEqual({ error: "Budget not found" });

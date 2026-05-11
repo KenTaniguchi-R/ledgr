@@ -7,34 +7,32 @@ import { getUserAiSettings, upsertAiSettings } from "@/queries/settings";
 
 describe("settings queries", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
   const userId = "user-1";
 
-  beforeEach(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+  beforeEach(async () => {
+    ({ db, close } = await createTestDb());
   });
 
-  afterEach(() => {
-    close();
+  afterEach(async () => {
+    await close();
   });
 
-  test("returns null when no settings exist", () => {
-    const result = getUserAiSettings(userId, db);
+  test("returns null when no settings exist", async () => {
+    const result = await getUserAiSettings(userId, db);
     expect(result).toBeNull();
   });
 
-  test("returns settings with hasKey flag", () => {
-    db.insert(userSettings).values({
+  test("returns settings with hasKey flag", async () => {
+    await db.insert(userSettings).values({
       id: uuid(),
       userId,
       aiProvider: "openai",
       aiModel: "gpt-4.1",
       aiApiKey: "encrypted-value",
-    }).run();
+    });
 
-    const result = getUserAiSettings(userId, db);
+    const result = await getUserAiSettings(userId, db);
     expect(result).not.toBeNull();
     expect(result!.aiProvider).toBe("openai");
     expect(result!.aiModel).toBe("gpt-4.1");
@@ -42,35 +40,34 @@ describe("settings queries", () => {
     expect(result!.rawEncryptedKey).toBe("encrypted-value");
   });
 
-  test("upserts settings — insert then update", () => {
-    upsertAiSettings(userId, {
+  test("upserts settings — insert then update", async () => {
+    await upsertAiSettings(userId, {
       aiProvider: "openai",
       aiModel: "gpt-4.1",
       aiApiKey: "encrypted-key-1",
     }, db);
 
-    let result = getUserAiSettings(userId, db);
+    let result = await getUserAiSettings(userId, db);
     expect(result!.aiProvider).toBe("openai");
 
-    upsertAiSettings(userId, {
+    await upsertAiSettings(userId, {
       aiProvider: "anthropic",
       aiModel: "claude-sonnet-4-20250514",
     }, db);
 
-    result = getUserAiSettings(userId, db);
+    result = await getUserAiSettings(userId, db);
     expect(result!.aiProvider).toBe("anthropic");
-    // Key should be preserved from first insert (update didn't pass aiApiKey)
     expect(result!.hasKey).toBe(true);
   });
 
-  test("upserts with custom provider and base URL", () => {
-    upsertAiSettings(userId, {
+  test("upserts with custom provider and base URL", async () => {
+    await upsertAiSettings(userId, {
       aiProvider: "custom",
       aiModel: "llama3.1:8b",
       aiBaseUrl: "http://localhost:11434/v1",
     }, db);
 
-    const result = getUserAiSettings(userId, db);
+    const result = await getUserAiSettings(userId, db);
     expect(result!.aiProvider).toBe("custom");
     expect(result!.aiBaseUrl).toBe("http://localhost:11434/v1");
   });

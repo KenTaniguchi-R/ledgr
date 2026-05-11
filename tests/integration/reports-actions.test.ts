@@ -7,34 +7,35 @@ import type { LedgrDb } from "@/db";
 import { eq } from "drizzle-orm";
 import { scopedQuery } from "@/lib/scoped-query";
 
-function deleteReportScoped(reportId: string, householdId: string, db: LedgrDb) {
+async function deleteReportScoped(reportId: string, householdId: string, db: LedgrDb) {
   const scoped = scopedQuery(householdId, db);
-  const result = db
+  const result = await db
     .delete(savedReports)
-    .where(scoped.where(savedReports, eq(savedReports.id, reportId)))
-    .run();
-  return result.changes;
+    .where(scoped.where(savedReports, eq(savedReports.id, reportId)));
+  return result.rowCount ?? 0;
 }
 
 describe("deleteReport scoping", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
 
-  beforeEach(() => {
-    ({ db, close } = createTestDb());
+  beforeEach(async () => {
+    ({ db, close } = await createTestDb());
     const now = nowISO();
-    db.insert(households).values([
+    await db.insert(households).values([
       { id: "h1", name: "House 1", createdAt: now, updatedAt: now },
       { id: "h2", name: "House 2", createdAt: now, updatedAt: now },
-    ]).run();
+    ]);
   });
 
-  afterEach(() => close());
+  afterEach(async () => {
+    await close();
+  });
 
-  it("cannot delete a report belonging to another household", () => {
+  it("cannot delete a report belonging to another household", async () => {
     const now = nowISO();
     const reportId = uuid();
-    db.insert(savedReports).values({
+    await db.insert(savedReports).values({
       id: reportId,
       householdId: "h1",
       name: "My Report",
@@ -42,19 +43,19 @@ describe("deleteReport scoping", () => {
       filters: "{}",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    const changes = deleteReportScoped(reportId, "h2", db);
+    const changes = await deleteReportScoped(reportId, "h2", db);
     expect(changes).toBe(0);
 
-    const remaining = db.select().from(savedReports).where(eq(savedReports.id, reportId)).get();
+    const [remaining] = await db.select().from(savedReports).where(eq(savedReports.id, reportId));
     expect(remaining).toBeDefined();
   });
 
-  it("can delete own report", () => {
+  it("can delete own report", async () => {
     const now = nowISO();
     const reportId = uuid();
-    db.insert(savedReports).values({
+    await db.insert(savedReports).values({
       id: reportId,
       householdId: "h1",
       name: "My Report",
@@ -62,9 +63,9 @@ describe("deleteReport scoping", () => {
       filters: "{}",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    const changes = deleteReportScoped(reportId, "h1", db);
+    const changes = await deleteReportScoped(reportId, "h1", db);
     expect(changes).toBe(1);
   });
 });

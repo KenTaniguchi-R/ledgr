@@ -7,46 +7,44 @@ import type { LedgrDb } from "../../src/db";
 
 describe("isTransfer population during sync", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
   let householdId: string;
   let accountId: string;
 
-  beforeAll(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
-    ({ householdId } = insertHousehold(db));
-    ({ accountId } = insertAccount(db, householdId));
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
+    ({ householdId } = await insertHousehold(db));
+    ({ accountId } = await insertAccount(db, householdId));
   });
 
-  afterAll(() => close());
+  afterAll(async () => {
+    await close();
+  });
 
-  it("sets isTransfer true for TRANSFER_IN pfc_primary", () => {
-    const { transactionId } = insertTransaction(db, householdId, accountId, {
+  it("sets isTransfer true for TRANSFER_IN pfc_primary", async () => {
+    const { transactionId } = await insertTransaction(db, householdId, accountId, {
       pfcPrimary: "TRANSFER_IN",
       isTransfer: true,
     });
 
-    const row = db
+    const [row] = await db
       .select({ isTransfer: transactions.isTransfer })
       .from(transactions)
-      .where(eq(transactions.id, transactionId))
-      .get();
+      .where(eq(transactions.id, transactionId));
 
     expect(row?.isTransfer).toBe(true);
   });
 
-  it("sets isTransfer false for non-transfer categories", () => {
-    const { transactionId } = insertTransaction(db, householdId, accountId, {
+  it("sets isTransfer false for non-transfer categories", async () => {
+    const { transactionId } = await insertTransaction(db, householdId, accountId, {
       pfcPrimary: "FOOD_AND_DRINK",
       isTransfer: false,
     });
 
-    const row = db
+    const [row] = await db
       .select({ isTransfer: transactions.isTransfer })
       .from(transactions)
-      .where(eq(transactions.id, transactionId))
-      .get();
+      .where(eq(transactions.id, transactionId));
 
     expect(row?.isTransfer).toBe(false);
   });

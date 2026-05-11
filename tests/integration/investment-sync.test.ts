@@ -50,21 +50,19 @@ function makeTxn(accountId: string, overrides: Partial<InvestmentTxnRow> = {}): 
 
 describe("applyInvestmentsToDb", () => {
   let db: LedgrDb;
-  let closeDb: () => void;
+  let closeDb: () => Promise<void>;
   let householdId: string;
   let accountId: string;
   let plaidItemId: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.stubEnv("ENCRYPTION_KEY", "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2");
-    const result = createTestDb();
-    db = result.db;
-    closeDb = result.close;
-    const hh = insertHousehold(db);
+    ({ db, close: closeDb } = await createTestDb());
+    const hh = await insertHousehold(db);
     householdId = hh.householdId;
-    const pi = insertPlaidItem(db, householdId);
+    const pi = await insertPlaidItem(db, householdId);
     plaidItemId = pi.plaidItemId;
-    const acc = insertAccount(db, householdId, {
+    const acc = await insertAccount(db, householdId, {
       type: "investment",
       plaidAccountId: "plaid-acc-ira",
       plaidItemId,
@@ -72,100 +70,99 @@ describe("applyInvestmentsToDb", () => {
     accountId = acc.accountId;
   });
 
-  afterEach(() => {
-    closeDb?.();
+  afterEach(async () => {
+    await closeDb?.();
     vi.unstubAllEnvs();
   });
 
-  it("inserts holdings and transactions", () => {
+  it("inserts holdings and transactions", async () => {
     const holdings = [makeHolding(accountId)];
     const txns = [makeTxn(accountId)];
 
-    const result = applyInvestmentsToDb(db, holdings, txns, plaidItemId);
+    const result = await applyInvestmentsToDb(db, holdings, txns, plaidItemId);
 
     expect(result.holdingsUpserted).toBe(1);
     expect(result.txnsInserted).toBe(1);
 
-    const dbHoldings = db.select().from(investmentHoldings).all();
+    const dbHoldings = await db.select().from(investmentHoldings);
     expect(dbHoldings).toHaveLength(1);
     expect(dbHoldings[0].currentValue).toBe(150000);
 
-    const dbTxns = db.select().from(investmentTransactions).all();
+    const dbTxns = await db.select().from(investmentTransactions);
     expect(dbTxns).toHaveLength(1);
     expect(dbTxns[0].amount).toBe(75000);
   });
 
-  it("full-replaces holdings on re-sync", () => {
+  it("full-replaces holdings on re-sync", async () => {
     const h1 = [makeHolding(accountId, { currentValue: 100000 })];
-    applyInvestmentsToDb(db, h1, [], plaidItemId);
+    await applyInvestmentsToDb(db, h1, [], plaidItemId);
 
     const h2 = [makeHolding(accountId, { currentValue: 200000 })];
-    applyInvestmentsToDb(db, h2, [], plaidItemId);
+    await applyInvestmentsToDb(db, h2, [], plaidItemId);
 
-    const dbHoldings = db.select().from(investmentHoldings).all();
+    const dbHoldings = await db.select().from(investmentHoldings);
     expect(dbHoldings).toHaveLength(1);
     expect(dbHoldings[0].currentValue).toBe(200000);
   });
 
-  it("deduplicates transactions with INSERT OR IGNORE", () => {
+  it("deduplicates transactions with INSERT OR IGNORE", async () => {
     const txn = makeTxn(accountId, { plaidInvestmentTransactionId: "dup-txn" });
-    applyInvestmentsToDb(db, [], [txn], plaidItemId);
-    applyInvestmentsToDb(db, [], [{ ...txn, id: crypto.randomUUID() }], plaidItemId);
+    await applyInvestmentsToDb(db, [], [txn], plaidItemId);
+    await applyInvestmentsToDb(db, [], [{ ...txn, id: crypto.randomUUID() }], plaidItemId);
 
-    const dbTxns = db.select().from(investmentTransactions).all();
+    const dbTxns = await db.select().from(investmentTransactions);
     expect(dbTxns).toHaveLength(1);
   });
 
-  it("writes holdings_history snapshot", () => {
+  it("writes holdings_history snapshot", async () => {
     const holdings = [makeHolding(accountId)];
-    applyInvestmentsToDb(db, holdings, [], plaidItemId);
+    await applyInvestmentsToDb(db, holdings, [], plaidItemId);
 
-    const snapshots = db.select().from(holdingsHistory).all();
+    const snapshots = await db.select().from(holdingsHistory);
     expect(snapshots).toHaveLength(1);
     expect(snapshots[0].value).toBe(150000);
   });
 
-  it("prevents duplicate snapshots via unique constraint", () => {
+  it("prevents duplicate snapshots via unique constraint", async () => {
     const holdings = [makeHolding(accountId)];
-    applyInvestmentsToDb(db, holdings, [], plaidItemId);
-    applyInvestmentsToDb(db, holdings, [], plaidItemId);
+    await applyInvestmentsToDb(db, holdings, [], plaidItemId);
+    await applyInvestmentsToDb(db, holdings, [], plaidItemId);
 
-    const snapshots = db.select().from(holdingsHistory).all();
+    const snapshots = await db.select().from(holdingsHistory);
     expect(snapshots).toHaveLength(1);
   });
 
-  it("isolates holdings across households", () => {
-    const hh2 = insertHousehold(db, "Other Household");
-    const acc2 = insertAccount(db, hh2.householdId, { type: "investment" });
+  it("isolates holdings across households", async () => {
+    const hh2 = await insertHousehold(db, "Other Household");
+    const acc2 = await insertAccount(db, hh2.householdId, { type: "investment" });
 
-    applyInvestmentsToDb(db, [makeHolding(accountId)], [], plaidItemId);
-    insertInvestmentHolding(db, acc2.accountId, { currentValue: 999999 });
+    await applyInvestmentsToDb(db, [makeHolding(accountId)], [], plaidItemId);
+    await insertInvestmentHolding(db, acc2.accountId, { currentValue: 999999 });
 
-    const hh1Holdings = db
+    const hh1Holdings = await db
       .select()
       .from(investmentHoldings)
-      .where(eq(investmentHoldings.accountId, accountId))
-      .all();
+      .where(eq(investmentHoldings.accountId, accountId));
     expect(hh1Holdings).toHaveLength(1);
     expect(hh1Holdings[0].currentValue).toBe(150000);
   });
 });
 
 describe("snapshotHoldings", () => {
-  it("idempotently snapshots holdings", () => {
-    const { db, close } = createTestDb();
-    const { householdId } = insertHousehold(db);
-    const { accountId } = insertAccount(db, householdId, { type: "investment" });
-    insertInvestmentHolding(db, accountId, {
+  it("idempotently snapshots holdings", async () => {
+    const { db, close } = await createTestDb();
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId, { type: "investment" });
+    await insertInvestmentHolding(db, accountId, {
       plaidSecurityId: "sec-1",
       currentValue: 150000,
     });
 
-    snapshotHoldings(db);
-    snapshotHoldings(db);
+    await snapshotHoldings(db);
+    await snapshotHoldings(db);
 
-    const snapshots = db.select().from(holdingsHistory).all();
+    const snapshots = await db.select().from(holdingsHistory);
     expect(snapshots).toHaveLength(1);
-    close();
+    await close();
   });
 });

@@ -21,17 +21,10 @@ import {
   transactions,
   syncLog,
 } from "@/db/schema";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+import type { LedgrDb } from "@/db";
 
 const HOUSEHOLD_ID = "hh-test-sync";
 const PLAID_ITEM_ID = "plaid-item-sync-test";
-
-// ---------------------------------------------------------------------------
-// Environment + MSW setup
-// ---------------------------------------------------------------------------
 
 beforeAll(() => {
   vi.stubEnv("PLAID_CLIENT_ID", "test-id");
@@ -46,53 +39,43 @@ afterAll(() => {
   vi.unstubAllEnvs();
 });
 
-// ---------------------------------------------------------------------------
-// Test suite
-// ---------------------------------------------------------------------------
-
 describe("transaction sync integration", () => {
-  let db: ReturnType<typeof createTestDb>["db"];
-  let close: () => void;
+  let db: LedgrDb;
+  let close: () => Promise<void>;
 
   beforeEach(() => {
     resetPlaidClient();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     server.resetHandlers();
-    close?.();
+    await close?.();
   });
 
-  function setup() {
-    const result = createTestDb();
-    db = result.db;
-    close = result.close;
+  async function setup() {
+    ({ db, close } = await createTestDb());
     return db;
   }
 
-  // -------------------------------------------------------------------------
-  // Seed helper
-  // -------------------------------------------------------------------------
-
-  function seedTestData(testDb: typeof db) {
+  async function seedTestData(testDb: LedgrDb) {
     const now = new Date().toISOString();
 
-    testDb.insert(households).values({
+    await testDb.insert(households).values({
       id: HOUSEHOLD_ID,
       name: "Test Household",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    testDb.insert(householdMembers).values({
+    await testDb.insert(householdMembers).values({
       id: uuid(),
       householdId: HOUSEHOLD_ID,
       userId: "user-1",
       role: "owner",
       createdAt: now,
-    }).run();
+    });
 
-    testDb.insert(plaidItems).values({
+    await testDb.insert(plaidItems).values({
       id: PLAID_ITEM_ID,
       householdId: HOUSEHOLD_ID,
       accessToken: encrypt("access-sandbox-test-token"),
@@ -100,9 +83,9 @@ describe("transaction sync integration", () => {
       status: "active",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    testDb.insert(accounts).values({
+    await testDb.insert(accounts).values({
       id: "acc-internal-checking",
       householdId: HOUSEHOLD_ID,
       plaidItemId: PLAID_ITEM_ID,
@@ -111,18 +94,13 @@ describe("transaction sync integration", () => {
       type: "checking",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
   }
 
-  // =========================================================================
-  // Test 1: Multi-page pagination drains all pages
-  // =========================================================================
-
   it("multi-page pagination drains all pages", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
-    // Stateful handler: first call returns page 1 (has_more=true), second returns page 2
     let callCount = 0;
     server.use(
       http.post("https://sandbox.plaid.com/transactions/sync", () => {
@@ -176,34 +154,27 @@ describe("transaction sync integration", () => {
       })
     );
 
-    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
     expect(result.success).toBe(true);
     if (!result.success) return;
 
     expect(result.addedCount).toBe(2);
 
-    // Verify 2 transactions inserted
-    const txns = testDb.select().from(transactions).where(eq(transactions.householdId, HOUSEHOLD_ID)).all();
+    const txns = await db.select().from(transactions).where(eq(transactions.householdId, HOUSEHOLD_ID));
     expect(txns).toHaveLength(2);
 
-    // Verify cursor updated to final value
-    const item = testDb.select().from(plaidItems).where(eq(plaidItems.id, PLAID_ITEM_ID)).get();
+    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, PLAID_ITEM_ID));
     expect(item?.syncCursor).toBe("cursor_final");
 
-    // Verify both pages were fetched
     expect(callCount).toBe(2);
   });
 
-  // =========================================================================
-  // Test 2: Removed transactions are soft-deleted
-  // =========================================================================
-
   it("removed transactions are soft-deleted", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
     const now = new Date().toISOString();
-    testDb.insert(transactions).values({
+    await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-internal-checking",
       householdId: HOUSEHOLD_ID,
@@ -217,33 +188,28 @@ describe("transaction sync integration", () => {
       pending: false,
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
     server.use(syncWithRemovedHandler);
 
-    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
     expect(result.success).toBe(true);
 
-    const txn = testDb
+    const [txn] = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.removed1))
-      .get();
+      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.removed1));
 
     expect(txn).toBeDefined();
     expect(txn?.deletedAt).not.toBeNull();
   });
 
-  // =========================================================================
-  // Test 3: Modified transactions upsert without duplicates
-  // =========================================================================
-
   it("modified transactions upsert without duplicates", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
     const now = new Date().toISOString();
-    testDb.insert(transactions).values({
+    await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-internal-checking",
       householdId: HOUSEHOLD_ID,
@@ -257,36 +223,28 @@ describe("transaction sync integration", () => {
       pending: false,
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
     server.use(syncWithModifiedHandler);
 
-    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
     expect(result.success).toBe(true);
 
-    const txns = testDb
+    const txns = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.modified1))
-      .all();
+      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.modified1));
 
-    // Only 1 row — no duplicate
     expect(txns).toHaveLength(1);
-    // Amount updated: 25.00 * 100 = 2500 cents
     expect(txns[0].amount).toBe(2500);
   });
 
-  // =========================================================================
-  // Test 4: Pending-to-posted transition soft-deletes pending row
-  // =========================================================================
-
   it("pending-to-posted transition soft-deletes pending row", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
     const now = new Date().toISOString();
-    // Pre-seed pending transaction
-    testDb.insert(transactions).values({
+    await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-internal-checking",
       householdId: HOUSEHOLD_ID,
@@ -300,9 +258,8 @@ describe("transaction sync integration", () => {
       pending: true,
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    // Handler returns posted version referencing pending1 as pending_transaction_id
     server.use(
       http.post("https://sandbox.plaid.com/transactions/sync", () =>
         HttpResponse.json({
@@ -330,82 +287,67 @@ describe("transaction sync integration", () => {
       )
     );
 
-    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
     expect(result.success).toBe(true);
 
-    // Pending row should be soft-deleted
-    const pendingTxn = testDb
+    const [pendingTxn] = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.pending1))
-      .get();
+      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.pending1));
     expect(pendingTxn?.deletedAt).not.toBeNull();
 
-    // Posted row should exist with pending=false
-    const postedTxn = testDb
+    const [postedTxn] = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.posted1))
-      .get();
+      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.posted1));
     expect(postedTxn).toBeDefined();
     expect(postedTxn?.pending).toBe(false);
   });
 
-  // =========================================================================
-  // Test 5: Empty sync advances cursor and writes sync_log
-  // =========================================================================
-
   it("empty sync advances cursor and writes sync_log", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
     server.use(syncEmptyHandler);
 
-    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    // Cursor updated
-    const item = testDb.select().from(plaidItems).where(eq(plaidItems.id, PLAID_ITEM_ID)).get();
+    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, PLAID_ITEM_ID));
     expect(item?.syncCursor).toBe("cursor_empty");
 
-    // sync_log has 1 entry with all counts = 0
-    const logs = testDb.select().from(syncLog).where(eq(syncLog.plaidItemId, PLAID_ITEM_ID)).all();
+    const logs = await db.select().from(syncLog).where(eq(syncLog.plaidItemId, PLAID_ITEM_ID));
     expect(logs).toHaveLength(1);
     expect(logs[0].addedCount).toBe(0);
     expect(logs[0].modifiedCount).toBe(0);
     expect(logs[0].removedCount).toBe(0);
   });
 
-  // =========================================================================
-  // Test 6: Cross-household isolation
-  // =========================================================================
-
   it("cross-household isolation — household B transaction untouched during household A sync", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
-    // Seed household B
     const HOUSEHOLD_B = "hh-test-b";
     const PLAID_ITEM_B = "plaid-item-b";
     const now = new Date().toISOString();
 
-    testDb.insert(households).values({
+    await db.insert(households).values({
       id: HOUSEHOLD_B,
       name: "Household B",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    testDb.insert(householdMembers).values({
+    await db.insert(householdMembers).values({
       id: uuid(),
       householdId: HOUSEHOLD_B,
       userId: "user-b",
       role: "owner",
       createdAt: now,
-    }).run();
+    });
 
-    testDb.insert(plaidItems).values({
+    await db.insert(plaidItems).values({
       id: PLAID_ITEM_B,
       householdId: HOUSEHOLD_B,
       accessToken: encrypt("access-sandbox-test-token"),
@@ -413,9 +355,9 @@ describe("transaction sync integration", () => {
       status: "active",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    testDb.insert(accounts).values({
+    await db.insert(accounts).values({
       id: "acc-b-checking",
       householdId: HOUSEHOLD_B,
       plaidItemId: PLAID_ITEM_B,
@@ -424,10 +366,9 @@ describe("transaction sync integration", () => {
       type: "checking",
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    // Insert a transaction for household B with a unique plaidTransactionId
-    testDb.insert(transactions).values({
+    await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-b-checking",
       householdId: HOUSEHOLD_B,
@@ -441,37 +382,29 @@ describe("transaction sync integration", () => {
       pending: false,
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    // Sync for household A uses syncWithRemovedHandler which removes TEST_TXN_IDS.removed1
-    // Household B's transaction is unrelated and should remain untouched
     server.use(syncEmptyHandler);
 
-    await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, testDb);
+    await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
 
-    // Household B's transaction should have deletedAt = null
-    const bTxn = testDb
+    const [bTxn] = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.plaidTransactionId, "txn-household-b-only"))
-      .get();
+      .where(eq(transactions.plaidTransactionId, "txn-household-b-only"));
 
     expect(bTxn).toBeDefined();
     expect(bTxn?.deletedAt).toBeNull();
   });
 
-  // =========================================================================
-  // Test 7: Duplicate plaid_transaction_id rejected by UNIQUE constraint
-  // =========================================================================
-
   it("duplicate plaid_transaction_id is rejected by UNIQUE constraint", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
     const now = new Date().toISOString();
     const sharedPlaidId = "txn-unique-constraint-test";
 
-    testDb.insert(transactions).values({
+    await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-internal-checking",
       householdId: HOUSEHOLD_ID,
@@ -485,10 +418,10 @@ describe("transaction sync integration", () => {
       pending: false,
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    expect(() => {
-      testDb.insert(transactions).values({
+    await expect(
+      db.insert(transactions).values({
         id: uuid(),
         accountId: "acc-internal-checking",
         householdId: HOUSEHOLD_ID,
@@ -502,26 +435,19 @@ describe("transaction sync integration", () => {
         pending: false,
         createdAt: now,
         updatedAt: now,
-      }).run();
-    }).toThrow();
+      })
+    ).rejects.toThrow();
   });
 
-  // =========================================================================
-  // Test 8: Unknown account_id — transaction skipped, cursor still advances
-  // =========================================================================
-
   it("transaction with unknown account_id is skipped but cursor still advances", async () => {
-    const testDb = setup();
-    seedTestData(testDb);
+    await setup();
+    await seedTestData(db);
 
-    // Set an initial cursor so we can verify it changes
-    testDb
+    await db
       .update(plaidItems)
       .set({ syncCursor: "cursor_before" })
-      .where(eq(plaidItems.id, PLAID_ITEM_ID))
-      .run();
+      .where(eq(plaidItems.id, PLAID_ITEM_ID));
 
-    // Handler returns a transaction for an account not in DB
     server.use(
       http.post("https://sandbox.plaid.com/transactions/sync", () =>
         HttpResponse.json({
@@ -549,19 +475,16 @@ describe("transaction sync integration", () => {
       )
     );
 
-    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, testDb);
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    // Transaction was skipped — addedCount = 0
     expect(result.addedCount).toBe(0);
 
-    // No transactions in DB
-    const txns = testDb.select().from(transactions).where(eq(transactions.householdId, HOUSEHOLD_ID)).all();
+    const txns = await db.select().from(transactions).where(eq(transactions.householdId, HOUSEHOLD_ID));
     expect(txns).toHaveLength(0);
 
-    // Cursor still advanced past "cursor_before"
-    const item = testDb.select().from(plaidItems).where(eq(plaidItems.id, PLAID_ITEM_ID)).get();
+    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, PLAID_ITEM_ID));
     expect(item?.syncCursor).toBe("cursor_advanced");
   });
 });

@@ -15,7 +15,6 @@ import {
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-// Mock auth + revalidation
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("../../src/lib/demo-mode", () => ({ guardDemoMode: vi.fn(() => null) }));
 
@@ -33,7 +32,7 @@ import {
 } from "@/actions/transaction-detail";
 
 let db: LedgrDb;
-let close: () => void;
+let close: () => Promise<void>;
 
 const householdId = uuid();
 const accountId = uuid();
@@ -44,57 +43,49 @@ const txnId = uuid();
 const splitId1 = uuid();
 const splitId2 = uuid();
 
-beforeAll(() => {
-  ({ db, close } = createTestDb());
+beforeAll(async () => {
+  ({ db, close } = await createTestDb());
   mockHouseholdId = householdId;
 
-  db.insert(households).values({ id: householdId, name: "Test" }).run();
-  db.insert(accounts)
-    .values({
-      id: accountId,
-      householdId,
-      name: "Checking",
-      type: "checking",
-      subtype: "checking",
-    })
-    .run();
-  db.insert(categoryGroups)
-    .values({ id: categoryGroupId, householdId, name: "Food", sortOrder: 1 })
-    .run();
-  db.insert(categories)
-    .values([
-      { id: catGroceries, householdId, groupId: categoryGroupId, name: "Groceries", sortOrder: 1 },
-      { id: catDining, householdId, groupId: categoryGroupId, name: "Dining", sortOrder: 2 },
-    ])
-    .run();
-  db.insert(transactions)
-    .values({
-      id: txnId,
-      accountId,
-      householdId,
-      date: "2026-05-10",
-      originalName: "WHOLE FOODS #123",
-      name: "Whole Foods",
-      amount: 5000,
-      normalizedAmount: -5000,
-      categoryId: catGroceries,
-      categorySource: "manual",
-      isTransfer: false,
-    })
-    .run();
-  db.insert(transactionSplits)
-    .values([
-      { id: splitId1, transactionId: txnId, categoryId: catGroceries, amount: 3000 },
-      { id: splitId2, transactionId: txnId, categoryId: catDining, amount: 2000 },
-    ])
-    .run();
+  await db.insert(households).values({ id: householdId, name: "Test" });
+  await db.insert(accounts).values({
+    id: accountId,
+    householdId,
+    name: "Checking",
+    type: "checking",
+    subtype: "checking",
+  });
+  await db.insert(categoryGroups).values({ id: categoryGroupId, householdId, name: "Food", sortOrder: 1 });
+  await db.insert(categories).values([
+    { id: catGroceries, householdId, groupId: categoryGroupId, name: "Groceries", sortOrder: 1 },
+    { id: catDining, householdId, groupId: categoryGroupId, name: "Dining", sortOrder: 2 },
+  ]);
+  await db.insert(transactions).values({
+    id: txnId,
+    accountId,
+    householdId,
+    date: "2026-05-10",
+    originalName: "WHOLE FOODS #123",
+    name: "Whole Foods",
+    amount: 5000,
+    normalizedAmount: -5000,
+    categoryId: catGroceries,
+    categorySource: "manual",
+    isTransfer: false,
+  });
+  await db.insert(transactionSplits).values([
+    { id: splitId1, transactionId: txnId, categoryId: catGroceries, amount: 3000 },
+    { id: splitId2, transactionId: txnId, categoryId: catDining, amount: 2000 },
+  ]);
 });
 
-afterAll(() => close());
+afterAll(async () => {
+  await close();
+});
 
 describe("getTransactionDetail", () => {
-  it("returns transaction with splits and category names", () => {
-    const detail = getTransactionDetail(householdId, txnId, db);
+  it("returns transaction with splits and category names", async () => {
+    const detail = await getTransactionDetail(householdId, txnId, db);
     expect(detail).not.toBeNull();
     expect(detail!.id).toBe(txnId);
     expect(detail!.name).toBe("Whole Foods");
@@ -102,7 +93,6 @@ describe("getTransactionDetail", () => {
     expect(detail!.isTransfer).toBe(false);
     expect(detail!.plaidTransactionId).toBeNull();
     expect(detail!.splits).toHaveLength(2);
-    // Splits come back in insert order; check by sorting to be safe
     const sortedSplits = [...detail!.splits].sort((a, b) =>
       a.categoryName!.localeCompare(b.categoryName!),
     );
@@ -110,27 +100,25 @@ describe("getTransactionDetail", () => {
     expect(sortedSplits[1].categoryName).toBe("Groceries");
   });
 
-  it("returns null for transaction in different household", () => {
-    const detail = getTransactionDetail("other-household", txnId, db);
+  it("returns null for transaction in different household", async () => {
+    const detail = await getTransactionDetail("other-household", txnId, db);
     expect(detail).toBeNull();
   });
 
-  it("returns null for soft-deleted transaction", () => {
+  it("returns null for soft-deleted transaction", async () => {
     const deletedId = uuid();
-    db.insert(transactions)
-      .values({
-        id: deletedId,
-        accountId,
-        householdId,
-        date: "2026-05-10",
-        originalName: "DELETED",
-        name: "Deleted",
-        amount: 1000,
-        normalizedAmount: -1000,
-        deletedAt: new Date().toISOString(),
-      })
-      .run();
-    const detail = getTransactionDetail(householdId, deletedId, db);
+    await db.insert(transactions).values({
+      id: deletedId,
+      accountId,
+      householdId,
+      date: "2026-05-10",
+      originalName: "DELETED",
+      name: "Deleted",
+      amount: 1000,
+      normalizedAmount: -1000,
+      deletedAt: new Date().toISOString(),
+    });
+    const detail = await getTransactionDetail(householdId, deletedId, db);
     expect(detail).toBeNull();
   });
 });
@@ -139,35 +127,31 @@ describe("updateTransactionFields", () => {
   let editTxnId: string;
   let plaidTxnId: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     editTxnId = uuid();
-    db.insert(transactions)
-      .values({
-        id: editTxnId,
-        accountId,
-        householdId,
-        date: "2026-05-08",
-        originalName: "STARBUCKS #456",
-        name: "Starbucks",
-        amount: 650,
-        normalizedAmount: -650,
-      })
-      .run();
+    await db.insert(transactions).values({
+      id: editTxnId,
+      accountId,
+      householdId,
+      date: "2026-05-08",
+      originalName: "STARBUCKS #456",
+      name: "Starbucks",
+      amount: 650,
+      normalizedAmount: -650,
+    });
 
     plaidTxnId = uuid();
-    db.insert(transactions)
-      .values({
-        id: plaidTxnId,
-        accountId,
-        householdId,
-        date: "2026-05-09",
-        originalName: "PLAID TXN",
-        name: "Plaid Txn",
-        amount: 1200,
-        normalizedAmount: -1200,
-        plaidTransactionId: "plaid-abc-123",
-      })
-      .run();
+    await db.insert(transactions).values({
+      id: plaidTxnId,
+      accountId,
+      householdId,
+      date: "2026-05-09",
+      originalName: "PLAID TXN",
+      name: "Plaid Txn",
+      amount: 1200,
+      normalizedAmount: -1200,
+      plaidTransactionId: "plaid-abc-123",
+    });
   });
 
   it("updates name and notes with partial data", async () => {
@@ -178,11 +162,10 @@ describe("updateTransactionFields", () => {
     );
     expect(result).toEqual({ success: true });
 
-    const row = db
+    const [row] = await db
       .select({ name: transactions.name, notes: transactions.notes })
       .from(transactions)
-      .where(eq(transactions.id, editTxnId))
-      .get();
+      .where(eq(transactions.id, editTxnId));
     expect(row!.name).toBe("Starbucks Reserve");
     expect(row!.notes).toBe("Morning coffee");
   });
@@ -218,20 +201,18 @@ describe("updateTransactionFields", () => {
 describe("upsertSplit", () => {
   let splitTxnId: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     splitTxnId = uuid();
-    db.insert(transactions)
-      .values({
-        id: splitTxnId,
-        accountId,
-        householdId,
-        date: "2026-05-07",
-        originalName: "COSTCO #789",
-        name: "Costco",
-        amount: 10000,
-        normalizedAmount: -10000,
-      })
-      .run();
+    await db.insert(transactions).values({
+      id: splitTxnId,
+      accountId,
+      householdId,
+      date: "2026-05-07",
+      originalName: "COSTCO #789",
+      name: "Costco",
+      amount: 10000,
+      normalizedAmount: -10000,
+    });
   });
 
   it("creates a split and sets categorySource to manual", async () => {
@@ -248,11 +229,10 @@ describe("upsertSplit", () => {
       expect(result.data.id).toBeTruthy();
     }
 
-    const row = db
+    const [row] = await db
       .select({ categorySource: transactions.categorySource })
       .from(transactions)
-      .where(eq(transactions.id, splitTxnId))
-      .get();
+      .where(eq(transactions.id, splitTxnId));
     expect(row!.categorySource).toBe("manual");
   });
 
@@ -263,17 +243,14 @@ describe("upsertSplit", () => {
       { categoryId: catDining, amount: 5000, notes: null },
       db,
     );
-    // 6000 existing + 5000 new = 11000 > 10000
     expect(result).toEqual({ error: "Splits exceed transaction amount" });
   });
 
   it("updates an existing split", async () => {
-    // Find the existing split we created
-    const existing = db
+    const [existing] = await db
       .select({ id: transactionSplits.id })
       .from(transactionSplits)
-      .where(eq(transactionSplits.transactionId, splitTxnId))
-      .get();
+      .where(eq(transactionSplits.transactionId, splitTxnId));
 
     const result = await upsertSplit(
       splitTxnId,
@@ -297,40 +274,35 @@ describe("deleteSplit", () => {
 
   beforeAll(async () => {
     delTxnId = uuid();
-    db.insert(transactions)
-      .values({
-        id: delTxnId,
-        accountId,
-        householdId,
-        date: "2026-05-06",
-        originalName: "TARGET #101",
-        name: "Target",
-        amount: 4000,
-        normalizedAmount: -4000,
-      })
-      .run();
+    await db.insert(transactions).values({
+      id: delTxnId,
+      accountId,
+      householdId,
+      date: "2026-05-06",
+      originalName: "TARGET #101",
+      name: "Target",
+      amount: 4000,
+      normalizedAmount: -4000,
+    });
 
     delSplitId = uuid();
-    db.insert(transactionSplits)
-      .values({
-        id: delSplitId,
-        transactionId: delTxnId,
-        categoryId: catGroceries,
-        amount: 4000,
-      })
-      .run();
+    await db.insert(transactionSplits).values({
+      id: delSplitId,
+      transactionId: delTxnId,
+      categoryId: catGroceries,
+      amount: 4000,
+    });
   });
 
   it("deletes all splits and verifies hasSplits becomes false", async () => {
-    // Verify split exists first
-    const before = getTransactionDetail(householdId, delTxnId, db);
+    const before = await getTransactionDetail(householdId, delTxnId, db);
     expect(before!.hasSplits).toBe(true);
     expect(before!.splits).toHaveLength(1);
 
     const result = await deleteSplit(delSplitId, db);
     expect(result).toEqual({ success: true });
 
-    const after = getTransactionDetail(householdId, delTxnId, db);
+    const after = await getTransactionDetail(householdId, delTxnId, db);
     expect(after!.hasSplits).toBe(false);
     expect(after!.splits).toHaveLength(0);
   });

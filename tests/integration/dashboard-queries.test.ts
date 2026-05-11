@@ -16,55 +16,50 @@ import {
   getCashFlow,
   getRecentTransactions,
 } from "../../src/queries/dashboard";
+import type { LedgrDb } from "../../src/db";
 
-type TestDb = ReturnType<typeof createTestDb>;
+let db: LedgrDb;
+let close: () => Promise<void>;
 
-let testDb: TestDb;
-
-beforeEach(() => {
-  testDb = createTestDb();
+beforeEach(async () => {
+  ({ db, close } = await createTestDb());
 });
 
-afterEach(() => {
-  testDb.close();
+afterEach(async () => {
+  await close();
 });
 
 describe("getDashboardSummary", () => {
-  it("returns correct net worth and monthly figures", () => {
-    const { db } = testDb;
-    const { householdId } = insertHousehold(db);
-    const { accountId: checkingId } = insertAccount(db, householdId, {
+  it("returns correct net worth and monthly figures", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId: checkingId } = await insertAccount(db, householdId, {
       type: "checking",
-      currentBalance: 100000, // $1000
+      currentBalance: 100000,
     });
-    insertAccount(db, householdId, {
+    await insertAccount(db, householdId, {
       type: "credit",
-      currentBalance: 50000, // $500
+      currentBalance: 50000,
     });
 
-    const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-    // Expense: normalizedAmount < 0
-    insertTransaction(db, householdId, checkingId, {
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    await insertTransaction(db, householdId, checkingId, {
       date: `${thisMonth}-05`,
-      normalizedAmount: -3000, // $30 expense
+      normalizedAmount: -3000,
       amount: 3000,
     });
-    // Income: normalizedAmount > 0
-    insertTransaction(db, householdId, checkingId, {
+    await insertTransaction(db, householdId, checkingId, {
       date: `${thisMonth}-10`,
-      normalizedAmount: 200000, // $2000 income
+      normalizedAmount: 200000,
       amount: -200000,
     });
-    // Last month's transaction — should not be included
-    insertTransaction(db, householdId, checkingId, {
+    await insertTransaction(db, householdId, checkingId, {
       date: "2024-01-15",
       normalizedAmount: -5000,
       amount: 5000,
     });
 
-    const result = getDashboardSummary(householdId, db);
+    const result = await getDashboardSummary(householdId, db);
 
-    // netWorth = assets - liabilities = 100000 - 50000 = 50000
     expect(result.netWorth).toBe(50000);
     expect(result.monthlyExpenses).toBe(3000);
     expect(result.monthlyIncome).toBe(200000);
@@ -73,39 +68,30 @@ describe("getDashboardSummary", () => {
 });
 
 describe("getNetWorthHistory", () => {
-  it("aggregates balance_history with synthetic today point", () => {
-    const { db } = testDb;
-    const { householdId } = insertHousehold(db);
-    const { accountId: checkingId } = insertAccount(db, householdId, {
+  it("aggregates balance_history with synthetic today point", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId: checkingId } = await insertAccount(db, householdId, {
       type: "checking",
       currentBalance: 80000,
     });
-    const { accountId: creditId } = insertAccount(db, householdId, {
+    const { accountId: creditId } = await insertAccount(db, householdId, {
       type: "credit",
       currentBalance: 20000,
     });
 
-    // Insert historical balance snapshots
-    db.insert(balanceHistory)
-      .values({ id: uuid(), accountId: checkingId, date: "2026-04-01", balance: 70000 })
-      .run();
-    db.insert(balanceHistory)
-      .values({ id: uuid(), accountId: creditId, date: "2026-04-01", balance: 15000 })
-      .run();
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: "2026-04-01", balance: 70000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: "2026-04-01", balance: 15000 });
 
-    const result = getNetWorthHistory(householdId, "3M", db);
+    const result = await getNetWorthHistory(householdId, "3M", db);
 
-    // Should have at least 2 points: historical + today
     expect(result.length).toBeGreaterThanOrEqual(2);
 
-    // Check historical point
     const historicalPoint = result.find((r) => r.date === "2026-04-01");
     expect(historicalPoint).toBeDefined();
     expect(historicalPoint!.assets).toBe(70000);
     expect(historicalPoint!.liabilities).toBe(15000);
     expect(historicalPoint!.netWorth).toBe(55000);
 
-    // Check today's synthetic point
     const today = new Date().toISOString().slice(0, 10);
     const todayPoint = result.find((r) => r.date === today);
     expect(todayPoint).toBeDefined();
@@ -116,40 +102,36 @@ describe("getNetWorthHistory", () => {
 });
 
 describe("getMonthlySpending", () => {
-  it("groups expense transactions by category", () => {
-    const { db } = testDb;
-    const { householdId } = insertHousehold(db);
-    const { accountId } = insertAccount(db, householdId);
-    const { groupId } = insertCategoryGroup(db, householdId, { name: "Food" });
-    const { categoryId } = insertCategory(db, householdId, groupId, {
+  it("groups expense transactions by category", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Food" });
+    const { categoryId } = await insertCategory(db, householdId, groupId, {
       name: "Groceries",
       icon: "🛒",
     });
 
     const thisMonth = new Date().toISOString().slice(0, 7);
 
-    // Expense with category (negative normalizedAmount)
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-05`,
       normalizedAmount: -5000,
       amount: 5000,
       categoryId,
     });
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-10`,
       normalizedAmount: -3000,
       amount: 3000,
       categoryId,
     });
-    // Income (positive normalizedAmount) — should be excluded
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-15`,
       normalizedAmount: 10000,
       amount: -10000,
       categoryId,
     });
-    // Pending transaction — should be excluded
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-20`,
       normalizedAmount: -2000,
       amount: 2000,
@@ -157,52 +139,47 @@ describe("getMonthlySpending", () => {
       pending: true,
     });
 
-    const result = getMonthlySpending(householdId, undefined, db);
+    const result = await getMonthlySpending(householdId, undefined, db);
 
     expect(result.length).toBe(1);
     expect(result[0].categoryId).toBe(categoryId);
     expect(result[0].categoryName).toBe("Groceries");
-    expect(result[0].categoryIcon).toBeNull(); // enrichSpendingMap does not query icon
+    expect(result[0].categoryIcon).toBeNull();
     expect(result[0].groupName).toBe("Food");
     expect(result[0].total).toBe(8000);
   });
 });
 
 describe("getCashFlow", () => {
-  it("separates income and expenses by month using isIncome category flag", () => {
-    const { db } = testDb;
-    const { householdId } = insertHousehold(db);
-    const { accountId } = insertAccount(db, householdId);
+  it("separates income and expenses by month using isIncome category flag", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
 
-    // Set up an income category (isIncome = true)
-    const { groupId } = insertCategoryGroup(db, householdId);
-    const { categoryId: incomeCatId } = insertCategory(db, householdId, groupId, {
+    const { groupId } = await insertCategoryGroup(db, householdId);
+    const { categoryId: incomeCatId } = await insertCategory(db, householdId, groupId, {
       name: "Salary",
       isIncome: true,
     });
 
-    // May expense (negative normalizedAmount = expense)
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-05-05",
       normalizedAmount: -4000,
       amount: 4000,
     });
-    // May income (categorized with isIncome category)
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-05-15",
       normalizedAmount: 150000,
       amount: -150000,
       categoryId: incomeCatId,
     });
 
-    // April expense
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-04-10",
       normalizedAmount: -2500,
       amount: 2500,
     });
 
-    const result = getCashFlow(householdId, 3, db);
+    const result = await getCashFlow(householdId, 3, db);
 
     expect(result.length).toBeGreaterThanOrEqual(2);
 
@@ -219,92 +196,81 @@ describe("getCashFlow", () => {
     expect(mayData!.net).toBe(150000 - 4000);
   });
 
-  it("excludes transfer transactions", () => {
-    const { db } = testDb;
-    const { householdId } = insertHousehold(db);
-    const { accountId } = insertAccount(db, householdId);
+  it("excludes transfer transactions", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
 
-    // Normal expense
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-05-05",
       normalizedAmount: -3000,
       amount: 3000,
     });
-    // Transfer — should be excluded
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-05-10",
       normalizedAmount: -50000,
       amount: 50000,
       isTransfer: true,
     });
 
-    const result = getCashFlow(householdId, 3, db);
+    const result = await getCashFlow(householdId, 3, db);
 
     const mayData = result.find((r) => r.month === "2026-05");
     expect(mayData).toBeDefined();
-    expect(mayData!.expenses).toBe(3000); // only the non-transfer expense
+    expect(mayData!.expenses).toBe(3000);
   });
 });
 
 describe("getRecentTransactions", () => {
-  it("returns limited rows with joins", () => {
-    const { db } = testDb;
-    const { householdId } = insertHousehold(db);
-    const { accountId } = insertAccount(db, householdId, { name: "My Checking" });
+  it("returns limited rows with joins", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId, { name: "My Checking" });
 
-    // Insert 7 transactions
     for (let i = 1; i <= 7; i++) {
-      insertTransaction(db, householdId, accountId, {
+      await insertTransaction(db, householdId, accountId, {
         date: `2026-05-${String(i).padStart(2, "0")}`,
         name: `Transaction ${i}`,
       });
     }
 
-    const result = getRecentTransactions(householdId, 5, db);
+    const result = await getRecentTransactions(householdId, 5, db);
 
     expect(result.length).toBe(5);
-    // Should be ordered desc by date
     expect(result[0].date >= result[1].date).toBe(true);
-    // Should include account name
     expect(result[0].accountName).toBe("My Checking");
-    // hasSplits should be false
     expect(result[0].hasSplits).toBe(false);
   });
 });
 
 describe("household isolation", () => {
-  it("all queries return empty for wrong household", () => {
-    const { db } = testDb;
-    const { householdId } = insertHousehold(db);
-    const { householdId: otherId } = insertHousehold(db, "Other Household");
-    const { accountId } = insertAccount(db, householdId, { currentBalance: 50000 });
+  it("all queries return empty for wrong household", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { householdId: otherId } = await insertHousehold(db, "Other Household");
+    const { accountId } = await insertAccount(db, householdId, { currentBalance: 50000 });
 
     const thisMonth = new Date().toISOString().slice(0, 7);
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: `${thisMonth}-01`,
       normalizedAmount: -1000,
       amount: 1000,
     });
 
-    // Query with wrong household
-    const summary = getDashboardSummary(otherId, db);
+    const summary = await getDashboardSummary(otherId, db);
     expect(summary.netWorth).toBe(0);
     expect(summary.monthlyExpenses).toBe(0);
     expect(summary.monthlyIncome).toBe(0);
 
-    const history = getNetWorthHistory(otherId, "1M", db);
+    const history = await getNetWorthHistory(otherId, "1M", db);
     const today = new Date().toISOString().slice(0, 10);
-    // Only today's synthetic point (with 0 values)
     const nonTodayPoints = history.filter((p) => p.date !== today);
     expect(nonTodayPoints.length).toBe(0);
 
-    const spending = getMonthlySpending(otherId, undefined, db);
+    const spending = await getMonthlySpending(otherId, undefined, db);
     expect(spending.length).toBe(0);
 
-    const cashFlow = getCashFlow(otherId, 3, db);
+    const cashFlow = await getCashFlow(otherId, 3, db);
     expect(cashFlow.length).toBe(0);
 
-    const recent = getRecentTransactions(otherId, 5, db);
+    const recent = await getRecentTransactions(otherId, 5, db);
     expect(recent.length).toBe(0);
   });
 });

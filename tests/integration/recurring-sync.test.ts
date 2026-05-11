@@ -20,7 +20,7 @@ import { resetPlaidClient } from "../../src/lib/plaid/client";
 import type { LedgrDb } from "../../src/db";
 
 let db: LedgrDb;
-let close: () => void;
+let close: () => Promise<void>;
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
@@ -30,27 +30,25 @@ afterAll(() => {
   server.close();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.stubEnv("PLAID_CLIENT_ID", "test-id");
   vi.stubEnv("PLAID_SECRET", "test-secret");
   vi.stubEnv("PLAID_ENV", "sandbox");
   vi.stubEnv("ENCRYPTION_KEY", "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2");
-  const result = createTestDb();
-  db = result.db;
-  close = result.close;
+  ({ db, close } = await createTestDb());
 });
 
-afterEach(() => {
+afterEach(async () => {
   server.resetHandlers();
-  close?.();
+  await close?.();
   resetPlaidClient();
   vi.unstubAllEnvs();
 });
 
-function seedForSync(db: LedgrDb) {
-  const { householdId } = insertHousehold(db);
-  const { plaidItemId } = insertPlaidItem(db, householdId);
-  const { accountId } = insertAccount(db, householdId, {
+async function seedForSync(db: LedgrDb) {
+  const { householdId } = await insertHousehold(db);
+  const { plaidItemId } = await insertPlaidItem(db, householdId);
+  const { accountId } = await insertAccount(db, householdId, {
     plaidItemId,
     plaidAccountId: "plaid-acc-checking",
   });
@@ -60,7 +58,7 @@ function seedForSync(db: LedgrDb) {
 describe("syncRecurringTransactions", () => {
   it("upserts new recurring streams from Plaid response", async () => {
     server.use(recurringGetHandler);
-    const { householdId, plaidItemId } = seedForSync(db);
+    const { householdId, plaidItemId } = await seedForSync(db);
 
     const { syncRecurringTransactions } = await import(
       "../../src/lib/plaid/recurring"
@@ -75,11 +73,10 @@ describe("syncRecurringTransactions", () => {
     expect(result.upserted).toBe(3);
     expect(result.deactivated).toBe(0);
 
-    const rows = db
+    const rows = await db
       .select()
       .from(recurringTransactions)
-      .where(eq(recurringTransactions.householdId, householdId))
-      .all();
+      .where(eq(recurringTransactions.householdId, householdId));
     expect(rows).toHaveLength(3);
 
     const netflix = rows.find((r) => r.plaidStreamId === TEST_STREAM_IDS.netflix);
@@ -97,22 +94,20 @@ describe("syncRecurringTransactions", () => {
   });
 
   it("updates existing stream when amounts/dates change", async () => {
-    const { householdId, plaidItemId } = seedForSync(db);
+    const { householdId, plaidItemId } = await seedForSync(db);
 
-    db.insert(recurringTransactions)
-      .values({
-        id: "existing-1",
-        householdId,
-        plaidStreamId: TEST_STREAM_IDS.netflix,
-        name: "Old Netflix",
-        averageAmount: 999,
-        frequency: "monthly",
-        isActive: true,
-        isIncome: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .run();
+    await db.insert(recurringTransactions).values({
+      id: "existing-1",
+      householdId,
+      plaidStreamId: TEST_STREAM_IDS.netflix,
+      name: "Old Netflix",
+      averageAmount: 999,
+      frequency: "monthly",
+      isActive: true,
+      isIncome: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     server.use(recurringGetHandler);
 
@@ -128,30 +123,27 @@ describe("syncRecurringTransactions", () => {
 
     expect(result.upserted).toBe(3);
 
-    const netflix = db
+    const [netflix] = await db
       .select()
       .from(recurringTransactions)
-      .where(eq(recurringTransactions.plaidStreamId, TEST_STREAM_IDS.netflix))
-      .get();
+      .where(eq(recurringTransactions.plaidStreamId, TEST_STREAM_IDS.netflix));
     expect(netflix!.averageAmount).toBe(1599);
     expect(netflix!.name).toBe("Netflix");
   });
 
   it("deactivates streams missing from response", async () => {
-    const { householdId, plaidItemId } = seedForSync(db);
+    const { householdId, plaidItemId } = await seedForSync(db);
 
-    db.insert(recurringTransactions)
-      .values({
-        id: "old-stream-1",
-        householdId,
-        plaidStreamId: "stream-cancelled-service",
-        name: "Cancelled Service",
-        isActive: true,
-        isIncome: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .run();
+    await db.insert(recurringTransactions).values({
+      id: "old-stream-1",
+      householdId,
+      plaidStreamId: "stream-cancelled-service",
+      name: "Cancelled Service",
+      isActive: true,
+      isIncome: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     server.use(recurringGetHandler);
 
@@ -167,18 +159,17 @@ describe("syncRecurringTransactions", () => {
 
     expect(result.deactivated).toBe(1);
 
-    const cancelled = db
+    const [cancelled] = await db
       .select()
       .from(recurringTransactions)
-      .where(eq(recurringTransactions.plaidStreamId, "stream-cancelled-service"))
-      .get();
+      .where(eq(recurringTransactions.plaidStreamId, "stream-cancelled-service"));
     expect(cancelled!.isActive).toBe(false);
   });
 
   it("back-links transactions via recurringTransactionId", async () => {
-    const { householdId, plaidItemId, accountId } = seedForSync(db);
+    const { householdId, plaidItemId, accountId } = await seedForSync(db);
 
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       plaidTransactionId: TEST_TXN_IDS.added2,
     });
 
@@ -194,25 +185,23 @@ describe("syncRecurringTransactions", () => {
       db,
     );
 
-    const txn = db
+    const [txn] = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.added2))
-      .get();
+      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.added2));
 
     expect(txn!.recurringTransactionId).not.toBeNull();
 
-    const salary = db
+    const [salary] = await db
       .select()
       .from(recurringTransactions)
-      .where(eq(recurringTransactions.plaidStreamId, TEST_STREAM_IDS.salary))
-      .get();
+      .where(eq(recurringTransactions.plaidStreamId, TEST_STREAM_IDS.salary));
     expect(txn!.recurringTransactionId).toBe(salary!.id);
   });
 
   it("isolates recurring streams by household", async () => {
-    const { householdId: h1, plaidItemId: p1 } = seedForSync(db);
-    const { householdId: h2 } = insertHousehold(db, "Other Household");
+    const { householdId: h1, plaidItemId: p1 } = await seedForSync(db);
+    const { householdId: h2 } = await insertHousehold(db, "Other Household");
 
     server.use(recurringGetHandler);
 
@@ -221,24 +210,22 @@ describe("syncRecurringTransactions", () => {
     );
     await syncRecurringTransactions(p1, h1, "access-sandbox-test-token", db);
 
-    const h2Rows = db
+    const h2Rows = await db
       .select()
       .from(recurringTransactions)
-      .where(eq(recurringTransactions.householdId, h2))
-      .all();
+      .where(eq(recurringTransactions.householdId, h2));
     expect(h2Rows).toHaveLength(0);
 
-    const h1Rows = db
+    const h1Rows = await db
       .select()
       .from(recurringTransactions)
-      .where(eq(recurringTransactions.householdId, h1))
-      .all();
+      .where(eq(recurringTransactions.householdId, h1));
     expect(h1Rows).toHaveLength(3);
   });
 
   it("returns zeros on Plaid API error (non-fatal)", async () => {
     server.use(recurringErrorHandler);
-    const { householdId, plaidItemId } = seedForSync(db);
+    const { householdId, plaidItemId } = await seedForSync(db);
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -263,7 +250,7 @@ describe("syncRecurringTransactions", () => {
         HttpResponse.json({ bad_field: true })
       )
     );
-    const { householdId, plaidItemId } = seedForSync(db);
+    const { householdId, plaidItemId } = await seedForSync(db);
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 

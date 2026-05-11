@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createTestDb } from "./setup";
 import {
   insertHousehold,
@@ -18,51 +18,55 @@ import type { LedgrDb } from "@/db";
 
 describe("investment queries", () => {
   let db: LedgrDb;
+  let close: () => Promise<void>;
   let householdId: string;
   let accountId: string;
 
-  beforeEach(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    const hh = insertHousehold(db);
+  beforeEach(async () => {
+    ({ db, close } = await createTestDb());
+    const hh = await insertHousehold(db);
     householdId = hh.householdId;
-    const acc = insertAccount(db, householdId, { type: "investment" });
+    const acc = await insertAccount(db, householdId, { type: "investment" });
     accountId = acc.accountId;
   });
 
-  describe("getPortfolioSummary", () => {
-    it("returns totals from holdings", () => {
-      insertInvestmentHolding(db, accountId, { currentValue: 150000, costBasis: 120000 });
-      insertInvestmentHolding(db, accountId, { currentValue: 200000, costBasis: 180000, ticker: "VOO", plaidSecurityId: "sec-2" });
+  afterEach(async () => {
+    await close();
+  });
 
-      const summary = getPortfolioSummary(householdId, db);
+  describe("getPortfolioSummary", () => {
+    it("returns totals from holdings", async () => {
+      await insertInvestmentHolding(db, accountId, { currentValue: 150000, costBasis: 120000 });
+      await insertInvestmentHolding(db, accountId, { currentValue: 200000, costBasis: 180000, ticker: "VOO", plaidSecurityId: "sec-2" });
+
+      const summary = await getPortfolioSummary(householdId, db);
       expect(summary.totalValue).toBe(350000);
       expect(summary.totalCostBasis).toBe(300000);
       expect(summary.totalGainLoss).toBe(50000);
     });
 
-    it("returns dayChange from holdings_history", () => {
-      insertHoldingsSnapshot(db, accountId, "2026-05-09", { value: 140000, plaidSecurityId: "sec-1" });
-      insertHoldingsSnapshot(db, accountId, "2026-05-10", { value: 150000, plaidSecurityId: "sec-1" });
+    it("returns dayChange from holdings_history", async () => {
+      await insertHoldingsSnapshot(db, accountId, "2026-05-09", { value: 140000, plaidSecurityId: "sec-1" });
+      await insertHoldingsSnapshot(db, accountId, "2026-05-10", { value: 150000, plaidSecurityId: "sec-1" });
 
-      const summary = getPortfolioSummary(householdId, db, "2026-05-10");
+      const summary = await getPortfolioSummary(householdId, db, "2026-05-10");
       expect(summary.dayChange).toBe(10000);
     });
 
-    it("returns null dayChange with only one date", () => {
-      insertHoldingsSnapshot(db, accountId, "2026-05-10", { value: 150000 });
+    it("returns null dayChange with only one date", async () => {
+      await insertHoldingsSnapshot(db, accountId, "2026-05-10", { value: 150000 });
 
-      const summary = getPortfolioSummary(householdId, db, "2026-05-10");
+      const summary = await getPortfolioSummary(householdId, db, "2026-05-10");
       expect(summary.dayChange).toBeNull();
     });
   });
 
   describe("getAssetAllocation", () => {
-    it("groups by type", () => {
-      insertInvestmentHolding(db, accountId, { type: "stock", currentValue: 100000, plaidSecurityId: "sec-1" });
-      insertInvestmentHolding(db, accountId, { type: "etf", currentValue: 200000, plaidSecurityId: "sec-2" });
+    it("groups by type", async () => {
+      await insertInvestmentHolding(db, accountId, { type: "stock", currentValue: 100000, plaidSecurityId: "sec-1" });
+      await insertInvestmentHolding(db, accountId, { type: "etf", currentValue: 200000, plaidSecurityId: "sec-2" });
 
-      const allocation = getAssetAllocation(householdId, db);
+      const allocation = await getAssetAllocation(householdId, db);
       expect(allocation).toHaveLength(2);
       const stockSlice = allocation.find((a) => a.type === "stock");
       expect(stockSlice?.value).toBe(100000);
@@ -71,34 +75,34 @@ describe("investment queries", () => {
   });
 
   describe("getHoldings", () => {
-    it("consolidated view merges by ticker", () => {
-      const acc2 = insertAccount(db, householdId, { type: "investment", name: "401k" });
-      insertInvestmentHolding(db, accountId, { ticker: "AAPL", currentValue: 100000, quantity: 10, plaidSecurityId: "sec-1" });
-      insertInvestmentHolding(db, acc2.accountId, { ticker: "AAPL", currentValue: 150000, quantity: 15, plaidSecurityId: "sec-1" });
+    it("consolidated view merges by ticker", async () => {
+      const acc2 = await insertAccount(db, householdId, { type: "investment", name: "401k" });
+      await insertInvestmentHolding(db, accountId, { ticker: "AAPL", currentValue: 100000, quantity: 10, plaidSecurityId: "sec-1" });
+      await insertInvestmentHolding(db, acc2.accountId, { ticker: "AAPL", currentValue: 150000, quantity: 15, plaidSecurityId: "sec-1" });
 
-      const holdings = getHoldings(householdId, "consolidated", undefined, db);
+      const holdings = await getHoldings(householdId, "consolidated", undefined, db);
       const aapl = holdings.find((h) => h.ticker === "AAPL");
       expect(aapl?.currentValue).toBe(250000);
       expect(aapl?.quantity).toBe(25);
     });
 
-    it("by-account view returns separate rows", () => {
-      const acc2 = insertAccount(db, householdId, { type: "investment", name: "401k" });
-      insertInvestmentHolding(db, accountId, { ticker: "AAPL", currentValue: 100000, plaidSecurityId: "sec-1" });
-      insertInvestmentHolding(db, acc2.accountId, { ticker: "AAPL", currentValue: 150000, plaidSecurityId: "sec-1" });
+    it("by-account view returns separate rows", async () => {
+      const acc2 = await insertAccount(db, householdId, { type: "investment", name: "401k" });
+      await insertInvestmentHolding(db, accountId, { ticker: "AAPL", currentValue: 100000, plaidSecurityId: "sec-1" });
+      await insertInvestmentHolding(db, acc2.accountId, { ticker: "AAPL", currentValue: 150000, plaidSecurityId: "sec-1" });
 
-      const holdings = getHoldings(householdId, "by-account", undefined, db);
+      const holdings = await getHoldings(householdId, "by-account", undefined, db);
       expect(holdings).toHaveLength(2);
     });
   });
 
   describe("getPortfolioHistory", () => {
-    it("aggregates by date", () => {
-      insertHoldingsSnapshot(db, accountId, "2026-05-08", { value: 100000, plaidSecurityId: "sec-1" });
-      insertHoldingsSnapshot(db, accountId, "2026-05-08", { value: 200000, plaidSecurityId: "sec-2" });
-      insertHoldingsSnapshot(db, accountId, "2026-05-09", { value: 120000, plaidSecurityId: "sec-1" });
+    it("aggregates by date", async () => {
+      await insertHoldingsSnapshot(db, accountId, "2026-05-08", { value: 100000, plaidSecurityId: "sec-1" });
+      await insertHoldingsSnapshot(db, accountId, "2026-05-08", { value: 200000, plaidSecurityId: "sec-2" });
+      await insertHoldingsSnapshot(db, accountId, "2026-05-09", { value: 120000, plaidSecurityId: "sec-1" });
 
-      const history = getPortfolioHistory(householdId, { dateFrom: "2026-05-01", dateTo: "2026-05-10" }, db);
+      const history = await getPortfolioHistory(householdId, { dateFrom: "2026-05-01", dateTo: "2026-05-10" }, db);
       expect(history).toHaveLength(2);
       const day8 = history.find((h) => h.date === "2026-05-08");
       expect(day8?.value).toBe(300000);
@@ -106,12 +110,12 @@ describe("investment queries", () => {
   });
 
   describe("getInvestmentTransactions", () => {
-    it("filters by type and paginates", () => {
-      insertInvestmentTransaction(db, accountId, { type: "buy", date: "2026-05-01", amount: 75000, plaidInvestmentTransactionId: "t1" });
-      insertInvestmentTransaction(db, accountId, { type: "sell", date: "2026-05-02", amount: -80000, plaidInvestmentTransactionId: "t2" });
-      insertInvestmentTransaction(db, accountId, { type: "buy", date: "2026-05-03", amount: 60000, plaidInvestmentTransactionId: "t3" });
+    it("filters by type and paginates", async () => {
+      await insertInvestmentTransaction(db, accountId, { type: "buy", date: "2026-05-01", amount: 75000, plaidInvestmentTransactionId: "t1" });
+      await insertInvestmentTransaction(db, accountId, { type: "sell", date: "2026-05-02", amount: -80000, plaidInvestmentTransactionId: "t2" });
+      await insertInvestmentTransaction(db, accountId, { type: "buy", date: "2026-05-03", amount: 60000, plaidInvestmentTransactionId: "t3" });
 
-      const page = getInvestmentTransactions(householdId, { type: "buy" }, 10, null, db);
+      const page = await getInvestmentTransactions(householdId, { type: "buy" }, 10, null, db);
       expect(page.rows).toHaveLength(2);
       expect(page.rows.every((r) => r.type === "buy")).toBe(true);
     });

@@ -15,7 +15,7 @@ import type { LedgrDb } from "../../src/db";
 
 describe("getBudgetForMonth", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
   let householdId: string;
   let accountId: string;
   let foodGroupId: string;
@@ -24,43 +24,41 @@ describe("getBudgetForMonth", () => {
   let diningCatId: string;
   let salaryCatId: string;
 
-  beforeAll(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
 
-    ({ householdId } = insertHousehold(db));
-    ({ accountId } = insertAccount(db, householdId));
-    ({ groupId: foodGroupId } = insertCategoryGroup(db, householdId, { name: "Food & Drink" }));
-    ({ groupId: incomeGroupId } = insertCategoryGroup(db, householdId, { name: "Income" }));
-    ({ categoryId: groceriesCatId } = insertCategory(db, householdId, foodGroupId, { name: "Groceries" }));
-    ({ categoryId: diningCatId } = insertCategory(db, householdId, foodGroupId, { name: "Dining" }));
-    ({ categoryId: salaryCatId } = insertCategory(db, householdId, incomeGroupId, { name: "Salary", isIncome: true }));
+    ({ householdId } = await insertHousehold(db));
+    ({ accountId } = await insertAccount(db, householdId));
+    ({ groupId: foodGroupId } = await insertCategoryGroup(db, householdId, { name: "Food & Drink" }));
+    ({ groupId: incomeGroupId } = await insertCategoryGroup(db, householdId, { name: "Income" }));
+    ({ categoryId: groceriesCatId } = await insertCategory(db, householdId, foodGroupId, { name: "Groceries" }));
+    ({ categoryId: diningCatId } = await insertCategory(db, householdId, foodGroupId, { name: "Dining" }));
+    ({ categoryId: salaryCatId } = await insertCategory(db, householdId, incomeGroupId, { name: "Salary", isIncome: true }));
   });
 
-  afterAll(() => close());
+  afterAll(async () => {
+    await close();
+  });
 
-  it("returns null budget for month with no budget", () => {
-    // Month 2026-01 has no budget and no transactions
-    const result = getBudgetForMonth(householdId, "2026-01", db);
+  it("returns null budget for month with no budget", async () => {
+    const result = await getBudgetForMonth(householdId, "2026-01", db);
     expect(result.budget).toBeNull();
     expect(result.groups).toHaveLength(0);
   });
 
-  it("returns budgeted categories with correct spent aggregation", () => {
+  it("returns budgeted categories with correct spent aggregation", async () => {
     const month = "2026-02";
-    const { budgetId } = insertBudget(db, householdId, { month });
-    insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 20000 });
+    const { budgetId } = await insertBudget(db, householdId, { month });
+    await insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 20000 });
 
-    // Two expense transactions in same month and category (negative = expense)
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-02-05",
       name: "Whole Foods",
       amount: 3500,
       normalizedAmount: -3500,
       categoryId: groceriesCatId,
     });
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-02-15",
       name: "Trader Joes",
       amount: 1500,
@@ -68,7 +66,7 @@ describe("getBudgetForMonth", () => {
       categoryId: groceriesCatId,
     });
 
-    const result = getBudgetForMonth(householdId, month, db);
+    const result = await getBudgetForMonth(householdId, month, db);
 
     expect(result.budget).not.toBeNull();
     expect(result.budget!.month).toBe(month);
@@ -79,28 +77,27 @@ describe("getBudgetForMonth", () => {
     const grocRow = result.groups[0].categories[0];
     expect(grocRow.categoryName).toBe("Groceries");
     expect(grocRow.limitAmount).toBe(20000);
-    expect(grocRow.spent).toBe(5000); // 3500 + 1500
-    expect(grocRow.remaining).toBe(15000); // 20000 - 5000
+    expect(grocRow.spent).toBe(5000);
+    expect(grocRow.remaining).toBe(15000);
   });
 
-  it("handles transaction splits — sums split amounts instead of parent", () => {
+  it("handles transaction splits — sums split amounts instead of parent", async () => {
     const month = "2026-03";
-    const { budgetId } = insertBudget(db, householdId, { month });
-    insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 15000 });
-    insertBudgetCategory(db, budgetId, diningCatId, { limitAmount: 10000 });
+    const { budgetId } = await insertBudget(db, householdId, { month });
+    await insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 15000 });
+    await insertBudgetCategory(db, budgetId, diningCatId, { limitAmount: 10000 });
 
-    // Parent transaction with splits
-    const { transactionId } = insertTransaction(db, householdId, accountId, {
+    const { transactionId } = await insertTransaction(db, householdId, accountId, {
       date: "2026-03-10",
       name: "Costco Run",
       amount: 5000,
       normalizedAmount: -5000,
-      categoryId: groceriesCatId, // parent category ignored when splits exist
+      categoryId: groceriesCatId,
     });
-    insertTransactionSplit(db, transactionId, groceriesCatId, 3000);
-    insertTransactionSplit(db, transactionId, diningCatId, 2000);
+    await insertTransactionSplit(db, transactionId, groceriesCatId, 3000);
+    await insertTransactionSplit(db, transactionId, diningCatId, 2000);
 
-    const result = getBudgetForMonth(householdId, month, db);
+    const result = await getBudgetForMonth(householdId, month, db);
 
     const grocRow = result.groups[0].categories.find((c) => c.categoryName === "Groceries");
     const diningRow = result.groups[0].categories.find((c) => c.categoryName === "Dining");
@@ -109,13 +106,12 @@ describe("getBudgetForMonth", () => {
     expect(diningRow!.spent).toBe(2000);
   });
 
-  it("excludes transfers, pending, and soft-deleted transactions", () => {
+  it("excludes transfers, pending, and soft-deleted transactions", async () => {
     const month = "2026-04";
-    const { budgetId } = insertBudget(db, householdId, { month });
-    insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 10000 });
+    const { budgetId } = await insertBudget(db, householdId, { month });
+    await insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 10000 });
 
-    // Transfer — should be excluded
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-04-01",
       name: "Transfer Out",
       amount: 2000,
@@ -124,8 +120,7 @@ describe("getBudgetForMonth", () => {
       isTransfer: true,
     });
 
-    // Pending — should be excluded
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-04-02",
       name: "Pending Charge",
       amount: 1000,
@@ -134,8 +129,7 @@ describe("getBudgetForMonth", () => {
       pending: true,
     });
 
-    // Soft-deleted — should be excluded
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-04-03",
       name: "Deleted Txn",
       amount: 500,
@@ -144,8 +138,7 @@ describe("getBudgetForMonth", () => {
       deletedAt: new Date().toISOString(),
     });
 
-    // Valid expense — should be counted
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-04-04",
       name: "Valid Expense",
       amount: 800,
@@ -153,18 +146,17 @@ describe("getBudgetForMonth", () => {
       categoryId: groceriesCatId,
     });
 
-    const result = getBudgetForMonth(householdId, month, db);
+    const result = await getBudgetForMonth(householdId, month, db);
     const grocRow = result.groups[0].categories[0];
     expect(grocRow.spent).toBe(800);
   });
 
-  it("excludes income (positive normalizedAmount)", () => {
+  it("excludes income (positive normalizedAmount)", async () => {
     const month = "2026-05";
-    const { budgetId } = insertBudget(db, householdId, { month });
-    insertBudgetCategory(db, budgetId, salaryCatId, { limitAmount: 0 });
+    const { budgetId } = await insertBudget(db, householdId, { month });
+    await insertBudgetCategory(db, budgetId, salaryCatId, { limitAmount: 0 });
 
-    // Income transaction (positive normalizedAmount)
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-05-01",
       name: "Paycheck",
       amount: -500000,
@@ -172,19 +164,17 @@ describe("getBudgetForMonth", () => {
       categoryId: salaryCatId,
     });
 
-    const result = getBudgetForMonth(householdId, month, db);
+    const result = await getBudgetForMonth(householdId, month, db);
     const salaryRow = result.groups[0].categories.find((c) => c.categoryName === "Salary");
     expect(salaryRow!.spent).toBe(0);
   });
 
-  it("reports unbudgeted spending for categories not in budget", () => {
+  it("reports unbudgeted spending for categories not in budget", async () => {
     const month = "2026-06";
-    // Budget exists but only covers groceries — dining is unbudgeted
-    const { budgetId } = insertBudget(db, householdId, { month });
-    insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 10000 });
+    const { budgetId } = await insertBudget(db, householdId, { month });
+    await insertBudgetCategory(db, budgetId, groceriesCatId, { limitAmount: 10000 });
 
-    // Dining expense — unbudgeted
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-06-05",
       name: "Restaurant",
       amount: 3000,
@@ -192,8 +182,7 @@ describe("getBudgetForMonth", () => {
       categoryId: diningCatId,
     });
 
-    // Uncategorized expense — also unbudgeted
-    insertTransaction(db, householdId, accountId, {
+    await insertTransaction(db, householdId, accountId, {
       date: "2026-06-10",
       name: "Mystery Charge",
       amount: 1200,
@@ -201,8 +190,8 @@ describe("getBudgetForMonth", () => {
       categoryId: null,
     });
 
-    const result = getBudgetForMonth(householdId, month, db);
-    expect(result.unbudgeted.spent).toBe(4200); // 3000 + 1200
+    const result = await getBudgetForMonth(householdId, month, db);
+    expect(result.unbudgeted.spent).toBe(4200);
     expect(result.unbudgeted.categories).toHaveLength(2);
 
     const diningUnbudgeted = result.unbudgeted.categories.find((c) => c.categoryName === "Dining");

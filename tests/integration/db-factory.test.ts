@@ -3,42 +3,36 @@ import { createTestDb } from "./setup";
 import { households } from "../../src/db/schema";
 
 describe("createTestDb", () => {
-  let close: () => void;
+  let close: () => Promise<void>;
 
-  afterEach(() => {
-    close?.();
+  afterEach(async () => {
+    await close?.();
   });
 
-  it("creates a working in-memory database with schema", () => {
-    const testDb = createTestDb();
+  it("creates a working database with schema", async () => {
+    const testDb = await createTestDb();
     close = testDb.close;
 
-    testDb.db
-      .insert(households)
-      .values({
-        id: "hh-1",
-        name: "Test Household",
-      })
-      .run();
+    await testDb.db.insert(households).values({
+      id: "hh-1",
+      name: "Test Household",
+    });
 
-    const result = testDb.db.select().from(households).all();
+    const result = await testDb.db.select().from(households);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Test Household");
   });
 
-  it("provides isolated instances (no shared state)", () => {
-    const db1 = createTestDb();
-    const db2 = createTestDb();
+  it("provides isolated instances (no shared state)", async () => {
+    const db1 = await createTestDb();
+    const db2 = await createTestDb();
 
-    db1.db
-      .insert(households)
-      .values({ id: "hh-1", name: "Household A" })
-      .run();
+    await db1.db.insert(households).values({ id: "hh-1", name: "Household A" });
 
-    const result = db2.db.select().from(households).all();
+    const result = await db2.db.select().from(households);
     expect(result).toHaveLength(0);
 
-    db1.close();
-    db2.close();
+    await db1.close();
+    await db2.close();
   });
 });

@@ -9,6 +9,7 @@ import { scopedQuery } from "@/lib/scoped-query";
 import { exchangeAndStoreAccounts } from "@/actions/plaid";
 import { mapPlaidAccountType } from "@/lib/plaid/utils";
 import { resetPlaidClient } from "@/lib/plaid/client";
+import type { LedgrDb } from "@/db";
 
 vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { id: "test-user-id" } })),
@@ -29,34 +30,32 @@ afterAll(() => {
 });
 
 describe("plaid exchange flow", () => {
-  let db: ReturnType<typeof createTestDb>["db"];
-  let close: () => void;
+  let db: LedgrDb;
+  let close: () => Promise<void>;
 
   beforeEach(() => {
     resetPlaidClient();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     server.resetHandlers();
-    close?.();
+    await close?.();
   });
 
-  function setup() {
-    const result = createTestDb();
-    db = result.db;
-    close = result.close;
+  async function setup() {
+    ({ db, close } = await createTestDb());
     return db;
   }
 
   it("stores plaid item with encrypted token and creates accounts with correct balances", async () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-1", testDb);
+    await setup();
+    const hh = await provisionHousehold("user-1", db);
 
-    const result = await exchangeAndStoreAccounts("public-sandbox-token", hh, testDb);
+    const result = await exchangeAndStoreAccounts("public-sandbox-token", hh, db);
     expect(result.success).toBe(true);
     expect(result.accountCount).toBe(4);
 
-    const items = testDb.select().from(plaidItems).where(eq(plaidItems.householdId, hh)).all();
+    const items = await db.select().from(plaidItems).where(eq(plaidItems.householdId, hh));
     expect(items).toHaveLength(1);
     expect(items[0].status).toBe("active");
     expect(items[0].institutionName).toBe("Chase");
@@ -65,7 +64,7 @@ describe("plaid exchange flow", () => {
     const decrypted = decrypt(items[0].accessToken);
     expect(decrypted).toBe("access-sandbox-test-token-abc123");
 
-    const accts = testDb.select().from(accounts).where(eq(accounts.householdId, hh)).all();
+    const accts = await db.select().from(accounts).where(eq(accounts.householdId, hh));
     expect(accts).toHaveLength(4);
 
     const checking = accts.find((a) => a.plaidAccountId === "plaid-acc-checking")!;
@@ -80,12 +79,12 @@ describe("plaid exchange flow", () => {
   });
 
   it("stores null balances as null, not zero", async () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-null", testDb);
+    await setup();
+    const hh = await provisionHousehold("user-null", db);
 
-    await exchangeAndStoreAccounts("public-sandbox-token", hh, testDb);
+    await exchangeAndStoreAccounts("public-sandbox-token", hh, db);
 
-    const accts = testDb.select().from(accounts).where(eq(accounts.householdId, hh)).all();
+    const accts = await db.select().from(accounts).where(eq(accounts.householdId, hh));
     const investment = accts.find((a) => a.plaidAccountId === "plaid-acc-null")!;
     expect(investment.currentBalance).toBeNull();
     expect(investment.availableBalance).toBeNull();
@@ -93,33 +92,33 @@ describe("plaid exchange flow", () => {
   });
 
   it("creates balance_history for accounts with non-null balances only", async () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-history", testDb);
+    await setup();
+    const hh = await provisionHousehold("user-history", db);
 
-    await exchangeAndStoreAccounts("public-sandbox-token", hh, testDb);
+    await exchangeAndStoreAccounts("public-sandbox-token", hh, db);
 
-    const history = testDb.select().from(balanceHistory).all();
+    const history = await db.select().from(balanceHistory);
     expect(history.length).toBe(3);
   });
 
   it("isolates accounts between households", async () => {
-    const testDb = setup();
-    const hhA = provisionHousehold("user-a", testDb);
-    const hhB = provisionHousehold("user-b", testDb);
+    await setup();
+    const hhA = await provisionHousehold("user-a", db);
+    const hhB = await provisionHousehold("user-b", db);
 
-    await exchangeAndStoreAccounts("public-sandbox-token", hhA, testDb);
+    await exchangeAndStoreAccounts("public-sandbox-token", hhA, db);
 
-    const scopeB = scopedQuery(hhB, testDb);
-    const accts = testDb.select().from(accounts).where(scopeB.where(accounts)).all();
+    const scopeB = scopedQuery(hhB, db);
+    const accts = await db.select().from(accounts).where(scopeB.where(accounts));
     expect(accts).toHaveLength(0);
   });
 
   it("rejects duplicate institution for same household", async () => {
-    const testDb = setup();
-    const hh = provisionHousehold("user-dup", testDb);
+    await setup();
+    const hh = await provisionHousehold("user-dup", db);
 
-    await exchangeAndStoreAccounts("public-sandbox-token", hh, testDb);
-    const result = await exchangeAndStoreAccounts("public-sandbox-token", hh, testDb);
+    await exchangeAndStoreAccounts("public-sandbox-token", hh, db);
+    const result = await exchangeAndStoreAccounts("public-sandbox-token", hh, db);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("already connected");

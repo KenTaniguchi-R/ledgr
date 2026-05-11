@@ -15,18 +15,18 @@ vi.mock("../../src/lib/auth/session", () => ({
 
 describe("report actions", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
 
-  beforeAll(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
 
-    const hh = insertHousehold(db);
+    const hh = await insertHousehold(db);
     mockHouseholdId = hh.householdId;
   });
 
-  afterAll(() => close());
+  afterAll(async () => {
+    await close();
+  });
 
   describe("saveReport", () => {
     test("persists report and returns id", async () => {
@@ -57,22 +57,22 @@ describe("report actions", () => {
       const { getSavedReportsByHousehold } = await import("../../src/queries/saved-reports");
       const { deleteReport } = await import("../../src/actions/reports");
 
-      const { householdId: otherHhId } = insertHousehold(db, "Other Household");
+      const { householdId: otherHhId } = await insertHousehold(db, "Other Household");
       const { savedReports } = await import("../../src/db/schema");
       const { v4: uuid } = await import("uuid");
       const id = uuid();
-      db.insert(savedReports).values({
+      await db.insert(savedReports).values({
         id,
         householdId: otherHhId,
         name: "Other Report",
         reportType: "spending",
         filters: JSON.stringify({ dateFrom: "2026-01-01", dateTo: "2026-01-31" }),
-      }).run();
+      });
 
       const result = await deleteReport(id, db);
       expect(result).toHaveProperty("error");
 
-      const otherReports = getSavedReportsByHousehold(otherHhId, db);
+      const otherReports = await getSavedReportsByHousehold(otherHhId, db);
       expect(otherReports).toHaveLength(1);
     });
   });
@@ -80,7 +80,7 @@ describe("report actions", () => {
   describe("getSavedReportsByHousehold", () => {
     test("scoped to household", async () => {
       const { getSavedReportsByHousehold } = await import("../../src/queries/saved-reports");
-      const reports = getSavedReportsByHousehold(mockHouseholdId, db);
+      const reports = await getSavedReportsByHousehold(mockHouseholdId, db);
       for (const report of reports) {
         expect(report.householdId).toBe(mockHouseholdId);
       }

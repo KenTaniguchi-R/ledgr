@@ -19,55 +19,52 @@ import type { LedgrDb } from "../../src/db";
 
 describe("test helpers", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
 
-  beforeAll(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
   });
 
-  afterAll(() => close());
+  afterAll(async () => {
+    await close();
+  });
 
-  it("creates full FK chain: household → account → transaction", () => {
-    const { householdId } = insertHousehold(db);
-    const { accountId } = insertAccount(db, householdId);
-    const { transactionId } = insertTransaction(db, householdId, accountId);
+  it("creates full FK chain: household → account → transaction", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
+    const { transactionId } = await insertTransaction(db, householdId, accountId);
 
-    const row = db
+    const [row] = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.id, transactionId))
-      .get();
+      .where(eq(transactions.id, transactionId));
     expect(row).toBeDefined();
     expect(row!.householdId).toBe(householdId);
     expect(row!.accountId).toBe(accountId);
   });
 
-  it("creates merchant with household FK", () => {
-    const { householdId } = insertHousehold(db);
-    const { merchantId } = insertMerchant(db, householdId);
+  it("creates merchant with household FK", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { merchantId } = await insertMerchant(db, householdId);
 
-    const row = db
+    const [row] = await db
       .select()
       .from(merchants)
-      .where(eq(merchants.id, merchantId))
-      .get();
+      .where(eq(merchants.id, merchantId));
     expect(row).toBeDefined();
     expect(row!.householdId).toBe(householdId);
   });
 
-  it("creates category chain: group → category → rule", () => {
-    const { householdId } = insertHousehold(db);
-    const { groupId } = insertCategoryGroup(db, householdId);
-    const { categoryId } = insertCategory(db, householdId, groupId);
-    const { ruleId } = insertCategoryRule(db, householdId, categoryId);
+  it("creates category chain: group → category → rule", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { groupId } = await insertCategoryGroup(db, householdId);
+    const { categoryId } = await insertCategory(db, householdId, groupId);
+    const { ruleId } = await insertCategoryRule(db, householdId, categoryId);
 
-    const rule = db
+    const [rule] = await db
       .select()
       .from(categoryRules)
-      .where(eq(categoryRules.id, ruleId))
-      .get();
+      .where(eq(categoryRules.id, ruleId));
     expect(rule).toBeDefined();
     expect(rule!.categoryId).toBe(categoryId);
   });

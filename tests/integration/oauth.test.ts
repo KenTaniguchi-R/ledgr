@@ -17,17 +17,15 @@ import { createHash } from "crypto";
 
 describe("OAuth 2.1 flow", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.ENCRYPTION_KEY ??= "test-key-for-jwt-signing-32chars!!";
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+    ({ db, close } = await createTestDb());
   });
 
-  afterAll(() => {
-    close();
+  afterAll(async () => {
+    await close();
   });
 
   it("completes the full authorization code flow with PKCE", async () => {
@@ -40,7 +38,7 @@ describe("OAuth 2.1 flow", () => {
     const codeVerifier = "test-verifier-string-that-is-long-enough";
     const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
-    const code = createAuthorizationCode(
+    const code = await createAuthorizationCode(
       {
         clientId: client.client_id, userId: "user-1", householdId: "hh-1",
         scope: "ledgr:read ledgr:write", codeChallenge, redirectUri: "http://localhost:8080/callback",
@@ -80,7 +78,7 @@ describe("OAuth 2.1 flow", () => {
     const codeVerifier = "another-verifier-long-enough-for-test";
     const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
-    const code = createAuthorizationCode(
+    const code = await createAuthorizationCode(
       { clientId: client.client_id, userId: "user-2", householdId: "hh-2", scope: "ledgr:read", codeChallenge, redirectUri: "http://localhost:8080/cb" },
       db,
     );
@@ -95,7 +93,7 @@ describe("OAuth 2.1 flow", () => {
     const client = await registerClient({ redirect_uris: ["http://localhost:8080/cb"] }, db);
     const codeChallenge = createHash("sha256").update("correct-verifier").digest("base64url");
 
-    const code = createAuthorizationCode(
+    const code = await createAuthorizationCode(
       { clientId: client.client_id, userId: "user-3", householdId: "hh-3", scope: "ledgr:read", codeChallenge, redirectUri: "http://localhost:8080/cb" },
       db,
     );
@@ -105,11 +103,11 @@ describe("OAuth 2.1 flow", () => {
     ).rejects.toThrow("PKCE verification failed");
   });
 
-  it("manages consent correctly", () => {
-    expect(hasConsent("user-1", "client-1", db)).toBe(false);
-    grantConsent("user-1", "client-1", "ledgr:read", db);
-    expect(hasConsent("user-1", "client-1", db)).toBe(true);
-    revokeConsent("user-1", "client-1", db);
-    expect(hasConsent("user-1", "client-1", db)).toBe(false);
+  it("manages consent correctly", async () => {
+    expect(await hasConsent("user-1", "client-1", db)).toBe(false);
+    await grantConsent("user-1", "client-1", "ledgr:read", db);
+    expect(await hasConsent("user-1", "client-1", db)).toBe(true);
+    await revokeConsent("user-1", "client-1", db);
+    expect(await hasConsent("user-1", "client-1", db)).toBe(false);
   });
 });

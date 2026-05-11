@@ -17,93 +17,93 @@ import type { LedgrDb } from "../../src/db";
 
 describe("categorizeSyncedTransactions", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
   let householdId: string;
   let accountId: string;
   let plaidItemId: string;
 
-  beforeAll(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
 
-    ({ householdId } = insertHousehold(db));
+    ({ householdId } = await insertHousehold(db));
     plaidItemId = uuid();
-    db.insert(plaidItems).values({
+    await db.insert(plaidItems).values({
       id: plaidItemId,
       householdId,
       accessToken: "encrypted-token",
       status: "active",
-    }).run();
-    ({ accountId } = insertAccount(db, householdId, { plaidItemId }));
+    });
+    ({ accountId } = await insertAccount(db, householdId, { plaidItemId }));
   });
 
-  afterAll(() => close());
+  afterAll(async () => {
+    await close();
+  });
 
-  it("applies matching rule to uncategorized transactions", () => {
-    const { groupId } = insertCategoryGroup(db, householdId, { name: "Food" });
-    const { categoryId } = insertCategory(db, householdId, groupId, { name: "Groceries" });
-    insertCategoryRule(db, householdId, categoryId, { matchField: "name", matchPattern: "whole foods" });
+  it("applies matching rule to uncategorized transactions", async () => {
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Food" });
+    const { categoryId } = await insertCategory(db, householdId, groupId, { name: "Groceries" });
+    await insertCategoryRule(db, householdId, categoryId, { matchField: "name", matchPattern: "whole foods" });
 
-    const { transactionId } = insertTransaction(db, householdId, accountId, { name: "Whole Foods Market" });
+    const { transactionId } = await insertTransaction(db, householdId, accountId, { name: "Whole Foods Market" });
 
-    categorizeSyncedTransactions(plaidItemId, householdId, db);
+    await categorizeSyncedTransactions(plaidItemId, householdId, db);
 
-    const row = db.select().from(transactions).where(eq(transactions.id, transactionId)).get();
+    const [row] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
     expect(row!.categoryId).toBe(categoryId);
   });
 
-  it("respects rule priority — higher wins", () => {
-    const { groupId } = insertCategoryGroup(db, householdId, { name: "Drinks" });
-    const { categoryId: catLow } = insertCategory(db, householdId, groupId, { name: "Dining" });
-    const { categoryId: catHigh } = insertCategory(db, householdId, groupId, { name: "Coffee" });
-    insertCategoryRule(db, householdId, catLow, { matchPattern: "starbucks", priority: 0 });
-    insertCategoryRule(db, householdId, catHigh, { matchPattern: "starbucks", priority: 10 });
+  it("respects rule priority — higher wins", async () => {
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Drinks" });
+    const { categoryId: catLow } = await insertCategory(db, householdId, groupId, { name: "Dining" });
+    const { categoryId: catHigh } = await insertCategory(db, householdId, groupId, { name: "Coffee" });
+    await insertCategoryRule(db, householdId, catLow, { matchPattern: "starbucks", priority: 0 });
+    await insertCategoryRule(db, householdId, catHigh, { matchPattern: "starbucks", priority: 10 });
 
-    const { transactionId } = insertTransaction(db, householdId, accountId, { name: "Starbucks #42" });
+    const { transactionId } = await insertTransaction(db, householdId, accountId, { name: "Starbucks #42" });
 
-    categorizeSyncedTransactions(plaidItemId, householdId, db);
+    await categorizeSyncedTransactions(plaidItemId, householdId, db);
 
-    const row = db.select().from(transactions).where(eq(transactions.id, transactionId)).get();
+    const [row] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
     expect(row!.categoryId).toBe(catHigh);
   });
 
-  it("falls back to merchant default category", () => {
-    const { groupId } = insertCategoryGroup(db, householdId, { name: "Subs" });
-    const { categoryId } = insertCategory(db, householdId, groupId, { name: "Subscriptions" });
-    const { merchantId } = insertMerchant(db, householdId, { name: "Netflix", categoryId });
+  it("falls back to merchant default category", async () => {
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Subs" });
+    const { categoryId } = await insertCategory(db, householdId, groupId, { name: "Subscriptions" });
+    const { merchantId } = await insertMerchant(db, householdId, { name: "Netflix", categoryId });
 
-    const { transactionId } = insertTransaction(db, householdId, accountId, {
+    const { transactionId } = await insertTransaction(db, householdId, accountId, {
       name: "NETFLIX.COM",
       merchantId,
     });
 
-    categorizeSyncedTransactions(plaidItemId, householdId, db);
+    await categorizeSyncedTransactions(plaidItemId, householdId, db);
 
-    const row = db.select().from(transactions).where(eq(transactions.id, transactionId)).get();
+    const [row] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
     expect(row!.categoryId).toBe(categoryId);
   });
 
-  it("never overwrites an existing manual category assignment", () => {
-    const { groupId } = insertCategoryGroup(db, householdId, { name: "Manual" });
-    const { categoryId: manualCat } = insertCategory(db, householdId, groupId, { name: "Manual Cat" });
-    const { categoryId: ruleCat } = insertCategory(db, householdId, groupId, { name: "Rule Cat" });
-    insertCategoryRule(db, householdId, ruleCat, { matchPattern: "manual-test" });
+  it("never overwrites an existing manual category assignment", async () => {
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Manual" });
+    const { categoryId: manualCat } = await insertCategory(db, householdId, groupId, { name: "Manual Cat" });
+    const { categoryId: ruleCat } = await insertCategory(db, householdId, groupId, { name: "Rule Cat" });
+    await insertCategoryRule(db, householdId, ruleCat, { matchPattern: "manual-test" });
 
-    const { transactionId } = insertTransaction(db, householdId, accountId, {
+    const { transactionId } = await insertTransaction(db, householdId, accountId, {
       name: "manual-test store",
       categoryId: manualCat,
     });
 
-    categorizeSyncedTransactions(plaidItemId, householdId, db);
+    await categorizeSyncedTransactions(plaidItemId, householdId, db);
 
-    const row = db.select().from(transactions).where(eq(transactions.id, transactionId)).get();
+    const [row] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
     expect(row!.categoryId).toBe(manualCat);
   });
 
-  it("categorization failure does not throw", () => {
-    expect(() => {
-      categorizeSyncedTransactions("nonexistent-item", householdId, db);
-    }).not.toThrow();
+  it("categorization failure does not throw", async () => {
+    await expect(
+      categorizeSyncedTransactions("nonexistent-item", householdId, db),
+    ).resolves.not.toThrow();
   });
 });

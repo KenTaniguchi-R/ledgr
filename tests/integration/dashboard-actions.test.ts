@@ -1,22 +1,27 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
 import { insertHousehold } from "./helpers";
 import { userSettings } from "../../src/db/schema";
 import { saveLayoutForUser, getLayoutForUser } from "../../src/queries/settings";
 import type { DashboardLayout } from "../../src/components/organisms/widgets/registry";
+import type { LedgrDb } from "../../src/db";
 
 describe("dashboard actions", () => {
-  const { db } = createTestDb();
+  let db: LedgrDb;
+  let close: () => Promise<void>;
 
-  afterEach(() => {
-    // Clean up user_settings after each test
-    db.delete(userSettings).run();
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
+  });
+
+  afterAll(async () => {
+    await close();
   });
 
   it("saves and loads dashboard layout correctly", async () => {
     const userId = uuid();
-    insertHousehold(db);
+    await insertHousehold(db);
 
     const layout: DashboardLayout = {
       desktop: [{ i: "net-worth", x: 0, y: 0, w: 6, h: 2 }],
@@ -24,8 +29,8 @@ describe("dashboard actions", () => {
       mobile: [{ i: "net-worth", x: 0, y: 0, w: 2, h: 2 }],
     };
 
-    saveLayoutForUser(userId, layout, db);
-    const result = getLayoutForUser(userId, db);
+    await saveLayoutForUser(userId, layout, db);
+    const result = await getLayoutForUser(userId, db);
 
     expect(result).toEqual(layout);
   });
@@ -33,12 +38,9 @@ describe("dashboard actions", () => {
   it("handles corrupted JSON gracefully (returns null)", async () => {
     const userId = uuid();
 
-    // Insert a row with corrupted JSON directly
-    db.insert(userSettings)
-      .values({ id: uuid(), userId, dashboardLayout: "not-valid-json{{{" })
-      .run();
+    await db.insert(userSettings).values({ id: uuid(), userId, dashboardLayout: "not-valid-json{{{" });
 
-    const result = getLayoutForUser(userId, db);
+    const result = await getLayoutForUser(userId, db);
 
     expect(result).toBeNull();
   });

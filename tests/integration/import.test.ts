@@ -16,31 +16,27 @@ const CSV_CONTENT = `Date,Description,Amount
 
 describe("import pipeline integration", () => {
   let db: LedgrDb;
-  let close: () => void;
+  let close: () => Promise<void>;
   const householdId = "hh-1";
   const accountId = "acc-1";
 
-  beforeEach(() => {
-    const testDb = createTestDb();
-    db = testDb.db;
-    close = testDb.close;
-    db.insert(households).values({ id: householdId, name: "Test" }).run();
-    db.insert(accounts)
-      .values({
-        id: accountId,
-        householdId,
-        name: "Checking",
-        type: "checking",
-        currency: "USD",
-      })
-      .run();
+  beforeEach(async () => {
+    ({ db, close } = await createTestDb());
+    await db.insert(households).values({ id: householdId, name: "Test" });
+    await db.insert(accounts).values({
+      id: accountId,
+      householdId,
+      name: "Checking",
+      type: "checking",
+      currency: "USD",
+    });
   });
 
-  afterEach(() => {
-    close();
+  afterEach(async () => {
+    await close();
   });
 
-  test("full CSV pipeline: parse → map → normalize → insert", () => {
+  test("full CSV pipeline: parse → map → normalize → insert", async () => {
     const preview = parsePreview(CSV_CONTENT);
     expect(preview.headers).toEqual(["Date", "Description", "Amount"]);
     expect(preview.rows).toHaveLength(3);
@@ -61,41 +57,37 @@ describe("import pipeline integration", () => {
     expect(normalized).toHaveLength(3);
     expect(normalized[0].amount).toBe(-550);
 
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       for (const row of normalized) {
-        tx.insert(transactions)
-          .values({
-            id: row.id,
-            accountId: row.accountId,
-            householdId: row.householdId,
-            date: row.date,
-            originalName: row.originalName,
-            name: row.name,
-            amount: row.amount,
-            normalizedAmount: normalizeAmount(row.amount, "checking"),
-            externalId: row.externalId,
-          })
-          .run();
+        await tx.insert(transactions).values({
+          id: row.id,
+          accountId: row.accountId,
+          householdId: row.householdId,
+          date: row.date,
+          originalName: row.originalName,
+          name: row.name,
+          amount: row.amount,
+          normalizedAmount: normalizeAmount(row.amount, "checking"),
+          externalId: row.externalId,
+        });
       }
     });
 
-    const inserted = db.select().from(transactions).all();
+    const inserted = await db.select().from(transactions);
     expect(inserted).toHaveLength(3);
   });
 
-  test("dedup detects existing transactions", () => {
-    db.insert(transactions)
-      .values({
-        id: uuid(),
-        accountId,
-        householdId,
-        date: "2024-01-15",
-        originalName: "Coffee Shop",
-        name: "Coffee Shop",
-        amount: -550,
-        normalizedAmount: 550,
-      })
-      .run();
+  test("dedup detects existing transactions", async () => {
+    await db.insert(transactions).values({
+      id: uuid(),
+      accountId,
+      householdId,
+      date: "2024-01-15",
+      originalName: "Coffee Shop",
+      name: "Coffee Shop",
+      amount: -550,
+      normalizedAmount: 550,
+    });
 
     const rows = parseAll(CSV_CONTENT);
     const detected = autoDetectMapping(["Date", "Description", "Amount"]);
@@ -109,7 +101,7 @@ describe("import pipeline integration", () => {
       householdId,
       "positive_is_expense"
     );
-    const { unique, duplicates } = findDuplicates(normalized, accountId, db);
+    const { unique, duplicates } = await findDuplicates(normalized, accountId, db);
     expect(duplicates).toHaveLength(1);
     expect(unique).toHaveLength(2);
   });
