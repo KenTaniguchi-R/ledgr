@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const settings = getUserAiSettings(session.user.id);
+  const settings = await getUserAiSettings(session.user.id);
 
   if (!settings?.aiProvider || !settings?.aiModel || !settings.hasKey) {
     return Response.json(
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model,
-    system: buildSystemPrompt(householdId),
+    system: await buildSystemPrompt(householdId),
     messages: await convertToModelMessages(messages),
     ...(tools ? { tools, stopWhen: stepCountIs(5) } : {}),
     abortSignal: request.signal,

@@ -71,33 +71,33 @@ export default async function ReportsPage({
 
   switch (tab) {
     case "spending":
-      spendingData = getSpendingByCategory(householdId, filters, undefined, compPeriod);
+      spendingData = await getSpendingByCategory(householdId, filters, undefined, compPeriod);
       break;
     case "income-expense":
-      incomeExpenseData = getIncomeVsExpense(householdId, filters);
-      incomeExpenseCategoryData = getIncomeExpenseByCategory(householdId, filters);
+      incomeExpenseData = await getIncomeVsExpense(householdId, filters);
+      incomeExpenseCategoryData = await getIncomeExpenseByCategory(householdId, filters);
       break;
     case "cash-flow": {
-      sankeyData = getCashFlowSankey(householdId, filters);
-      safeToSpendData = getSafeToSpend(householdId);
-      cashFlowBarData = getIncomeVsExpense(householdId, filters);
+      sankeyData = await getCashFlowSankey(householdId, filters);
+      safeToSpendData = await getSafeToSpend(householdId);
+      cashFlowBarData = await getIncomeVsExpense(householdId, filters);
       break;
     }
     case "trends":
-      trendsData = getCategoryTrends(householdId, filters);
+      trendsData = await getCategoryTrends(householdId, filters);
       break;
     case "net-worth":
-      netWorthData = getReportNetWorthHistory(householdId, filters);
+      netWorthData = await getReportNetWorthHistory(householdId, filters);
       break;
   }
 
   const currentMonth = getCurrentMonth();
   const isCurrentMonth = dateFrom <= `${currentMonth}-01` && dateTo >= `${currentMonth}-01`;
 
-  const allCategories = getCategories(householdId);
-  const allAccounts = getAccounts(householdId);
+  const allCategories = await getCategories(householdId);
+  const allAccounts = await getAccounts(householdId);
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
-  const savedReports = getSavedReportsByHousehold(householdId);
+  const savedReports = await getSavedReportsByHousehold(householdId);
 
   return (
     <div className="space-y-4">

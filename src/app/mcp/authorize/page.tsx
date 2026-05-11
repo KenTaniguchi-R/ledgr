@@ -29,7 +29,7 @@ export default async function ConsentPage({ searchParams }: Props) {
     return <div className="text-destructive">Missing required parameters.</div>;
   }
 
-  const client = getClient(client_id);
+  const client = await getClient(client_id);
   if (!client) {
     return <div className="text-destructive">Unknown application.</div>;
   }

@@ -16,8 +16,8 @@ export default async function BudgetsPage({
   const month = /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : getCurrentMonth();
   const prevMonth = shiftMonth(month, -1);
 
-  const data = getBudgetForMonth(householdId, month);
-  const prevData = getBudgetForMonth(householdId, prevMonth);
+  const data = await getBudgetForMonth(householdId, month);
+  const prevData = await getBudgetForMonth(householdId, prevMonth);
   const hasPrevBudget = prevData.budget !== null;
 
   return (

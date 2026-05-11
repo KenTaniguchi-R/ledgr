@@ -21,15 +21,15 @@ export default async function TransactionsPage({
   const params = await searchParams;
   const { filters } = parseTransactionFilters(params);
 
-  const page = getTransactions(householdId, filters);
-  const allCategories = getCategories(householdId);
-  const allAccounts = getAccounts(householdId);
+  const page = await getTransactions(householdId, filters);
+  const allCategories = await getCategories(householdId);
+  const allAccounts = await getAccounts(householdId);
 
   const hasAnyFilters = Object.entries(filters)
     .filter(([k]) => k !== "reviewed")
     .some(([, v]) => v !== undefined);
-  const summary = hasAnyFilters ? getTransactionSummary(householdId, filters) : null;
-  const unreviewedSummary = getTransactionSummary(householdId, { reviewed: false });
+  const summary = hasAnyFilters ? await getTransactionSummary(householdId, filters) : null;
+  const unreviewedSummary = await getTransactionSummary(householdId, { reviewed: false });
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
 
   return (

@@ -44,7 +44,7 @@ export default async function InvestmentsPage({
     type,
   };
 
-  const accIds = getInvestmentAccountIds(householdId);
+  const accIds = await getInvestmentAccountIds(householdId);
 
   const [summary, history, allocation] = await Promise.all([
     getPortfolioSummary(householdId, undefined, undefined, accIds),
@@ -53,13 +53,13 @@ export default async function InvestmentsPage({
   ]);
 
   const holdings =
-    tab === "holdings" ? getHoldings(householdId, view, accountId, undefined, accIds) : null;
+    tab === "holdings" ? await getHoldings(householdId, view, accountId, undefined, accIds) : null;
   const transactions =
     tab === "transactions"
-      ? getInvestmentTransactions(householdId, filters, 50, null, undefined, accIds)
+      ? await getInvestmentTransactions(householdId, filters, 50, null, undefined, accIds)
       : null;
 
-  const allAccounts = getAccounts(householdId);
+  const allAccounts = await getAccounts(householdId);
   const investmentAccounts = allAccounts
     .filter((a) => a.type === "investment")
     .map((a) => ({ id: a.id, name: a.name }));

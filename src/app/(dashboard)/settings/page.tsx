@@ -9,9 +9,9 @@ export default async function SettingsPage() {
   const session = await getSession();
   if (!session) return null;
 
-  const aiSettings = getUserAiSettings(session.user.id);
-  const mcpSettings = getMcpSettings(session.user.id);
-  const demoEnabled = isDemoMode(session.user.id);
+  const aiSettings = await getUserAiSettings(session.user.id);
+  const mcpSettings = await getMcpSettings(session.user.id);
+  const demoEnabled = await isDemoMode(session.user.id);
 
   return (
     <div className="max-w-2xl space-y-8">

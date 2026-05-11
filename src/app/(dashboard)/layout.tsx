@@ -17,7 +17,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const aiSettings = getUserAiSettings(session.user.id);
+  const aiSettings = await getUserAiSettings(session.user.id);
   const hasAiConfigured = !!(aiSettings?.hasKey && aiSettings?.aiProvider);
 
   return (
