@@ -4,9 +4,11 @@
 
 **Goal:** Replace database-stored AI settings and their settings UI with environment variable configuration, simplifying the architecture from DB+encryption+CRUD+form to a single env-reading module.
 
-**Architecture:** A new `src/lib/ai/config.ts` module reads `AI_*` env vars and exports `getAiConfig()` (typed config or null) and `isAiConfigured()` (boolean). All consumers switch from the DB-backed `getUserAiSettings()` + `decrypt()` chain to this module. The AI settings form, server actions, DB columns, and integration tests are deleted.
+**Architecture:** A new `src/lib/ai/config.ts` module reads `AI_*` env vars and exports `getAiConfig()` (returns `ProviderConfig & { confidenceThreshold, toolCalling }` or null), `isAiConfigured()` (boolean), and `createAiModel()` (factory that returns `LanguageModel | null`). No singleton caching — `process.env` reads are O(1) hash lookups. All consumers switch from the DB-backed `getUserAiSettings()` + `decrypt()` chain to `createAiModel()`. The AI settings form, server actions, DB columns, and integration tests are deleted.
 
 **Tech Stack:** Next.js App Router, Drizzle ORM, TypeScript, Vitest
+
+**Review fixes incorporated:** No lazy singleton (breaks hot reload + tests). Unified type with `ProviderConfig` (eliminates mapping boilerplate). `createAiModel()` factory (DRY). Warn instead of throw on invalid config (safe in render path). `AI_TOOL_CALLING` env var (custom provider safety). Startup warnings for misconfiguration.
 
 ---
 
@@ -14,9 +16,10 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/lib/ai/config.ts` | Create | Env-based AI config reader with lazy singleton |
-| `src/lib/ai/categorize.ts` | Modify | Switch from DB settings to `getAiConfig()` |
-| `src/app/api/ai/chat/route.ts` | Modify | Switch from DB settings to `getAiConfig()` |
+| `src/lib/ai/config.ts` | Create | Env-based AI config reader + model factory |
+| `src/lib/ai/provider.ts` | Modify | Add `confidenceThreshold` and `toolCalling` to `ProviderConfig` |
+| `src/lib/ai/categorize.ts` | Modify | Switch from DB settings to `createAiModel()` |
+| `src/app/api/ai/chat/route.ts` | Modify | Switch from DB settings to `createAiModel()` |
 | `src/app/(dashboard)/layout.tsx` | Modify | Sync `isAiConfigured()` replaces async DB query |
 | `src/app/(dashboard)/settings/page.tsx` | Modify | Remove AI form, keep MCP + Demo |
 | `src/queries/settings.ts` | Modify | Remove `getUserAiSettings` + `AiSettings` interface |
@@ -28,80 +31,100 @@
 
 ---
 
-### Task 1: Create `src/lib/ai/config.ts`
+### Task 1: Update `ProviderConfig` and create `src/lib/ai/config.ts`
 
 **Files:**
+- Modify: `src/lib/ai/provider.ts`
 - Create: `src/lib/ai/config.ts`
 
-- [ ] **Step 1: Create the config module**
+- [ ] **Step 1: Extend `ProviderConfig` in `provider.ts`**
+
+Add `confidenceThreshold` and `toolCalling` to the existing interface:
+
+```ts
+// src/lib/ai/provider.ts — only the interface changes, rest stays the same
+export interface ProviderConfig {
+  aiProvider: AiProvider;
+  aiModel: string;
+  aiApiKey: string;
+  aiBaseUrl?: string;
+  confidenceThreshold: number;
+  toolCalling: boolean;
+}
+```
+
+The `createUserModel` function signature stays the same — it already only reads `aiProvider`, `aiModel`, `aiApiKey`, `aiBaseUrl` from the config. The extra fields are ignored by `createUserModel` but used by consumers.
+
+- [ ] **Step 2: Create the config module**
 
 ```ts
 // src/lib/ai/config.ts
-import type { AiProvider } from "./provider";
-
-export interface AiConfig {
-  provider: AiProvider;
-  model: string;
-  apiKey: string;
-  baseUrl?: string;
-  confidenceThreshold: number;
-}
+import type { LanguageModel } from "ai";
+import { createUserModel, type AiProvider, type ProviderConfig } from "./provider";
 
 const VALID_PROVIDERS: AiProvider[] = ["openai", "anthropic", "google", "custom"];
 
-let _cached: AiConfig | null | undefined;
-
-export function getAiConfig(): AiConfig | null {
-  if (_cached !== undefined) return _cached;
-
+export function getAiConfig(): ProviderConfig | null {
   const provider = process.env.AI_PROVIDER;
   const model = process.env.AI_MODEL;
   const apiKey = process.env.AI_API_KEY;
 
-  if (!provider || !model) {
-    _cached = null;
+  if (!provider || !model) return null;
+
+  if (!VALID_PROVIDERS.includes(provider as AiProvider)) {
+    console.warn(
+      `[ledgr] AI_PROVIDER must be one of: ${VALID_PROVIDERS.join(", ")}. Got: "${provider}" — AI features disabled`,
+    );
     return null;
   }
 
-  if (!VALID_PROVIDERS.includes(provider as AiProvider)) {
-    throw new Error(
-      `AI_PROVIDER must be one of: ${VALID_PROVIDERS.join(", ")}. Got: "${provider}"`,
-    );
-  }
+  const isCustom = provider === "custom";
 
-  if (!apiKey && provider !== "custom") {
-    _cached = null;
+  if (!apiKey && !isCustom) {
+    console.warn(
+      "[ledgr] AI_PROVIDER and AI_MODEL are set but AI_API_KEY is missing — AI features disabled",
+    );
     return null;
   }
 
   const rawThreshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD ?? "0.7");
   const confidenceThreshold = Math.min(0.9, Math.max(0.5, rawThreshold));
 
-  _cached = {
-    provider: provider as AiProvider,
-    model,
-    apiKey: apiKey || "none",
-    baseUrl: process.env.AI_BASE_URL || undefined,
+  const toolCalling = process.env.AI_TOOL_CALLING !== undefined
+    ? process.env.AI_TOOL_CALLING !== "false"
+    : !isCustom;
+
+  return {
+    aiProvider: provider as AiProvider,
+    aiModel: model,
+    aiApiKey: apiKey || "none",
+    aiBaseUrl: process.env.AI_BASE_URL || undefined,
     confidenceThreshold,
+    toolCalling,
   };
-  return _cached;
 }
 
 export function isAiConfigured(): boolean {
   return getAiConfig() !== null;
 }
+
+export function createAiModel(): LanguageModel | null {
+  const config = getAiConfig();
+  if (!config) return null;
+  return createUserModel(config);
+}
 ```
 
-- [ ] **Step 2: Verify no type errors**
+- [ ] **Step 3: Verify no type errors**
 
 Run: `rtk tsc --noEmit`
-Expected: PASS (new file only, no consumers yet)
+Expected: PASS (new file + extended interface, no consumers changed yet)
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/lib/ai/config.ts
-git commit -m "feat: add env-based AI config module"
+git add src/lib/ai/provider.ts src/lib/ai/config.ts
+git commit -m "feat: add env-based AI config module with model factory"
 ```
 
 ---
@@ -118,8 +141,7 @@ git commit -m "feat: add env-based AI config module"
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
-import { getAiConfig } from "@/lib/ai/config";
-import { createUserModel } from "@/lib/ai/provider";
+import { getAiConfig, createAiModel } from "@/lib/ai/config";
 import { financialTools } from "@/lib/ai/chat/tools";
 import { buildSystemPrompt } from "@/lib/ai/chat/system-prompt";
 
@@ -132,8 +154,9 @@ export async function POST(request: Request) {
   }
 
   const config = getAiConfig();
+  const model = createAiModel();
 
-  if (!config) {
+  if (!config || !model) {
     return Response.json(
       { error: "AI not configured. Set AI_PROVIDER and AI_MODEL in your .env file." },
       { status: 400 },
@@ -145,23 +168,15 @@ export async function POST(request: Request) {
     return Response.json(blocked, { status: 403 });
   }
 
-  const model = createUserModel({
-    aiProvider: config.provider,
-    aiModel: config.model,
-    aiApiKey: config.apiKey,
-    aiBaseUrl: config.baseUrl,
-  });
-
   const { messages }: { messages: UIMessage[] } = await request.json();
   const householdId = await getHouseholdId();
-  const tools = financialTools(householdId);
+  const tools = config.toolCalling ? financialTools(householdId) : undefined;
 
   const result = streamText({
     model,
     system: await buildSystemPrompt(householdId),
     messages: await convertToModelMessages(messages),
-    tools,
-    stopWhen: stepCountIs(5),
+    ...(tools ? { tools, stopWhen: stepCountIs(5) } : {}),
     abortSignal: request.signal,
   });
 
@@ -190,7 +205,7 @@ git commit -m "refactor: chat route reads AI config from env"
 
 - [ ] **Step 1: Replace the full file content**
 
-The key changes: remove the owner lookup + `getUserAiSettings` + `decrypt` chain. Use `getAiConfig()` instead. Confidence threshold comes from config.
+Remove owner lookup, `getUserAiSettings`, `decrypt`. Use `getAiConfig()` + `createAiModel()`. Threshold from config. Remove unused `householdMembers` import.
 
 ```ts
 // src/lib/ai/categorize.ts
@@ -204,8 +219,7 @@ import {
   categoryGroups,
 } from "@/db/schema";
 import { notDeleted } from "@/lib/query-helpers";
-import { createUserModel, type AiProvider } from "./provider";
-import { getAiConfig } from "./config";
+import { getAiConfig, createAiModel } from "./config";
 
 const categorizationSchema = z.object({
   assignments: z.array(
@@ -271,7 +285,7 @@ export function validateAssignments(
   );
 }
 
-function getBatchSize(provider: AiProvider): number {
+function getBatchSize(provider: string): number {
   return provider === "custom" ? 20 : 50;
 }
 
@@ -280,14 +294,8 @@ export async function categorizeWithAi(
   db: LedgrDb = defaultDb,
 ): Promise<{ categorized: number; skipped: number }> {
   const config = getAiConfig();
-  if (!config) return { categorized: 0, skipped: 0 };
-
-  const model = createUserModel({
-    aiProvider: config.provider,
-    aiModel: config.model,
-    aiApiKey: config.apiKey,
-    aiBaseUrl: config.baseUrl,
-  });
+  const model = createAiModel();
+  if (!config || !model) return { categorized: 0, skipped: 0 };
 
   const uncategorized = await db
     .select({
@@ -343,7 +351,7 @@ export async function categorizeWithAi(
     }));
 
   const threshold = config.confidenceThreshold;
-  const batchSize = getBatchSize(config.provider);
+  const batchSize = getBatchSize(config.aiProvider);
   let categorized = 0;
   const now = new Date();
 
@@ -769,15 +777,16 @@ export const userSettings = pgTable("user_settings", {
 
 - [ ] **Step 2: Update `.env.example`**
 
-Replace lines 15-16 (the old AI comment) with actual env var definitions:
+Replace the old AI comment block (`# AI (optional — BYOK, user configures in settings)` and `# No server-side AI keys needed...`) with:
 
 ```
 # AI (optional — set to enable chat and auto-categorization)
 AI_PROVIDER=              # openai | anthropic | google | custom
 AI_MODEL=                 # e.g. gpt-4o, claude-sonnet-4-5, gemini-2.0-flash
 AI_API_KEY=               # Provider API key (optional for custom/local models)
-AI_BASE_URL=              # Only for custom provider (e.g. http://localhost:11434/v1)
-AI_CONFIDENCE_THRESHOLD=0.7  # 0.5-0.9 — auto-categorization strictness
+AI_BASE_URL=              # Required when AI_PROVIDER=custom (e.g. http://localhost:11434/v1)
+AI_CONFIDENCE_THRESHOLD=  # default: 0.7, range: 0.5-0.9 — auto-categorization strictness
+AI_TOOL_CALLING=          # default: true for standard providers, false for custom. Set to override.
 ```
 
 - [ ] **Step 3: Generate and run Drizzle migration**
