@@ -86,8 +86,7 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <ComposedChart data={data as any[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+      <ComposedChart data={data as ChartDataPoint[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} />
         <YAxis

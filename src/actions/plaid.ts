@@ -125,12 +125,17 @@ export async function exchangeAndStoreAccounts(
       }
 
       for (const acct of plaidAccounts) {
-        const currentBalance = plaidAmountToCents(acct.balances.current ?? null);
-        const availableBalance = plaidAmountToCents(acct.balances.available ?? null);
-        const creditLimit = plaidAmountToCents(acct.balances.limit ?? null);
-        const accountType = mapPlaidAccountType(acct.type, acct.subtype ?? null);
+        const accountFields = {
+          name: acct.name,
+          officialName: acct.official_name ?? null,
+          type: mapPlaidAccountType(acct.type, acct.subtype ?? null),
+          subtype: acct.subtype ?? null,
+          currentBalance: plaidAmountToCents(acct.balances.current ?? null),
+          availableBalance: plaidAmountToCents(acct.balances.available ?? null),
+          creditLimit: plaidAmountToCents(acct.balances.limit ?? null),
+          currency: acct.balances.iso_currency_code ?? "USD",
+        };
 
-        // Try to find a soft-deleted account with matching plaidAccountId
         const [existingDeleted] = await tx
           .select({ id: accounts.id })
           .from(accounts)
@@ -147,26 +152,12 @@ export async function exchangeAndStoreAccounts(
         let accountId: string;
 
         if (existingDeleted) {
-          // Resurrect: reactivate the old account
           accountId = existingDeleted.id;
           await tx.update(accounts)
-            .set({
-              deletedAt: null,
-              plaidItemId,
-              name: acct.name,
-              officialName: acct.official_name ?? null,
-              type: accountType,
-              subtype: acct.subtype ?? null,
-              currentBalance,
-              availableBalance,
-              creditLimit,
-              currency: acct.balances.iso_currency_code ?? "USD",
-              updatedAt: new Date(),
-            })
+            .set({ ...accountFields, deletedAt: null, plaidItemId, updatedAt: new Date() })
             .where(eq(accounts.id, existingDeleted.id));
           console.log(`[plaid] Resurrected account ${accountId} (plaid: ${acct.account_id})`);
         } else {
-          // Create new account
           accountId = uuid();
           await tx.insert(accounts)
             .values({
@@ -174,29 +165,22 @@ export async function exchangeAndStoreAccounts(
               householdId,
               plaidItemId,
               plaidAccountId: acct.account_id,
-              name: acct.name,
-              officialName: acct.official_name ?? null,
-              type: accountType,
-              subtype: acct.subtype ?? null,
-              currentBalance,
-              availableBalance,
-              creditLimit,
-              currency: acct.balances.iso_currency_code ?? "USD",
+              ...accountFields,
             });
           console.log(`[plaid] Created new account ${accountId} (plaid: ${acct.account_id})`);
         }
 
-        if (currentBalance !== null) {
+        if (accountFields.currentBalance !== null) {
           await tx.insert(balanceHistory)
             .values({
               id: uuid(),
               accountId,
               date: today,
-              balance: currentBalance,
+              balance: accountFields.currentBalance,
             })
             .onConflictDoUpdate({
               target: [balanceHistory.accountId, balanceHistory.date],
-              set: { balance: currentBalance },
+              set: { balance: accountFields.currentBalance },
             });
         }
       }

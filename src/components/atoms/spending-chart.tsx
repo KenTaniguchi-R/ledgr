@@ -41,8 +41,8 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
 
   if (viewMode === "donut") {
     return (
-      <div className="flex gap-4 h-full">
-        <div className="w-1/2">
+      <div className="flex gap-3 h-full">
+        <div className="w-2/5 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -64,7 +64,7 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="w-1/2 overflow-y-auto">
+        <div className="w-3/5 overflow-y-auto">
           {chartData.map((row, i) => (
             <SpendingLegendRow
               key={row.name}
