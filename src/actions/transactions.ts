@@ -14,6 +14,26 @@ import { getTransactions, type TransactionFilters, type TransactionPage } from "
 const categoryIdSchema = z.string().min(1).nullable();
 const transactionIdSchema = z.string().min(1);
 const bulkIdsSchema = z.array(z.string().min(1)).min(1).max(500);
+const transactionFiltersSchema = z.object({
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  accountId: z.string().optional(),
+  categoryId: z.string().nullable().optional(),
+  reviewed: z.boolean().optional(),
+  search: z.string().optional(),
+  amountMin: z.coerce.number().optional(),
+  amountMax: z.coerce.number().optional(),
+  transactionType: z.enum(["expense", "credits", "transfer"]).optional(),
+});
+
+function buildCategoryUpdate(categoryId: string | null) {
+  return {
+    categoryId,
+    categorySource: categoryId !== null ? ("manual" as const) : null,
+    reviewed: categoryId !== null,
+    updatedAt: nowISO(),
+  };
+}
 
 export async function updateTransactionCategory(
   transactionId: string,
@@ -38,16 +58,7 @@ export async function updateTransactionCategory(
     return { error: "Transaction not found" };
   }
 
-  const updates: Partial<typeof transactions.$inferInsert> = {
-    categoryId: parsedCatId.data,
-    categorySource: parsedCatId.data !== null ? "manual" : null,
-    updatedAt: nowISO(),
-  };
-  if (parsedCatId.data !== null) {
-    updates.reviewed = true;
-  } else {
-    updates.reviewed = false;
-  }
+  const updates = buildCategoryUpdate(parsedCatId.data);
 
   db.update(transactions)
     .set(updates)
@@ -63,12 +74,16 @@ export async function toggleReviewed(
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true; reviewed: boolean } | { error: string }> {
   const householdId = await getHouseholdId();
+  const parsedId = transactionIdSchema.safeParse(transactionId);
+  if (!parsedId.success) {
+    return { error: "Invalid input" };
+  }
 
   const scoped = scopedQuery(householdId, db);
   const existing = db
     .select({ id: transactions.id, reviewed: transactions.reviewed })
     .from(transactions)
-    .where(scoped.where(transactions, eq(transactions.id, transactionId), notDeleted(transactions)))
+    .where(scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)))
     .get();
 
   if (!existing) {
@@ -115,14 +130,7 @@ export async function bulkUpdateCategory(
   }
 
   const ownedIds = owned.map((r) => r.id);
-  const updates: Partial<typeof transactions.$inferInsert> = {
-    categoryId,
-    categorySource: categoryId !== null ? "manual" : null,
-    updatedAt: nowISO(),
-  };
-  if (categoryId !== null) {
-    updates.reviewed = true;
-  }
+  const updates = buildCategoryUpdate(categoryId);
 
   db.update(transactions)
     .set(updates)
@@ -177,6 +185,14 @@ export async function loadMoreTransactions(
   cursor: string,
   db: LedgrDb = defaultDb,
 ): Promise<TransactionPage> {
+  const parsedFilters = transactionFiltersSchema.safeParse(filters);
+  if (!parsedFilters.success) {
+    throw new Error("Invalid filters");
+  }
+  const parsedCursor = z.string().min(1).safeParse(cursor);
+  if (!parsedCursor.success) {
+    throw new Error("Invalid cursor");
+  }
   const householdId = await getHouseholdId();
-  return getTransactions(householdId, filters, 50, cursor, db);
+  return getTransactions(householdId, parsedFilters.data, 50, parsedCursor.data, db);
 }

@@ -6,6 +6,9 @@ import { merchants } from "./merchants";
 import { categories } from "./categories";
 import { recurringTransactions } from "./recurring";
 
+export const CATEGORY_SOURCES = ["rule", "merchant_default", "pfc", "ai", "manual"] as const;
+export type CategorySource = (typeof CATEGORY_SOURCES)[number];
+
 export const transactions = sqliteTable(
   "transactions",
   {

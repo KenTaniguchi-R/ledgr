@@ -1,6 +1,6 @@
 import { eq, like, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits } from "@/db/schema";
+import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits, type CategorySource } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 
@@ -40,7 +40,7 @@ export interface TransactionRow {
   hasSplits: boolean;
   isTransfer: boolean;
   transferPairId: string | null;
-  categorySource: string | null;
+  categorySource: CategorySource | null;
   plaidTransactionId: string | null;
 }
 
