@@ -57,7 +57,7 @@ describe("useReviewQueue", () => {
     expect(result.current.queueLength).toBe(1);
   });
 
-  it("advances through queue and reaches COMPLETE", () => {
+  it("advances through queue and reaches COMPLETE", async () => {
     const rows = [makeTxn(), makeTxn()];
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useReviewQueue(rows, onConfirm));
@@ -65,11 +65,45 @@ describe("useReviewQueue", () => {
     act(() => result.current.start());
     expect(result.current.currentIndex).toBe(0);
 
-    act(() => result.current.confirm());
+    await act(async () => { await result.current.confirm(); });
     expect(onConfirm).toHaveBeenCalledWith(rows[0].id);
     expect(result.current.currentIndex).toBe(1);
 
-    act(() => result.current.confirm());
+    await act(async () => { await result.current.confirm(); });
+    expect(result.current.phase).toBe("COMPLETE");
+  });
+
+  it("returns to VIEWING on confirm error", async () => {
+    const rows = [makeTxn(), makeTxn()];
+    const onConfirm = vi.fn().mockRejectedValue(new Error("fail"));
+    const { result } = renderHook(() => useReviewQueue(rows, onConfirm));
+
+    act(() => result.current.start());
+    expect(result.current.phase).toBe("VIEWING");
+
+    await act(async () => { await result.current.confirm(); });
+    expect(result.current.phase).toBe("VIEWING");
+    expect(result.current.sessionReviewedCount).toBe(0);
+  });
+
+  it("enters SAVING phase during confirm", async () => {
+    let resolveConfirm: () => void;
+    const confirmPromise = new Promise<void>((resolve) => { resolveConfirm = resolve; });
+    const onConfirm = vi.fn().mockReturnValue(confirmPromise);
+    const rows = [makeTxn()];
+    const { result } = renderHook(() => useReviewQueue(rows, onConfirm));
+
+    act(() => result.current.start());
+
+    // Don't await — check intermediate state
+    let confirmDone: Promise<void>;
+    act(() => { confirmDone = result.current.confirm(); });
+    expect(result.current.phase).toBe("SAVING");
+
+    await act(async () => {
+      resolveConfirm!();
+      await confirmDone!;
+    });
     expect(result.current.phase).toBe("COMPLETE");
   });
 
