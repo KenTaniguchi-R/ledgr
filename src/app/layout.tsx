@@ -15,6 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ledgr",
   description: "Self-hosted personal finance",
+  manifest: "/manifest.json",
+  themeColor: "#3d3832",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Ledgr",
+  },
 };
 
 export default function RootLayout({

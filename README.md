@@ -1,7 +1,6 @@
 <div align="center">
 
-<!-- Replace with your logo -->
-<!-- <img src="docs/images/logo.svg" alt="Ledgr" width="200" /> -->
+<img src="docs/images/logo.png" alt="Ledgr" width="120" />
 
 # Ledgr
 
@@ -13,9 +12,8 @@
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg)](https://www.docker.com/)
 [![MCP](https://img.shields.io/badge/MCP-enabled-orange.svg)](https://modelcontextprotocol.io)
 
-<!-- Replace with your hero screenshot — one composite image showing the dashboard works best -->
-<br />
-<img src="docs/images/hero.png" alt="Ledgr Dashboard" width="800" />
+<!-- TODO: Add hero screenshot once dashboard UI is complete -->
+<!-- <img src="docs/images/hero.png" alt="Ledgr Dashboard" width="800" /> -->
 
 </div>
 
