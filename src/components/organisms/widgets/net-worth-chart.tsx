@@ -1,6 +1,6 @@
 "use client";
 
-import { DateRangeSelector } from "@/components/atoms/date-range-selector";
+import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
 import type { NetWorthPoint } from "@/queries/dashboard";
 

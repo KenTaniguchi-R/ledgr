@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronsUpDown, X } from "lucide-react";
-import { DateRangeSelector } from "@/components/atoms/date-range-selector";
+import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

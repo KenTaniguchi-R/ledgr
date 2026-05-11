@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { TransactionRow, TRANSACTION_GRID_COLS } from "@/components/molecules/transaction-row";
-import { TransactionDateHeader } from "@/components/molecules/transaction-date-header";
+import { TransactionDateHeader } from "@/components/atoms/transaction-date-header";
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
 import { TransactionDetailPanel } from "@/components/organisms/transaction-detail-panel";
 import { loadMoreTransactions } from "@/actions/transactions";
