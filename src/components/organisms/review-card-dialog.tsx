@@ -101,6 +101,7 @@ export function ReviewCardDialog({
     [currentTransaction, setPhase],
   );
 
+  const isSaving = phase === "SAVING";
   const isOpen = phase !== "IDLE";
 
   return (
@@ -144,16 +145,16 @@ export function ReviewCardDialog({
                 variant="outline"
                 size="sm"
                 onClick={retreat}
-                disabled={currentIndex === 0}
+                disabled={currentIndex === 0 || isSaving}
               >
                 Back
               </Button>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={skip}>
+                <Button variant="outline" size="sm" onClick={skip} disabled={isSaving}>
                   Skip
                 </Button>
-                <Button size="sm" onClick={confirm}>
-                  Confirm
+                <Button size="sm" onClick={confirm} disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Confirm"}
                 </Button>
               </div>
             </div>
