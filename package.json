@@ -19,7 +19,9 @@
     "test:e2e:ui": "playwright test --ui",
     "test:mutate": "stryker run",
     "test:mutate:incremental": "stryker run --incremental",
-    "build:mcp-widgets": "tsx src/lib/mcp/apps/build.ts"
+    "build:mcp-widgets": "tsx src/lib/mcp/apps/build.ts",
+    "dev:db": "docker compose up db -d",
+    "dev:setup": "pnpm dev:db && until pg_isready -h localhost -p 5432 2>/dev/null; do sleep 1; done && pnpm db:migrate && pnpm dev"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.76",
@@ -32,7 +34,6 @@
     "@types/react-grid-layout": "^2.1.0",
     "ai": "^6.0.177",
     "better-auth": "^1.6.10",
-    "better-sqlite3": "^12.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -43,6 +44,7 @@
     "next": "16.2.6",
     "node-cron": "^4.2.1",
     "papaparse": "^5.5.3",
+    "pg": "^8.20.0",
     "plaid": "^42.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -57,7 +59,6 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
       "sharp",
       "unrs-resolver"
     ]
@@ -69,13 +70,14 @@
     "@stryker-mutator/typescript-checker": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@tailwindcss/postcss": "^4",
+    "@testcontainers/postgresql": "^11.14.0",
     "@testing-library/react": "^16.3.2",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/d3-sankey": "^0.12.5",
     "@types/jsdom": "^28.0.1",
     "@types/node": "^20",
     "@types/node-cron": "^3.0.11",
     "@types/papaparse": "^5.5.2",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.5",
