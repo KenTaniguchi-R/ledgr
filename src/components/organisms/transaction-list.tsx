@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ReviewCardDialog } from "@/components/organisms/review-card-dialog";
 import { TransactionRow, TRANSACTION_GRID_COLS } from "@/components/molecules/transaction-row";
 import { TransactionDateHeader } from "@/components/atoms/transaction-date-header";
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
@@ -35,6 +36,8 @@ export function TransactionList({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadingMore, setLoadingMore] = useState(false);
   const { selectedId, select, clear } = useSelectedTransaction();
+  const urlSearchParams = useSearchParams();
+  const isReviewMode = urlSearchParams.get("mode") === "review";
 
   const groups = useMemo(() => groupByDate(rows), [rows]);
 
@@ -91,6 +94,12 @@ export function TransactionList({
   const handlePanelClose = useCallback(() => {
     clear();
   }, [clear]);
+
+  const handleReviewDone = useCallback(() => {
+    const params = new URLSearchParams(urlSearchParams.toString());
+    params.delete("mode");
+    router.push(`/transactions${params.toString() ? `?${params.toString()}` : ""}`);
+  }, [router, urlSearchParams]);
 
   const hasBulkSelection = selected.size > 0;
 
@@ -168,7 +177,7 @@ export function TransactionList({
       </div>
 
       {/* Detail Panel Column */}
-      {isPanelOpen && (
+      {isPanelOpen && !isReviewMode && (
         <div
           className={cn(
             "border-l bg-background",
@@ -190,6 +199,14 @@ export function TransactionList({
             onSelectTransaction={select}
           />
         </div>
+      )}
+
+      {isReviewMode && (
+        <ReviewCardDialog
+          rows={rows}
+          categories={categories}
+          onDone={handleReviewDone}
+        />
       )}
     </div>
   );
