@@ -73,17 +73,17 @@ export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
               return (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
-                    asChild
+                    render={
+                      <Link
+                        href={item.href}
+                        onClick={() => setOpenMobile(false)}
+                      />
+                    }
                     isActive={isActive}
                     tooltip={item.label}
                   >
-                    <Link
-                      href={item.href}
-                      onClick={() => setOpenMobile(false)}
-                    >
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
+                    <item.icon />
+                    <span>{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
