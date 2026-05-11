@@ -32,6 +32,9 @@ async function main() {
       },
     });
 
+    if (!result.outputFiles?.length) {
+      throw new Error(`Failed to bundle ${widget}: no output files`);
+    }
     const js = result.outputFiles[0].text;
 
     const html = `<!DOCTYPE html>
