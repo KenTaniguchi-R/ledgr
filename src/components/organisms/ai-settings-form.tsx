@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { updateAiSettings, testAiConnection } from "@/actions/settings";
+import type { AiProvider } from "@/lib/ai/provider";
 import {
   Card,
   CardContent,
@@ -22,8 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CheckCircle2, AlertCircle, Loader2, ExternalLink } from "lucide-react";
-
-type AiProvider = "openai" | "anthropic" | "google" | "custom";
 
 const PROVIDER_HELP: Record<AiProvider, { text: string; url?: string }> = {
   openai: { text: "Get your API key", url: "https://platform.openai.com/api-keys" },
@@ -56,6 +55,22 @@ function getThresholdLabel(value: number): string {
       Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev
     );
   return THRESHOLD_LABELS[closest];
+}
+
+function ResultAlert({ result }: { result: { success: true; message: string } | { error: string } }) {
+  const isSuccess = "success" in result;
+  return (
+    <Alert variant={isSuccess ? "default" : "destructive"}>
+      {isSuccess ? (
+        <CheckCircle2 className="size-4 text-green-600" />
+      ) : (
+        <AlertCircle className="size-4" />
+      )}
+      <AlertDescription>
+        {isSuccess ? result.message : result.error}
+      </AlertDescription>
+    </Alert>
+  );
 }
 
 interface AiSettingsFormProps {
@@ -94,6 +109,10 @@ export function AiSettingsForm({
   const [isSaving, startSave] = useTransition();
   const [isTesting, setIsTesting] = useState(false);
 
+  const hasUsableKey = (hasExistingKey && !changingKey) || !!apiKey;
+  const canTest = !!provider && !!model && hasUsableKey;
+  const canSave = !!provider && !!model;
+
   function handleProviderChange(value: string | null) {
     if (!value) return;
     setProvider(value as AiProvider);
@@ -118,20 +137,18 @@ export function AiSettingsForm({
   }
 
   async function handleTest() {
-    if (!provider || !model || !apiKey) return;
+    if (!provider || !canTest) return;
     setIsTesting(true);
     setTestResult(null);
     const result = await testAiConnection({
       aiProvider: provider as AiProvider,
       aiModel: model,
-      aiApiKey: apiKey,
+      aiApiKey: apiKey || undefined,
       aiBaseUrl: provider === "custom" ? baseUrl : undefined,
     });
     setTestResult(result);
     setIsTesting(false);
   }
-
-  const typedProvider = provider as AiProvider | "";
 
   return (
     <Card>
@@ -143,7 +160,6 @@ export function AiSettingsForm({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Provider */}
         <div className="space-y-1.5">
           <Label htmlFor="ai-provider">Provider</Label>
           <Select value={provider} onValueChange={handleProviderChange}>
@@ -159,8 +175,7 @@ export function AiSettingsForm({
           </Select>
         </div>
 
-        {/* Base URL — only for custom */}
-        {typedProvider === "custom" && (
+        {provider === "custom" && (
           <div className="space-y-1.5">
             <Label htmlFor="ai-base-url">Base URL</Label>
             <Input
@@ -175,14 +190,13 @@ export function AiSettingsForm({
           </div>
         )}
 
-        {/* Model */}
         <div className="space-y-1.5">
           <Label htmlFor="ai-model">Model</Label>
           <Input
             id="ai-model"
             placeholder={
-              typedProvider
-                ? PROVIDER_MODEL_PLACEHOLDER[typedProvider]
+              provider
+                ? PROVIDER_MODEL_PLACEHOLDER[provider]
                 : "Select a provider first"
             }
             value={model}
@@ -191,7 +205,6 @@ export function AiSettingsForm({
           />
         </div>
 
-        {/* API Key */}
         <div className="space-y-1.5">
           <Label htmlFor="ai-api-key">API Key</Label>
           {hasExistingKey && !changingKey ? (
@@ -220,22 +233,21 @@ export function AiSettingsForm({
               onChange={(e) => setApiKey(e.target.value)}
             />
           )}
-          {typedProvider && typedProvider !== "custom" && (
+          {provider && provider !== "custom" && (
             <p className="text-xs text-muted-foreground">
               <a
-                href={PROVIDER_HELP[typedProvider].url}
+                href={PROVIDER_HELP[provider].url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 underline underline-offset-2 hover:text-foreground transition-colors"
               >
-                {PROVIDER_HELP[typedProvider].text}
+                {PROVIDER_HELP[provider].text}
                 <ExternalLink className="size-3" />
               </a>
             </p>
           )}
         </div>
 
-        {/* Confidence threshold */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label htmlFor="ai-threshold">
@@ -265,45 +277,32 @@ export function AiSettingsForm({
           </div>
         </div>
 
-        {/* Test connection result */}
         {testResult && (
-          <Alert variant={"success" in testResult ? "default" : "destructive"}>
-            {"success" in testResult ? (
-              <CheckCircle2 className="size-4 text-green-600" />
-            ) : (
-              <AlertCircle className="size-4" />
-            )}
-            <AlertDescription>
-              {"success" in testResult
-                ? `Connected successfully. Tool calling: ${testResult.toolCallingSupported ? "supported" : "not supported"}`
-                : testResult.error}
-            </AlertDescription>
-          </Alert>
+          <ResultAlert
+            result={
+              "success" in testResult
+                ? { success: true, message: `Connected successfully. Tool calling: ${testResult.toolCallingSupported ? "supported" : "not supported"}` }
+                : testResult
+            }
+          />
         )}
 
-        {/* Save result */}
         {saveResult && (
-          <Alert variant={"success" in saveResult ? "default" : "destructive"}>
-            {"success" in saveResult ? (
-              <CheckCircle2 className="size-4 text-green-600" />
-            ) : (
-              <AlertCircle className="size-4" />
-            )}
-            <AlertDescription>
-              {"success" in saveResult
-                ? "Settings saved successfully."
-                : saveResult.error}
-            </AlertDescription>
-          </Alert>
+          <ResultAlert
+            result={
+              "success" in saveResult
+                ? { success: true, message: "Settings saved successfully." }
+                : saveResult
+            }
+          />
         )}
 
-        {/* Actions */}
         <div className="flex gap-2 pt-1">
           <Button
             type="button"
             variant="outline"
             onClick={handleTest}
-            disabled={isTesting || !provider || !model || !apiKey}
+            disabled={isTesting || !canTest}
           >
             {isTesting && <Loader2 className="size-4 animate-spin" />}
             {isTesting ? "Testing..." : "Test Connection"}
@@ -311,7 +310,7 @@ export function AiSettingsForm({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={isSaving || !provider || !model}
+            disabled={isSaving || !canSave}
           >
             {isSaving && <Loader2 className="size-4 animate-spin" />}
             {isSaving ? "Saving..." : "Save"}
