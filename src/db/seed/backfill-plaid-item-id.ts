@@ -5,11 +5,10 @@ import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "@/lib/plaid/client";
 
 async function backfill() {
-  const items = db
+  const items = await db
     .select({ id: plaidItems.id, accessToken: plaidItems.accessToken })
     .from(plaidItems)
-    .where(isNull(plaidItems.plaidItemId))
-    .all();
+    .where(isNull(plaidItems.plaidItemId));
 
   if (items.length === 0) {
     console.log("No items to backfill.");
@@ -25,10 +24,9 @@ async function backfill() {
       const res = await client.itemGet({ access_token: accessToken });
       const plaidItemIdValue = res.data.item.item_id;
 
-      db.update(plaidItems)
+      await db.update(plaidItems)
         .set({ plaidItemId: plaidItemIdValue })
-        .where(eq(plaidItems.id, item.id))
-        .run();
+        .where(eq(plaidItems.id, item.id));
 
       console.log(`  ✓ ${item.id} → ${plaidItemIdValue}`);
     } catch (err) {

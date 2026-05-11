@@ -1,10 +1,8 @@
 import { v4 as uuid } from "uuid";
 import { categoryGroups, categories } from "@/db/schema";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "@/db/schema";
+import type { LedgrDb } from "@/db";
 
-type Db = BetterSQLite3Database<typeof schema>;
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0] | Db;
+type Tx = Parameters<Parameters<LedgrDb["transaction"]>[0]>[0] | LedgrDb;
 
 interface CategoryDef {
   name: string;
@@ -101,26 +99,26 @@ export const DEFAULT_CATEGORIES: GroupDef[] = [
   },
 ];
 
-export function seedDefaultCategories(
+export async function seedDefaultCategories(
   tx: Tx,
   householdId: string
-): void {
+): Promise<void> {
   for (let gi = 0; gi < DEFAULT_CATEGORIES.length; gi++) {
     const group = DEFAULT_CATEGORIES[gi];
     const groupId = uuid();
 
-    tx.insert(categoryGroups).values({
+    await tx.insert(categoryGroups).values({
       id: groupId,
       householdId,
       name: group.name,
       icon: group.icon,
       sortOrder: gi,
       isSystem: true,
-    }).run();
+    });
 
     for (let ci = 0; ci < group.categories.length; ci++) {
       const cat = group.categories[ci];
-      tx.insert(categories).values({
+      await tx.insert(categories).values({
         id: uuid(),
         householdId,
         groupId,
@@ -129,7 +127,7 @@ export function seedDefaultCategories(
         isIncome: cat.isIncome,
         isSystem: true,
         sortOrder: ci,
-      }).run();
+      });
     }
   }
 }

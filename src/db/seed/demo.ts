@@ -66,44 +66,42 @@ const ACCOUNT_CAR_LOAN = "demo-account-car-loan";
 // Main export
 // ---------------------------------------------------------------------------
 
-export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
+export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> {
   // Idempotency check
-  const existing = db
+  const [existing] = await db
     .select({ id: households.id })
     .from(households)
     .where(eq(households.id, DEMO_HOUSEHOLD_ID))
-    .get();
+    .limit(1);
 
   if (existing) return;
 
   const now = nowISO();
 
-  db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     // ------------------------------------------------------------------
     // 1. Household
     // ------------------------------------------------------------------
-    tx.insert(households)
-      .values({ id: DEMO_HOUSEHOLD_ID, name: "Demo Household", createdAt: now, updatedAt: now })
-      .run();
+    await tx.insert(households)
+      .values({ id: DEMO_HOUSEHOLD_ID, name: "Demo Household", createdAt: now, updatedAt: now });
 
     // ------------------------------------------------------------------
     // 2. Categories (uses existing seed function)
     // ------------------------------------------------------------------
-    seedDefaultCategories(tx, DEMO_HOUSEHOLD_ID);
+    await seedDefaultCategories(tx, DEMO_HOUSEHOLD_ID);
 
     // Retrieve seeded categories for later reference
-    const allCategories = tx
+    const allCategories = await tx
       .select({ id: categories.id, name: categories.name })
       .from(categories)
-      .where(eq(categories.householdId, DEMO_HOUSEHOLD_ID))
-      .all();
+      .where(eq(categories.householdId, DEMO_HOUSEHOLD_ID));
 
     const catByName = new Map(allCategories.map((c) => [c.name, c.id]));
 
     // ------------------------------------------------------------------
     // 3. Plaid Items
     // ------------------------------------------------------------------
-    tx.insert(plaidItems)
+    await tx.insert(plaidItems)
       .values([
         {
           id: PLAID_ITEM_CHASE,
@@ -131,13 +129,12 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
           createdAt: now,
           updatedAt: now,
         },
-      ])
-      .run();
+      ]);
 
     // ------------------------------------------------------------------
     // 4. Sync Log (4 entries, 2 per item)
     // ------------------------------------------------------------------
-    tx.insert(syncLog)
+    await tx.insert(syncLog)
       .values([
         {
           id: uuid(),
@@ -179,13 +176,12 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
           modifiedCount: 1,
           removedCount: 0,
         },
-      ])
-      .run();
+      ]);
 
     // ------------------------------------------------------------------
     // 5. Accounts
     // ------------------------------------------------------------------
-    tx.insert(accounts)
+    await tx.insert(accounts)
       .values([
         {
           id: ACCOUNT_CHECKING,
@@ -259,8 +255,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
           createdAt: now,
           updatedAt: now,
         },
-      ])
-      .run();
+      ]);
 
     // ------------------------------------------------------------------
     // 6. Merchants (~20)
@@ -288,7 +283,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
       { id: "demo-merchant-car-finance", name: "Auto Finance Co", category: "Car Payment" },
     ];
 
-    tx.insert(merchants)
+    await tx.insert(merchants)
       .values(
         merchantDefs.map((m) => ({
           id: m.id,
@@ -298,8 +293,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
           createdAt: now,
           updatedAt: now,
         }))
-      )
-      .run();
+      );
 
     // ------------------------------------------------------------------
     // 7. Transactions (~350 spanning 6 months)
@@ -448,10 +442,9 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
       }
     }
 
-    // Insert transactions in batches (SQLite has a variable limit)
     const BATCH_SIZE = 50;
     for (let i = 0; i < txnRows.length; i += BATCH_SIZE) {
-      tx.insert(transactions).values(txnRows.slice(i, i + BATCH_SIZE)).run();
+      await tx.insert(transactions).values(txnRows.slice(i, i + BATCH_SIZE));
     }
 
     // ------------------------------------------------------------------
@@ -487,14 +480,14 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
     }
 
     for (let i = 0; i < balanceRows.length; i += BATCH_SIZE) {
-      tx.insert(balanceHistory).values(balanceRows.slice(i, i + BATCH_SIZE)).run();
+      await tx.insert(balanceHistory).values(balanceRows.slice(i, i + BATCH_SIZE));
     }
 
     // ------------------------------------------------------------------
     // 9. Budgets (current month with 5 category limits)
     // ------------------------------------------------------------------
     const budgetId = "demo-budget-current";
-    tx.insert(budgets)
+    await tx.insert(budgets)
       .values({
         id: budgetId,
         householdId: DEMO_HOUSEHOLD_ID,
@@ -502,8 +495,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
         type: "category",
         createdAt: now,
         updatedAt: now,
-      })
-      .run();
+      });
 
     const budgetCategoryLimits: { category: string; limit: number }[] = [
       { category: "Groceries", limit: 60000 },
@@ -513,7 +505,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
       { category: "Coffee Shops", limit: 8000 },
     ];
 
-    tx.insert(budgetCategories)
+    await tx.insert(budgetCategories)
       .values(
         budgetCategoryLimits.map((bc) => ({
           id: uuid(),
@@ -524,8 +516,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
           isFixed: false,
           createdAt: now,
         }))
-      )
-      .run();
+      );
 
     // ------------------------------------------------------------------
     // 10. Recurring Transactions (6)
@@ -534,7 +525,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
     const nextMonth = new Date(today);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-    tx.insert(recurringTransactions)
+    await tx.insert(recurringTransactions)
       .values([
         {
           id: "demo-recurring-salary",
@@ -638,8 +629,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
           createdAt: now,
           updatedAt: now,
         },
-      ])
-      .run();
+      ]);
 
     // ------------------------------------------------------------------
     // 11. Investment Holdings (3) + History
@@ -680,7 +670,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
       },
     ];
 
-    tx.insert(investmentHoldings)
+    await tx.insert(investmentHoldings)
       .values(
         holdingsDefs.map((h) => ({
           id: h.id,
@@ -698,8 +688,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
           createdAt: now,
           updatedAt: now,
         }))
-      )
-      .run();
+      );
 
     // Holdings history — weekly snapshots for 6 months (~26 entries per holding)
     const holdingsHistoryRows: (typeof holdingsHistory.$inferInsert)[] = [];
@@ -726,7 +715,7 @@ export function seedDemoHousehold(db: LedgrDb = defaultDb): void {
     }
 
     for (let i = 0; i < holdingsHistoryRows.length; i += BATCH_SIZE) {
-      tx.insert(holdingsHistory).values(holdingsHistoryRows.slice(i, i + BATCH_SIZE)).run();
+      await tx.insert(holdingsHistory).values(holdingsHistoryRows.slice(i, i + BATCH_SIZE));
     }
   });
 }
