@@ -1,18 +1,19 @@
 import {
   index,
   integer,
-  sqliteTable,
+  pgTable,
   text,
+  boolean,
+  timestamp,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+} from "drizzle-orm/pg-core";
 import { households } from "./households";
 import { plaidItems } from "./plaid";
 
 export const ACCOUNT_TYPES = ["checking", "savings", "credit", "loan", "investment", "other"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
-export const accounts = sqliteTable(
+export const accounts = pgTable(
   "accounts",
   {
     id: text("id").primaryKey(),
@@ -29,11 +30,11 @@ export const accounts = sqliteTable(
     availableBalance: integer("available_balance"),
     creditLimit: integer("credit_limit"),
     currency: text("currency").default("USD"),
-    isManual: integer("is_manual", { mode: "boolean" }).default(false),
-    isHidden: integer("is_hidden", { mode: "boolean" }).default(false),
-    deletedAt: text("deleted_at"),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    isManual: boolean("is_manual").default(false),
+    isHidden: boolean("is_hidden").default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_accounts_household").on(table.householdId),
@@ -41,7 +42,7 @@ export const accounts = sqliteTable(
   ]
 );
 
-export const balanceHistory = sqliteTable(
+export const balanceHistory = pgTable(
   "balance_history",
   {
     id: text("id").primaryKey(),
@@ -50,7 +51,7 @@ export const balanceHistory = sqliteTable(
       .references(() => accounts.id, { onDelete: "cascade" }),
     date: text("date").notNull(),
     balance: integer("balance").notNull(),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("uq_balance_account_date").on(table.accountId, table.date),

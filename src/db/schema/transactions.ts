@@ -1,5 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, integer, pgTable, text, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { accounts } from "./accounts";
 import { households } from "./households";
 import { merchants } from "./merchants";
@@ -9,7 +8,7 @@ import { recurringTransactions } from "./recurring";
 export const CATEGORY_SOURCES = ["rule", "merchant_default", "pfc", "ai", "manual"] as const;
 export type CategorySource = (typeof CATEGORY_SOURCES)[number];
 
-export const transactions = sqliteTable(
+export const transactions = pgTable(
   "transactions",
   {
     id: text("id").primaryKey(),
@@ -31,16 +30,16 @@ export const transactions = sqliteTable(
     amount: integer("amount").notNull(),
     normalizedAmount: integer("normalized_amount").notNull(),
     currency: text("currency").default("USD"),
-    pending: integer("pending", { mode: "boolean" }).default(false),
-    reviewed: integer("reviewed", { mode: "boolean" }).default(false),
+    pending: boolean("pending").default(false),
+    reviewed: boolean("reviewed").default(false),
     notes: text("notes"),
     tags: text("tags"),
-    isTransfer: integer("is_transfer", { mode: "boolean" }).default(false),
-    deletedAt: text("deleted_at"),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-    updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    isTransfer: boolean("is_transfer").default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     externalId: text("external_id"),
-    aiCategorizationAttemptedAt: text("ai_categorization_attempted_at"),
+    aiCategorizationAttemptedAt: timestamp("ai_categorization_attempted_at", { withTimezone: true }),
     pfcPrimary: text("pfc_primary"),
     pfcDetailed: text("pfc_detailed"),
     categorySource: text("category_source"),
@@ -56,10 +55,11 @@ export const transactions = sqliteTable(
     index("idx_txn_external_id").on(table.accountId, table.externalId),
     index("idx_txn_household_reviewed_date").on(table.householdId, table.reviewed, table.date),
     index("idx_txn_household_transfer_date").on(table.householdId, table.isTransfer, table.date),
+    index("idx_txn_household_date_id").on(table.householdId, table.date, table.id),
   ]
 );
 
-export const transactionSplits = sqliteTable(
+export const transactionSplits = pgTable(
   "transaction_splits",
   {
     id: text("id").primaryKey(),
@@ -71,7 +71,7 @@ export const transactionSplits = sqliteTable(
       .references(() => categories.id),
     amount: integer("amount").notNull(),
     notes: text("notes"),
-    createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("idx_splits_txn").on(table.transactionId),
