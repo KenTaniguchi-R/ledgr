@@ -3,6 +3,9 @@ import { getSession } from "@/lib/auth/session";
 import { getUserAiSettings } from "@/queries/settings";
 import { SidebarNav } from "@/components/organisms/sidebar-nav";
 import { ChatPanelLoader } from "@/components/organisms/chat-panel-loader";
+import { seedDemoHousehold } from "@/db/seed/demo";
+
+seedDemoHousehold();
 
 export default async function DashboardLayout({
   children,
