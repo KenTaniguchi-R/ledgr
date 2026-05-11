@@ -259,6 +259,7 @@ export async function applyToDb(
         and(
           eq(accounts.householdId, householdId),
           eq(accounts.plaidItemId, itemId),
+          isNull(accounts.deletedAt),
         ),
       );
 
@@ -570,6 +571,7 @@ async function doSync(
         and(
           eq(accounts.householdId, householdId),
           eq(accounts.plaidItemId, itemId),
+          isNull(accounts.deletedAt),
         ),
       );
 
