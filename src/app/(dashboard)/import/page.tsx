@@ -1,18 +1,10 @@
 import { getHouseholdId } from "@/lib/auth/session";
-import { db } from "@/db";
-import { accounts } from "@/db/schema/accounts";
-import { eq, and } from "drizzle-orm";
-import { notDeleted } from "@/lib/query-helpers";
+import { getAccountsForImport } from "@/queries/accounts";
 import { ImportWizard } from "@/components/organisms/import-wizard";
 
 export default async function ImportPage() {
   const householdId = await getHouseholdId();
-
-  const userAccounts = db
-    .select({ id: accounts.id, name: accounts.name })
-    .from(accounts)
-    .where(and(eq(accounts.householdId, householdId), notDeleted(accounts)))
-    .all();
+  const userAccounts = await getAccountsForImport(householdId);
 
   return (
     <div className="space-y-6">

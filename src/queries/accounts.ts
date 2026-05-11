@@ -98,6 +98,17 @@ export async function getAccountsByInstitution(
   return result;
 }
 
+export async function getAccountsForImport(
+  householdId: string,
+  db: LedgrDb = defaultDb,
+) {
+  const scoped = scopedQuery(householdId, db);
+  return await db
+    .select({ id: accounts.id, name: accounts.name })
+    .from(accounts)
+    .where(scoped.where(accounts, notDeleted(accounts)));
+}
+
 export async function getAccountSummary(
   householdId: string,
   db: LedgrDb = defaultDb
