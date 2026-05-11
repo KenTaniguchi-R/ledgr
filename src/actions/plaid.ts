@@ -1,7 +1,7 @@
 "use server";
 
 import { v4 as uuid } from "uuid";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { Products, CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
@@ -125,28 +125,66 @@ export async function exchangeAndStoreAccounts(
       }
 
       for (const acct of plaidAccounts) {
-        const accountId = uuid();
         const currentBalance = plaidAmountToCents(acct.balances.current ?? null);
-        const availableBalance = plaidAmountToCents(
-          acct.balances.available ?? null
-        );
+        const availableBalance = plaidAmountToCents(acct.balances.available ?? null);
         const creditLimit = plaidAmountToCents(acct.balances.limit ?? null);
+        const accountType = mapPlaidAccountType(acct.type, acct.subtype ?? null);
 
-        await tx.insert(accounts)
-          .values({
-            id: accountId,
-            householdId,
-            plaidItemId,
-            plaidAccountId: acct.account_id,
-            name: acct.name,
-            officialName: acct.official_name ?? null,
-            type: mapPlaidAccountType(acct.type, acct.subtype ?? null),
-            subtype: acct.subtype ?? null,
-            currentBalance,
-            availableBalance,
-            creditLimit,
-            currency: acct.balances.iso_currency_code ?? "USD",
-          });
+        // Try to find a soft-deleted account with matching plaidAccountId
+        const [existingDeleted] = await tx
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(
+            and(
+              eq(accounts.plaidAccountId, acct.account_id),
+              eq(accounts.householdId, householdId),
+              isNotNull(accounts.deletedAt),
+            ),
+          )
+          .orderBy(desc(accounts.deletedAt))
+          .limit(1);
+
+        let accountId: string;
+
+        if (existingDeleted) {
+          // Resurrect: reactivate the old account
+          accountId = existingDeleted.id;
+          await tx.update(accounts)
+            .set({
+              deletedAt: null,
+              plaidItemId,
+              name: acct.name,
+              officialName: acct.official_name ?? null,
+              type: accountType,
+              subtype: acct.subtype ?? null,
+              currentBalance,
+              availableBalance,
+              creditLimit,
+              currency: acct.balances.iso_currency_code ?? "USD",
+              updatedAt: new Date(),
+            })
+            .where(eq(accounts.id, existingDeleted.id));
+          console.log(`[plaid] Resurrected account ${accountId} (plaid: ${acct.account_id})`);
+        } else {
+          // Create new account
+          accountId = uuid();
+          await tx.insert(accounts)
+            .values({
+              id: accountId,
+              householdId,
+              plaidItemId,
+              plaidAccountId: acct.account_id,
+              name: acct.name,
+              officialName: acct.official_name ?? null,
+              type: accountType,
+              subtype: acct.subtype ?? null,
+              currentBalance,
+              availableBalance,
+              creditLimit,
+              currency: acct.balances.iso_currency_code ?? "USD",
+            });
+          console.log(`[plaid] Created new account ${accountId} (plaid: ${acct.account_id})`);
+        }
 
         if (currentBalance !== null) {
           await tx.insert(balanceHistory)
@@ -155,6 +193,10 @@ export async function exchangeAndStoreAccounts(
               accountId,
               date: today,
               balance: currentBalance,
+            })
+            .onConflictDoUpdate({
+              target: [balanceHistory.accountId, balanceHistory.date],
+              set: { balance: currentBalance },
             });
         }
       }
