@@ -1,4 +1,3 @@
-// src/components/molecules/transaction-date-header.tsx
 import { AmountDisplay } from "@/components/atoms/amount-display";
 
 interface TransactionDateHeaderProps {
@@ -22,7 +21,7 @@ export function TransactionDateHeader({
 
   return (
     <div className="sticky top-0 z-10 flex items-center gap-2 h-8 px-2 bg-background border-b group-data-[bulk-active]/list:top-14">
-      <span className="text-xs font-semibold text-foreground">{formatted}</span>
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{formatted}</span>
       <span className="text-xs text-muted-foreground">
         ·  {transactionCount} transaction{transactionCount !== 1 ? "s" : ""}
       </span>
