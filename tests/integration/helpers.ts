@@ -49,7 +49,7 @@ export async function insertTransaction(
   overrides: Partial<typeof transactions.$inferInsert> = {},
 ) {
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = new Date();
   await db.insert(transactions).values({
     id,
     accountId,
@@ -73,7 +73,7 @@ export async function insertMerchant(
   overrides: Partial<typeof merchants.$inferInsert> = {},
 ) {
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = new Date();
   await db.insert(merchants).values({
     id,
     householdId,
@@ -140,7 +140,7 @@ export async function insertBudget(
   overrides: Partial<typeof budgets.$inferInsert> = {},
 ) {
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = new Date();
   await db.insert(budgets).values({
     id,
     householdId,
@@ -193,7 +193,7 @@ export async function insertPlaidItem(
   overrides: Partial<typeof plaidItems.$inferInsert> = {},
 ) {
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = new Date();
   await db.insert(plaidItems).values({
     id,
     householdId,
@@ -215,7 +215,7 @@ export async function insertRecurringTransaction(
   overrides: Partial<typeof recurringTransactions.$inferInsert> = {},
 ) {
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = new Date();
   await db.insert(recurringTransactions).values({
     id,
     householdId,
@@ -235,7 +235,7 @@ export async function insertInvestmentHolding(
   overrides: Partial<typeof investmentHoldings.$inferInsert> = {},
 ) {
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = new Date();
   await db.insert(investmentHoldings).values({
     id,
     accountId,
@@ -276,7 +276,7 @@ export async function insertInvestmentTransaction(
   overrides: Partial<typeof investmentTransactions.$inferInsert> = {},
 ) {
   const id = uuid();
-  const now = new Date().toISOString();
+  const now = new Date();
   await db.insert(investmentTransactions).values({
     id,
     accountId,

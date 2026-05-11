@@ -9,24 +9,24 @@ import { v4 as uuid } from "uuid";
 
 describe("backfillAccountBalances", () => {
   it("reconstructs daily balances from transactions", async () => {
-    const { db, close } = createTestDb();
+    const { db, close } = await createTestDb();
     try {
-      const { householdId } = insertHousehold(db);
+      const { householdId } = await insertHousehold(db);
       // Current balance: 10000 cents ($100)
-      const { accountId } = insertAccount(db, householdId, {
+      const { accountId } = await insertAccount(db, householdId, {
         currentBalance: 10000,
         type: "checking",
       });
 
       // Transaction on 2026-05-08: spent 3000 (normalizedAmount = -3000, negative = expense)
-      insertTransaction(db, householdId, accountId, {
+      await insertTransaction(db, householdId, accountId, {
         date: "2026-05-08",
         normalizedAmount: -3000,
         pending: false,
       });
 
       // Transaction on 2026-05-07: spent 2000
-      insertTransaction(db, householdId, accountId, {
+      await insertTransaction(db, householdId, accountId, {
         date: "2026-05-07",
         normalizedAmount: -2000,
         pending: false,
@@ -34,11 +34,10 @@ describe("backfillAccountBalances", () => {
 
       await backfillAccountBalances(db);
 
-      const rows = db
+      const rows = (await db
         .select()
-        .from(balanceHistory)
-        .all()
-        .sort((a, b) => a.date.localeCompare(b.date));
+        .from(balanceHistory))
+        .sort((a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date));
 
       // Today (2026-05-10): 10000
       // Checking: undoSign = -1. runningBalance + (-1 * dayNet)
@@ -46,7 +45,7 @@ describe("backfillAccountBalances", () => {
       // 2026-05-07: 13000 + (-1 * -2000) = 15000
       expect(rows.length).toBeGreaterThanOrEqual(2);
 
-      const byDate = Object.fromEntries(rows.map((r) => [r.date, r.balance]));
+      const byDate = Object.fromEntries(rows.map((r: { date: string; balance: number }) => [r.date, r.balance]));
       // Walking back from today (checking: undo expense by adding absolute value):
       expect(byDate["2026-05-08"]).toBe(13000);
       expect(byDate["2026-05-07"]).toBe(15000);
@@ -56,20 +55,20 @@ describe("backfillAccountBalances", () => {
         expect(row.accountId).toBe(accountId);
       }
     } finally {
-      close();
+      await close();
     }
   });
 
   it("skips investment accounts", async () => {
-    const { db, close } = createTestDb();
+    const { db, close } = await createTestDb();
     try {
-      const { householdId } = insertHousehold(db);
-      const { accountId } = insertAccount(db, householdId, {
+      const { householdId } = await insertHousehold(db);
+      const { accountId } = await insertAccount(db, householdId, {
         currentBalance: 50000,
         type: "investment",
       });
 
-      insertTransaction(db, householdId, accountId, {
+      await insertTransaction(db, householdId, accountId, {
         date: "2026-05-07",
         normalizedAmount: -1000,
         pending: false,
@@ -77,23 +76,23 @@ describe("backfillAccountBalances", () => {
 
       await backfillAccountBalances(db);
 
-      const rows = db.select().from(balanceHistory).all();
+      const rows = await db.select().from(balanceHistory);
       expect(rows).toHaveLength(0);
     } finally {
-      close();
+      await close();
     }
   });
 
   it("skips dates that already have balance_history entries", async () => {
-    const { db, close } = createTestDb();
+    const { db, close } = await createTestDb();
     try {
-      const { householdId } = insertHousehold(db);
-      const { accountId } = insertAccount(db, householdId, {
+      const { householdId } = await insertHousehold(db);
+      const { accountId } = await insertAccount(db, householdId, {
         currentBalance: 10000,
         type: "checking",
       });
 
-      insertTransaction(db, householdId, accountId, {
+      await insertTransaction(db, householdId, accountId, {
         date: "2026-05-08",
         normalizedAmount: -1000,
         pending: false,
@@ -101,24 +100,23 @@ describe("backfillAccountBalances", () => {
 
       // Pre-insert a balance_history row for 2026-05-08 with a specific value
       const existingBalance = 99999;
-      db.insert(balanceHistory)
+      await db.insert(balanceHistory)
         .values({
           id: uuid(),
           accountId,
           date: "2026-05-08",
           balance: existingBalance,
-        })
-        .run();
+        });
 
       await backfillAccountBalances(db);
 
-      const rows = db.select().from(balanceHistory).all();
+      const rows = await db.select().from(balanceHistory);
       const may8Row = rows.find((r) => r.date === "2026-05-08");
       expect(may8Row).toBeDefined();
       // The pre-existing value should NOT be overwritten
       expect(may8Row!.balance).toBe(existingBalance);
     } finally {
-      close();
+      await close();
     }
   });
 
@@ -128,7 +126,7 @@ describe("backfillAccountBalances", () => {
     fc.constantFrom(-1, 1),
   ])(
     "walking back then forward preserves the original balance",
-    (amounts, currentBalance, undoSign) => {
+    (amounts: number[], currentBalance: number, undoSign: number) => {
       // Simulate the backfill algorithm: walk backward from currentBalance
       // undoSign = -1 for depository (checking/savings), 1 for liability (credit/loan)
       // negative normalizedAmount = expense, positive = income

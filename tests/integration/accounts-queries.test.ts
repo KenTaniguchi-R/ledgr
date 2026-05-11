@@ -56,7 +56,7 @@ describe("account queries", () => {
     const hh = await provisionHousehold("user-1", db);
 
     await insertAccount(db, hh, { name: "Active" });
-    await insertAccount(db, hh, { name: "Deleted", deletedAt: "2026-01-01" });
+    await insertAccount(db, hh, { name: "Deleted", deletedAt: new Date("2026-01-01") });
 
     const result = await getAccounts(hh, db);
     expect(result).toHaveLength(1);
@@ -109,7 +109,7 @@ describe("account queries", () => {
     const hh = await provisionHousehold("user-5", db);
 
     await insertAccount(db, hh, { name: "Active", currentBalance: 100000 });
-    await insertAccount(db, hh, { name: "Deleted", currentBalance: 200000, deletedAt: "2026-01-01" });
+    await insertAccount(db, hh, { name: "Deleted", currentBalance: 200000, deletedAt: new Date("2026-01-01") });
 
     const all = await getAccounts(hh, db);
     expect(all).toHaveLength(1);

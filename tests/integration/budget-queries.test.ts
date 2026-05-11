@@ -135,7 +135,7 @@ describe("getBudgetForMonth", () => {
       amount: 500,
       normalizedAmount: -500,
       categoryId: groceriesCatId,
-      deletedAt: new Date().toISOString(),
+      deletedAt: new Date(),
     });
 
     await insertTransaction(db, householdId, accountId, {

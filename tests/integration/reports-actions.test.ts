@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createTestDb } from "../integration/setup";
 import { v4 as uuid } from "uuid";
 import { savedReports, households } from "@/db/schema";
-import { nowISO } from "@/lib/date-utils";
 import type { LedgrDb } from "@/db";
 import { eq } from "drizzle-orm";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -21,7 +20,7 @@ describe("deleteReport scoping", () => {
 
   beforeEach(async () => {
     ({ db, close } = await createTestDb());
-    const now = nowISO();
+    const now = new Date();
     await db.insert(households).values([
       { id: "h1", name: "House 1", createdAt: now, updatedAt: now },
       { id: "h2", name: "House 2", createdAt: now, updatedAt: now },
@@ -33,7 +32,7 @@ describe("deleteReport scoping", () => {
   });
 
   it("cannot delete a report belonging to another household", async () => {
-    const now = nowISO();
+    const now = new Date();
     const reportId = uuid();
     await db.insert(savedReports).values({
       id: reportId,
@@ -53,7 +52,7 @@ describe("deleteReport scoping", () => {
   });
 
   it("can delete own report", async () => {
-    const now = nowISO();
+    const now = new Date();
     const reportId = uuid();
     await db.insert(savedReports).values({
       id: reportId,

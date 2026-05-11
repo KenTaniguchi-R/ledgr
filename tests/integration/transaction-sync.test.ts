@@ -58,7 +58,7 @@ describe("transaction sync integration", () => {
   }
 
   async function seedTestData(testDb: LedgrDb) {
-    const now = new Date().toISOString();
+    const now = new Date();
 
     await testDb.insert(households).values({
       id: HOUSEHOLD_ID,
@@ -173,7 +173,7 @@ describe("transaction sync integration", () => {
     await setup();
     await seedTestData(db);
 
-    const now = new Date().toISOString();
+    const now = new Date();
     await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-internal-checking",
@@ -208,7 +208,7 @@ describe("transaction sync integration", () => {
     await setup();
     await seedTestData(db);
 
-    const now = new Date().toISOString();
+    const now = new Date();
     await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-internal-checking",
@@ -243,7 +243,7 @@ describe("transaction sync integration", () => {
     await setup();
     await seedTestData(db);
 
-    const now = new Date().toISOString();
+    const now = new Date();
     await db.insert(transactions).values({
       id: uuid(),
       accountId: "acc-internal-checking",
@@ -330,7 +330,7 @@ describe("transaction sync integration", () => {
 
     const HOUSEHOLD_B = "hh-test-b";
     const PLAID_ITEM_B = "plaid-item-b";
-    const now = new Date().toISOString();
+    const now = new Date();
 
     await db.insert(households).values({
       id: HOUSEHOLD_B,
@@ -401,7 +401,7 @@ describe("transaction sync integration", () => {
     await setup();
     await seedTestData(db);
 
-    const now = new Date().toISOString();
+    const now = new Date();
     const sharedPlaidId = "txn-unique-constraint-test";
 
     await db.insert(transactions).values({

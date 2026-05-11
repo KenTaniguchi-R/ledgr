@@ -45,7 +45,7 @@ describe("dispatchWebhook", () => {
   }
 
   async function seedTestData(testDb: LedgrDb) {
-    const now = new Date().toISOString();
+    const now = new Date();
     await testDb.insert(households).values({ id: HOUSEHOLD_ID, name: "Test", createdAt: now, updatedAt: now });
     await testDb.insert(householdMembers).values({ id: uuid(), householdId: HOUSEHOLD_ID, userId: "user-1", role: "owner", createdAt: now });
     await testDb.insert(plaidItems).values({

@@ -116,7 +116,7 @@ describe("getTransactionDetail", () => {
       name: "Deleted",
       amount: 1000,
       normalizedAmount: -1000,
-      deletedAt: new Date().toISOString(),
+      deletedAt: new Date(),
     });
     const detail = await getTransactionDetail(householdId, deletedId, db);
     expect(detail).toBeNull();

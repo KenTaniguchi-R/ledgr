@@ -45,7 +45,7 @@ describe("re-auth server actions", () => {
   }
 
   async function seedItem(testDb: LedgrDb, status: "active" | "error" | "reauth_required" | "revoked" = "reauth_required") {
-    const now = new Date().toISOString();
+    const now = new Date();
     await testDb.insert(households).values({ id: HOUSEHOLD_ID, name: "Test", createdAt: now, updatedAt: now });
     await testDb.insert(householdMembers).values({ id: uuid(), householdId: HOUSEHOLD_ID, userId: USER_ID, role: "owner", createdAt: now });
     await testDb.insert(plaidItems).values({

@@ -105,8 +105,8 @@ describe("syncRecurringTransactions", () => {
       frequency: "monthly",
       isActive: true,
       isIncome: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     server.use(recurringGetHandler);
@@ -141,8 +141,8 @@ describe("syncRecurringTransactions", () => {
       name: "Cancelled Service",
       isActive: true,
       isIncome: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     server.use(recurringGetHandler);

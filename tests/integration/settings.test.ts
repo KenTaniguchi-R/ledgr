@@ -3,7 +3,8 @@ import { createTestDb } from "./setup";
 import type { LedgrDb } from "@/db";
 import { userSettings } from "@/db/schema";
 import { v4 as uuid } from "uuid";
-import { getUserAiSettings, upsertAiSettings } from "@/queries/settings";
+import { getUserAiSettings } from "@/queries/settings";
+import { upsertAiSettings } from "@/actions/settings";
 
 describe("settings queries", () => {
   let db: LedgrDb;

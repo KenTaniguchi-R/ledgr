@@ -54,7 +54,7 @@ describe("snapshotBalances", () => {
 
       await insertAccount(db3, householdId, {
         currentBalance: 2000,
-        deletedAt: new Date().toISOString(),
+        deletedAt: new Date(),
       });
 
       await insertAccount(db3, householdId, { currentBalance: undefined });
