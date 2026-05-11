@@ -35,6 +35,11 @@ export function TransactionList({
   const [rows, setRows] = useState(initialRows);
   const [cursor, setCursor] = useState(nextCursor);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setRows(initialRows);
+    setCursor(nextCursor);
+  }, [initialRows, nextCursor]);
   const [loadingMore, setLoadingMore] = useState(false);
   const { selectedId, select, clear } = useSelectedTransaction();
   const urlSearchParams = useSearchParams();
