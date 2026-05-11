@@ -54,6 +54,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownS
       setRows(result.rows);
       setHasMore(result.hasMore);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- derived values (effectiveDateFrom/To) already capture filter changes
   }, [filter?.categoryId, filter?.month, filter?.type, effectiveDateFrom, effectiveDateTo]);
 
   const totalAmount = rows.reduce((s, r) => s + r.normalizedAmount, 0);

@@ -80,7 +80,7 @@ export function baseTransactionQuery(db: LedgrDb, householdId: string) {
   const scoped = scopedQuery(householdId, db);
   const select = transactionSelectFields;
   const from = transactions;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle's chained join types aren't expressible in a simple generic
   function joins(query: any) {
     return query
       .leftJoin(accounts, eq(transactions.accountId, accounts.id))

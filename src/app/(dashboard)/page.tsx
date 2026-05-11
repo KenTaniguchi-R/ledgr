@@ -11,13 +11,14 @@ import { getAccounts } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { getUpcomingBills } from "@/queries/recurring";
 import { getCurrentMonth } from "@/lib/date-utils";
-import { getLayout } from "@/actions/dashboard";
+import { getLayoutForUser } from "@/queries/settings";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
+import { getSession } from "@/lib/auth/session";
 import { DashboardGridLoader } from "@/components/organisms/dashboard-grid-loader";
 import type { DashboardData } from "@/components/organisms/dashboard-grid";
 
 export default async function DashboardPage() {
-  const householdId = await getHouseholdId();
+  const [session, householdId] = await Promise.all([getSession(), getHouseholdId()]);
 
   const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
     await Promise.all([
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
       getBudgetForMonth(householdId, getCurrentMonth()),
       getUpcomingBills(householdId, { limit: 5 }),
       getInvestmentsSummary(householdId),
-      getLayout(),
+      session ? getLayoutForUser(session.user.id) : null,
     ]);
 
   const accounts = allAccounts

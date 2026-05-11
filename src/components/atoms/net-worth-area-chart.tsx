@@ -15,6 +15,8 @@ import { formatDateShort } from "@/lib/date-utils";
 import { INCOME_COLOR, EXPENSE_COLOR, PRIMARY_COLOR } from "@/lib/chart-colors";
 import type { NetWorthPoint } from "@/queries/dashboard";
 
+type ChartDataPoint = Record<string, string | number>;
+
 interface NetWorthAreaChartProps {
   data: NetWorthPoint[] | { date: string; value: number }[];
   height?: number;
@@ -54,8 +56,7 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
   if (mode === "single") {
     return (
       <ResponsiveContainer width="100%" height="100%">
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <ComposedChart data={data as any[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+        <ComposedChart data={data as ChartDataPoint[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
           <defs>
             <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />

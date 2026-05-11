@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { authorizeAction } from "@/lib/auth/authorize-action";
-import { todayDateString as todayISO } from "@/lib/date-utils";
+import { todayDateString } from "@/lib/date-utils";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, balanceHistory } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -33,7 +33,7 @@ export async function createManualAccount(data: CreateManualAccountInput, db: Le
   }
 
   const accountId = uuid();
-  const today = todayISO();
+  const today = todayDateString();
 
   await db.transaction(async (tx) => {
     await tx.insert(accounts)

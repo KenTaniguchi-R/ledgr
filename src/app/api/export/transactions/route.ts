@@ -16,11 +16,11 @@ interface ExportFilters {
   reviewed?: string;
 }
 
-export function buildCsvString(
+export async function buildCsvString(
   householdId: string,
   filters: ExportFilters,
   db: LedgrDb = defaultDb,
-): string {
+): Promise<string> {
   const conditions: (SQL | undefined)[] = [notDeleted(transactions)];
 
   if (filters.from) conditions.push(gte(transactions.date, filters.from));
@@ -37,11 +37,10 @@ export function buildCsvString(
   if (filters.reviewed === "true") conditions.push(eq(transactions.reviewed, true));
 
   const base = baseTransactionQuery(db, householdId);
-  const rows = base
+  const rows = await base
     .joins(db.select(base.select).from(base.from))
     .where(base.scoped.where(transactions, ...conditions))
-    .orderBy(desc(transactions.date), desc(transactions.id))
-    .all();
+    .orderBy(desc(transactions.date), desc(transactions.id));
 
   const header = "Date,Account,Merchant,Amount,Category,Category Group,Notes,Original Description";
   const dataRows = rows.map((row: (typeof rows)[0]) => {
@@ -68,12 +67,12 @@ function csvEscape(value: string): string {
   return value;
 }
 
-export function buildCsvResponse(
+export async function buildCsvResponse(
   householdId: string,
   filters: ExportFilters,
   db: LedgrDb = defaultDb,
-): Response {
-  const csv = buildCsvString(householdId, filters, db);
+): Promise<Response> {
+  const csv = await buildCsvString(householdId, filters, db);
   const encoder = new TextEncoder();
   const csvBytes = encoder.encode(csv);
   const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
