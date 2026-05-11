@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ReviewCardDialog } from "@/components/organisms/review-card-dialog";
 import { TransactionRow, TRANSACTION_GRID_COLS } from "@/components/molecules/transaction-row";
 import { TransactionDateHeader } from "@/components/molecules/transaction-date-header";
@@ -126,11 +127,10 @@ export function TransactionList({
         <div className={`grid ${TRANSACTION_GRID_COLS} items-center h-8 px-2 border-b text-xs font-medium text-muted-foreground`}>
           <div />
           <div className="flex items-center justify-center">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={selected.size > 0 && selected.size === rows.length}
-              onChange={handleSelectAll}
-              className="h-3.5 w-3.5 rounded border-muted-foreground/30"
+              indeterminate={selected.size > 0 && selected.size < rows.length}
+              onCheckedChange={handleSelectAll}
             />
           </div>
           <span>Description</span>

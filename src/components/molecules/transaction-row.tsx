@@ -6,6 +6,7 @@ import { AmountDisplay } from "@/components/atoms/amount-display";
 import { EntityAvatar } from "@/components/atoms/entity-avatar";
 import { CategoryPill } from "@/components/molecules/category-pill";
 import { ReviewedDot } from "@/components/molecules/reviewed-dot";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
@@ -41,9 +42,8 @@ export const TransactionRow = memo(function TransactionRow({
   );
 
   const handleCheckboxChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      e.stopPropagation();
-      onSelect(txn.id, e.target.checked);
+    (checked: boolean) => {
+      onSelect(txn.id, checked);
     },
     [txn.id, onSelect],
   );
@@ -73,11 +73,9 @@ export const TransactionRow = memo(function TransactionRow({
       </div>
 
       <div className="flex items-center justify-center" onClick={handleCheckboxClick}>
-        <input
-          type="checkbox"
+        <Checkbox
           checked={isSelected}
-          onChange={handleCheckboxChange}
-          className="h-3.5 w-3.5 rounded border-muted-foreground/30"
+          onCheckedChange={handleCheckboxChange}
         />
       </div>
 
