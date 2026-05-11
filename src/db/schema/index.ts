@@ -11,3 +11,4 @@ export * from "./goals";
 export * from "./investments";
 export * from "./notifications";
 export * from "./reports";
+export * from "./oauth";
