@@ -288,3 +288,22 @@ export async function insertInvestmentTransaction(
   });
   return { investmentTxnId: id };
 }
+
+export async function insertSoftDeletedAccount(
+  db: LedgrDb,
+  householdId: string,
+  overrides: Partial<typeof accounts.$inferInsert> = {},
+) {
+  const id = uuid();
+  const now = new Date();
+  await db.insert(accounts).values({
+    id,
+    householdId,
+    name: "Deleted Account",
+    type: "checking",
+    currency: "USD",
+    deletedAt: now,
+    ...overrides,
+  });
+  return { accountId: id };
+}

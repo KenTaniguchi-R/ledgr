@@ -220,7 +220,7 @@ export async function disconnectPlaidItem(
   const now = new Date();
   await db.transaction(async (tx) => {
     await tx.update(accounts)
-      .set({ deletedAt: now, plaidItemId: null, plaidAccountId: null })
+      .set({ deletedAt: now, plaidItemId: null })
       .where(eq(accounts.plaidItemId, plaidItemId));
 
     await tx.delete(plaidItems)
