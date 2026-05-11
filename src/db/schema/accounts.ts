@@ -7,6 +7,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { households } from "./households";
 import { plaidItems } from "./plaid";
 
@@ -39,6 +40,9 @@ export const accounts = pgTable(
   (table) => [
     index("idx_accounts_household").on(table.householdId),
     index("idx_accounts_plaid_item").on(table.plaidItemId),
+    index("idx_accounts_resurrection")
+      .on(table.plaidAccountId, table.householdId)
+      .where(sql`deleted_at IS NOT NULL`),
   ]
 );
 
