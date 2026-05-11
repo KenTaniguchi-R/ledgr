@@ -1,5 +1,6 @@
 import cron from "node-cron";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne } from "drizzle-orm";
+import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 import { v4 as uuid } from "uuid";
 import { db, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory } from "@/db/schema";
@@ -18,6 +19,7 @@ export async function snapshotBalances(dbInstance: LedgrDb = db): Promise<void> 
         isNull(accounts.deletedAt),
         eq(accounts.isHidden, false),
         isNotNull(accounts.currentBalance),
+        ne(accounts.householdId, DEMO_HOUSEHOLD_ID),
       )
     )
     .all();
@@ -46,7 +48,10 @@ export function startScheduler() {
         accessToken: plaidItems.accessToken,
       })
       .from(plaidItems)
-      .where(eq(plaidItems.status, "active"))
+      .where(and(
+        eq(plaidItems.status, "active"),
+        ne(plaidItems.householdId, DEMO_HOUSEHOLD_ID),
+      ))
       .all();
 
     for (const item of activeItems) {
