@@ -2,11 +2,15 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
 import { getSession } from "@/lib/auth/session";
 import { decrypt, encrypt } from "@/lib/encryption";
 import { getUserAiSettings, upsertAiSettings } from "@/queries/settings";
 import { createUserModel, type AiProvider } from "@/lib/ai/provider";
 import { generateText, stepCountIs } from "ai";
+import { db } from "@/db";
+import { userSettings } from "@/db/schema";
 
 const aiProviderEnum = z.enum(["openai", "anthropic", "google", "custom"]);
 
@@ -110,4 +114,29 @@ export async function testAiConnection(
     const message = e instanceof Error ? e.message : "Connection failed";
     return { error: message };
   }
+}
+
+export async function toggleDemoMode(): Promise<{ success: true } | { error: string }> {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated" };
+
+  const existing = db
+    .select({ id: userSettings.id, demoMode: userSettings.demoMode })
+    .from(userSettings)
+    .where(eq(userSettings.userId, session.user.id))
+    .get();
+
+  if (existing) {
+    db.update(userSettings)
+      .set({ demoMode: !existing.demoMode, updatedAt: new Date().toISOString() })
+      .where(eq(userSettings.id, existing.id))
+      .run();
+  } else {
+    db.insert(userSettings)
+      .values({ id: uuid(), userId: session.user.id, demoMode: true })
+      .run();
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true };
 }
