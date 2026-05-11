@@ -29,14 +29,14 @@ Most personal finance apps either lock your data in their cloud or require you t
 
 - **Plaid-first** — connects directly to 12,000+ banks. Your transactions sync automatically, not manually
 - **MCP-enabled** — the only open-source finance app with a built-in AI agent interface. Ask Claude about your spending instead of clicking through dashboards
-- **Self-hosted, single binary** — one Docker container, SQLite database, no external services required. Your financial data never leaves your server
+- **Self-hosted** — Docker Compose with PostgreSQL. Your financial data never leaves your server
 - **Smart categorization** — four-tier pipeline (your rules > merchant defaults > Plaid categories > AI) that learns from your corrections
 
 | | Ledgr | Actual Budget | Firefly III | Maybe |
 |---|---|---|---|---|
 | Automatic bank sync | Plaid | GoCardless (EU) | Spectre/GoCardless | Manual only |
 | AI agent (MCP) | Yes | No | No | No |
-| Database | SQLite | SQLite | MySQL/Postgres | Postgres |
+| Database | PostgreSQL | SQLite | MySQL/Postgres | Postgres |
 | Self-hostable | Yes | Yes | Yes | Yes |
 | Investment tracking | Yes | No | No | Yes |
 
@@ -58,7 +58,7 @@ Most personal finance apps either lock your data in their cloud or require you t
 - BYOK (Bring Your Own Key) AI categorization — works with Claude, GPT, Gemini
 
 **Self-Hosting**
-- Single Docker container, SQLite database (no Postgres required)
+- Docker Compose with PostgreSQL — `docker compose up` and you're running
 - All data stays on your machine
 - Multi-user support with household-based data isolation
 
@@ -192,7 +192,7 @@ When Claude connects, you'll be redirected to Ledgr's OAuth flow to authorize ac
 | Language | TypeScript |
 | UI | shadcn/ui + Tailwind CSS 4 |
 | Charts | Recharts 3 |
-| Database | SQLite (WAL mode) via Drizzle ORM |
+| Database | PostgreSQL 17 via Drizzle ORM |
 | Auth | Better Auth |
 | Bank Sync | Plaid Node SDK |
 | AI | Vercel AI SDK (BYOK) |
