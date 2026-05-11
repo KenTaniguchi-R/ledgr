@@ -8,7 +8,7 @@ import { getPlaidClient } from "@/lib/plaid/client";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
 import { mapPlaidAccountType, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
-import { todayDateString as todayISO } from "@/lib/date-utils";
+import { todayDateString } from "@/lib/date-utils";
 import { getHouseholdId } from "@/lib/auth/session";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 import { db as defaultDb, type LedgrDb } from "@/db";
@@ -100,7 +100,7 @@ export async function exchangeAndStoreAccounts(
     const plaidAccounts = accountsRes.data.accounts;
 
     const plaidItemId = uuid();
-    const today = todayISO();
+    const today = todayDateString();
 
     await db.transaction(async (tx) => {
       await tx.insert(plaidItems)

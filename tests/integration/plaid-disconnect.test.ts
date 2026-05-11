@@ -13,6 +13,7 @@ vi.mock("@/lib/auth/session", () => ({
   getHouseholdId: vi.fn(),
 }));
 vi.mock("@/lib/demo-mode", () => ({ guardDemoMode: vi.fn(() => null) }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 beforeAll(() => {
   vi.stubEnv("PLAID_CLIENT_ID", "test-id");
