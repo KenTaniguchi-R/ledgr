@@ -55,23 +55,25 @@ export function BudgetGroupSection({
         </span>
       </button>
       {!collapsed && (
-        <table className="w-full">
-          <tbody>
-            {categories.map((cat) => (
-              <BudgetCategoryRow
-                key={cat.categoryId}
-                budgetId={budgetId}
-                budgetCategoryId={cat.budgetCategoryId}
-                categoryId={cat.categoryId}
-                categoryName={cat.categoryName}
-                categoryIcon={cat.categoryIcon}
-                limitAmount={cat.limitAmount}
-                spent={cat.spent}
-                onSaved={onSaved}
-              />
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <tbody>
+              {categories.map((cat) => (
+                <BudgetCategoryRow
+                  key={cat.categoryId}
+                  budgetId={budgetId}
+                  budgetCategoryId={cat.budgetCategoryId}
+                  categoryId={cat.categoryId}
+                  categoryName={cat.categoryName}
+                  categoryIcon={cat.categoryIcon}
+                  limitAmount={cat.limitAmount}
+                  spent={cat.spent}
+                  onSaved={onSaved}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
