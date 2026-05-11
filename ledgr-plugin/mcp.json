@@ -1,0 +1,7 @@
+{
+  "ledgr": {
+    "type": "streamable-http",
+    "url": "${LEDGR_URL}/api/mcp",
+    "auth": "oauth2"
+  }
+}
