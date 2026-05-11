@@ -26,8 +26,8 @@ type CreateManualAccountInput = {
 export async function createManualAccount(data: CreateManualAccountInput, db: LedgrDb = defaultDb) {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsed = createManualAccountSchema.safeParse(data);
   if (!parsed.success) {
@@ -78,8 +78,8 @@ export async function updateAccount(
 ) {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsed = updateAccountSchema.safeParse(data);
   if (!parsed.success) {

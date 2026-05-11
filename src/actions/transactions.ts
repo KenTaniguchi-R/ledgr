@@ -7,7 +7,6 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
-import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId, getSession } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { getTransactions, type TransactionFilters, type TransactionPage } from "@/queries/transactions";
@@ -32,7 +31,7 @@ function buildCategoryUpdate(categoryId: string | null) {
     categoryId,
     categorySource: categoryId !== null ? ("manual" as const) : null,
     reviewed: categoryId !== null,
-    updatedAt: nowISO(),
+    updatedAt: new Date(),
   };
 }
 
@@ -43,8 +42,8 @@ export async function updateTransactionCategory(
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsedTxnId = transactionIdSchema.safeParse(transactionId);
   const parsedCatId = categoryIdSchema.safeParse(categoryId);
@@ -79,8 +78,8 @@ export async function toggleReviewed(
 ): Promise<{ success: true; reviewed: boolean } | { error: string }> {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsedId = transactionIdSchema.safeParse(transactionId);
   if (!parsedId.success) {
@@ -100,7 +99,7 @@ export async function toggleReviewed(
 
   const newReviewed = !existing.reviewed;
   await db.update(transactions)
-    .set({ reviewed: newReviewed, updatedAt: nowISO() })
+    .set({ reviewed: newReviewed, updatedAt: new Date() })
     .where(eq(transactions.id, existing.id));
 
   revalidatePath("/transactions");
@@ -119,8 +118,8 @@ export async function bulkUpdateCategory(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
   const scoped = scopedQuery(householdId, db);
 
   const owned = await db
@@ -161,8 +160,8 @@ export async function bulkMarkReviewed(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
   const scoped = scopedQuery(householdId, db);
 
   const owned = await db
@@ -182,7 +181,7 @@ export async function bulkMarkReviewed(
 
   const ownedIds = owned.map((r) => r.id);
   await db.update(transactions)
-    .set({ reviewed, updatedAt: nowISO() })
+    .set({ reviewed, updatedAt: new Date() })
     .where(inArray(transactions.id, ownedIds));
 
   revalidatePath("/transactions");

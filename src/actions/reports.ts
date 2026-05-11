@@ -7,7 +7,6 @@ import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId, getSession } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { getTransactions, type TransactionRow } from "@/queries/transactions";
@@ -34,11 +33,11 @@ export async function saveReport(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const id = uuid();
-  const now = nowISO();
+  const now = new Date();
 
   await db.insert(savedReports)
     .values({
@@ -66,8 +65,8 @@ export async function deleteReport(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const scoped = scopedQuery(householdId, db);
 

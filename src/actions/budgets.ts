@@ -7,7 +7,6 @@ import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { budgets, budgetCategories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId, getSession } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 
@@ -39,8 +38,8 @@ export async function createBudget(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const scoped = scopedQuery(householdId, db);
 
@@ -56,7 +55,7 @@ export async function createBudget(
   }
 
   const id = uuid();
-  const now = nowISO();
+  const now = new Date();
   await db.insert(budgets)
     .values({
       id,
@@ -85,8 +84,8 @@ export async function setBudgetCategory(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
@@ -130,8 +129,8 @@ export async function removeBudgetCategory(
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
@@ -163,8 +162,8 @@ export async function copyBudgetFromMonth(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const scoped = scopedQuery(householdId, db);
 
@@ -230,8 +229,8 @@ export async function updateBudgetType(
 
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
@@ -239,7 +238,7 @@ export async function updateBudgetType(
   }
 
   await db.update(budgets)
-    .set({ type: parsedType.data, updatedAt: nowISO() })
+    .set({ type: parsedType.data, updatedAt: new Date() })
     .where(eq(budgets.id, budgetId));
 
   revalidatePath("/budgets");

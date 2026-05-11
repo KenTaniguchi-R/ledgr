@@ -16,7 +16,7 @@ export async function triggerSync(
 ): Promise<SyncResult> {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
+  const blocked = await guardDemoMode(session!.user.id);
   if (blocked) return { success: false, error: blocked.error };
 
   const scoped = scopedQuery(householdId, db);

@@ -16,8 +16,8 @@ export async function toggleMcpEndpoint(
 ): Promise<{ success: true } | { error: string }> {
   const session = await getSession();
   if (!session) return { error: "Not authenticated" };
-  const blocked = guardDemoMode(session.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsed = toggleMcpSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -37,8 +37,8 @@ export async function revokeMcpClient(
 ): Promise<{ success: true } | { error: string }> {
   const session = await getSession();
   if (!session) return { error: "Not authenticated" };
-  const blocked = guardDemoMode(session.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsed = revokeClientSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };

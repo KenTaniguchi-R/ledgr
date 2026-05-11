@@ -7,7 +7,6 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, transactionSplits } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
-import { nowISO } from "@/lib/date-utils";
 import { getHouseholdId, getSession } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { getTransactionDetail, type TransactionDetail } from "@/queries/transactions";
@@ -57,8 +56,8 @@ export async function updateTransactionFields(
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsedId = transactionIdSchema.safeParse(transactionId);
   const parsedData = updateFieldsSchema.safeParse(data);
@@ -88,16 +87,16 @@ export async function updateTransactionFields(
   if (fields.isTransfer === false && existing.transferPairId) {
     await db.transaction(async (tx) => {
       await tx.update(transactions)
-        .set({ isTransfer: false, transferPairId: null, updatedAt: nowISO() })
+        .set({ isTransfer: false, transferPairId: null, updatedAt: new Date() })
         .where(eq(transactions.id, existing.id));
       await tx.update(transactions)
-        .set({ isTransfer: false, transferPairId: null, updatedAt: nowISO() })
+        .set({ isTransfer: false, transferPairId: null, updatedAt: new Date() })
         .where(eq(transactions.id, existing.transferPairId!));
     });
     if (Object.keys(fields).length === 1) return { success: true };
   }
 
-  const updates: Partial<typeof transactions.$inferInsert> = { updatedAt: nowISO() };
+  const updates: Partial<typeof transactions.$inferInsert> = { updatedAt: new Date() };
   if (fields.name !== undefined) updates.name = fields.name;
   if (fields.notes !== undefined) updates.notes = fields.notes;
   if (fields.date !== undefined) updates.date = fields.date;
@@ -122,8 +121,8 @@ export async function upsertSplit(
 > {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsedId = transactionIdSchema.safeParse(transactionId);
   const parsedData = splitSchema.safeParse(data);
@@ -183,7 +182,7 @@ export async function upsertSplit(
 
     if (existingSplits.length === 0 && !splitId) {
       await tx.update(transactions)
-        .set({ categorySource: "manual", updatedAt: nowISO() })
+        .set({ categorySource: "manual", updatedAt: new Date() })
         .where(eq(transactions.id, txn.id));
     }
 
@@ -205,8 +204,8 @@ export async function deleteSplit(
 ): Promise<{ success: true } | { error: string }> {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const parsedSplitId = transactionIdSchema.safeParse(splitId);
   if (!parsedSplitId.success) return { error: "Invalid input" };
@@ -240,7 +239,7 @@ export async function deleteSplit(
 
     if (remaining && remaining.count === 0) {
       await tx.update(transactions)
-        .set({ updatedAt: nowISO() })
+        .set({ updatedAt: new Date() })
         .where(eq(transactions.id, txn.id));
     }
 

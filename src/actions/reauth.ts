@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
 import { extractPlaidErrorMessage } from "@/lib/plaid/utils";
-import { nowISO } from "@/lib/date-utils";
 import { decrypt } from "@/lib/encryption";
 import { getHouseholdId, getSession } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
@@ -53,8 +52,8 @@ export async function createUpdateLinkTokenDirect(
 export async function createUpdateLinkToken(plaidItemId: string) {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   return createUpdateLinkTokenDirect(plaidItemId, householdId);
 }
@@ -88,7 +87,7 @@ export async function completeReAuthDirect(
     }
 
     await db.update(plaidItems)
-      .set({ status: "active", errorCode: null, updatedAt: nowISO() })
+      .set({ status: "active", errorCode: null, updatedAt: new Date() })
       .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)));
 
     await syncInstitution(plaidItemId, householdId, db);
@@ -103,8 +102,8 @@ export async function completeReAuthDirect(
 export async function completeReAuth(plaidItemId: string) {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const result = await completeReAuthDirect(plaidItemId, householdId);
   if ("success" in result && result.success) {

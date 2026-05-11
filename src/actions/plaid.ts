@@ -8,7 +8,7 @@ import { getPlaidClient } from "@/lib/plaid/client";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
 import { mapPlaidAccountType, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
-import { todayDateString as todayISO, nowISO } from "@/lib/date-utils";
+import { todayDateString as todayISO } from "@/lib/date-utils";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { db as defaultDb, type LedgrDb } from "@/db";
@@ -18,8 +18,8 @@ import { scopedQuery } from "@/lib/scoped-query";
 export async function createLinkToken() {
   await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   try {
     const response = await getPlaidClient().linkTokenCreate({
@@ -52,7 +52,7 @@ export async function exchangeAndStoreAccounts(
 > {
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
-  const blocked = guardDemoMode(session.user.id);
+  const blocked = await guardDemoMode(session.user.id);
   if (blocked) return { success: false, error: blocked.error };
 
   try {
@@ -196,8 +196,8 @@ export async function disconnectPlaidItem(
 ) {
   const householdId = await getHouseholdId();
   const session = await getSession();
-  const blocked = guardDemoMode(session!.user.id);
-  if (blocked) return blocked;
+  const blocked = await guardDemoMode(session!.user.id);
+  if (blocked) return blocked as { error: string };
 
   const scoped = scopedQuery(householdId, db);
 
@@ -222,7 +222,7 @@ export async function disconnectPlaidItem(
     // Best-effort — continue with local cleanup even if Plaid call fails
   }
 
-  const now = nowISO();
+  const now = new Date();
   await db.transaction(async (tx) => {
     await tx.update(accounts)
       .set({ deletedAt: now, plaidItemId: null, plaidAccountId: null })

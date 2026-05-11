@@ -11,7 +11,6 @@ import { createUserModel, type AiProvider } from "@/lib/ai/provider";
 import { generateText, stepCountIs } from "ai";
 import { db, db as defaultDb, type LedgrDb } from "@/db";
 import { userSettings } from "@/db/schema";
-import { nowISO } from "@/lib/date-utils";
 import type { DashboardLayout } from "@/components/organisms/widgets/registry";
 
 const aiProviderEnum = z.enum(["openai", "anthropic", "google", "custom"]);
@@ -51,7 +50,7 @@ export async function upsertAiSettings(
     .where(eq(userSettings.userId, userId))
     .limit(1);
 
-  const now = nowISO();
+  const now = new Date();
 
   if (existing) {
     const updates: Record<string, unknown> = {
@@ -98,7 +97,7 @@ export async function upsertMcpEnabled(
     .where(eq(userSettings.userId, userId))
     .limit(1);
 
-  const now = nowISO();
+  const now = new Date();
 
   if (existing) {
     await db.update(userSettings)
@@ -236,7 +235,7 @@ export async function toggleDemoMode(): Promise<{ success: true } | { error: str
 
   if (existing) {
     await db.update(userSettings)
-      .set({ demoMode: !existing.demoMode, updatedAt: nowISO() })
+      .set({ demoMode: !existing.demoMode, updatedAt: new Date() })
       .where(eq(userSettings.id, existing.id));
   } else {
     await db.insert(userSettings)
