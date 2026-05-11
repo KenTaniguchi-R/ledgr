@@ -225,6 +225,43 @@ export interface TransactionDetail extends TransactionRow {
   splits: SplitRow[];
 }
 
+export interface TransactionSummary {
+  count: number;
+  totalExpense: number;
+  totalIncome: number;
+  net: number;
+}
+
+export function getTransactionSummary(
+  householdId: string,
+  filters: TransactionFilters,
+  db: LedgrDb = defaultDb,
+): TransactionSummary {
+  const conditions = buildTransactionConditions(filters);
+  const base = baseTransactionQuery(db, householdId);
+
+  const result = db
+    .select({
+      count: sql<number>`count(*)`,
+      totalExpense: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} < 0 AND ${transactions.isTransfer} = 0 AND ${transactions.pending} = 0 THEN abs(${transactions.normalizedAmount}) ELSE 0 END), 0)`,
+      totalIncome: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} > 0 AND ${transactions.isTransfer} = 0 AND ${transactions.pending} = 0 THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`,
+    })
+    .from(transactions)
+    .where(base.scoped.where(transactions, ...conditions))
+    .get();
+
+  const count = result?.count ?? 0;
+  const totalExpense = result?.totalExpense ?? 0;
+  const totalIncome = result?.totalIncome ?? 0;
+
+  return {
+    count,
+    totalExpense,
+    totalIncome,
+    net: totalIncome - totalExpense,
+  };
+}
+
 export function getTransactionDetail(
   householdId: string,
   transactionId: string,
