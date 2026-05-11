@@ -34,6 +34,8 @@ export async function POST(request: Request) {
     aiModel: settings.aiModel,
     aiApiKey: decrypt(settings.rawEncryptedKey!),
     aiBaseUrl: settings.aiBaseUrl ?? undefined,
+    confidenceThreshold: 0.7,
+    toolCalling: settings.toolCallingSupported !== false,
   });
 
   const { messages }: { messages: UIMessage[] } = await request.json();

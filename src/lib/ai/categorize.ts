@@ -108,6 +108,8 @@ export async function categorizeWithAi(
     aiModel: settings.aiModel,
     aiApiKey: decrypt(settings.rawEncryptedKey!),
     aiBaseUrl: settings.aiBaseUrl ?? undefined,
+    confidenceThreshold: 0.7,
+    toolCalling: true,
   });
 
   const uncategorized = await db

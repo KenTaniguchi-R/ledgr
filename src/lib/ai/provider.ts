@@ -11,6 +11,8 @@ export interface ProviderConfig {
   aiModel: string;
   aiApiKey: string;
   aiBaseUrl?: string;
+  confidenceThreshold: number;
+  toolCalling: boolean;
 }
 
 export function createUserModel(config: ProviderConfig): LanguageModel {

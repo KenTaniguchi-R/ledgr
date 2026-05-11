@@ -184,6 +184,8 @@ export async function testAiConnection(
       aiModel,
       aiApiKey: apiKey,
       aiBaseUrl,
+      confidenceThreshold: 0.7,
+      toolCalling: true,
     });
 
     const { text } = await generateText({

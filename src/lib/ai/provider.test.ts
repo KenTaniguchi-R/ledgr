@@ -7,6 +7,8 @@ describe("createUserModel", () => {
       aiProvider: "openai",
       aiModel: "gpt-4.1",
       aiApiKey: "sk-test-key",
+      confidenceThreshold: 0.7,
+      toolCalling: true,
     });
     expect(model).toBeDefined();
     expect((model as { modelId: string }).modelId).toBe("gpt-4.1");
@@ -17,6 +19,8 @@ describe("createUserModel", () => {
       aiProvider: "anthropic",
       aiModel: "claude-sonnet-4-20250514",
       aiApiKey: "sk-ant-test",
+      confidenceThreshold: 0.7,
+      toolCalling: true,
     });
     expect(model).toBeDefined();
     expect((model as { modelId: string }).modelId).toBe(
@@ -29,6 +33,8 @@ describe("createUserModel", () => {
       aiProvider: "google",
       aiModel: "gemini-2.5-flash",
       aiApiKey: "test-key",
+      confidenceThreshold: 0.7,
+      toolCalling: true,
     });
     expect(model).toBeDefined();
   });
@@ -39,6 +45,8 @@ describe("createUserModel", () => {
       aiModel: "llama3.1:8b",
       aiApiKey: "",
       aiBaseUrl: "http://localhost:11434/v1",
+      confidenceThreshold: 0.7,
+      toolCalling: false,
     });
     expect(model).toBeDefined();
   });
@@ -49,6 +57,8 @@ describe("createUserModel", () => {
         aiProvider: "custom",
         aiModel: "llama3.1:8b",
         aiApiKey: "",
+        confidenceThreshold: 0.7,
+        toolCalling: false,
       }),
     ).toThrow("aiBaseUrl is required");
   });
