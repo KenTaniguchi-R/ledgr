@@ -53,18 +53,18 @@ export interface CategoryTrendRow {
 
 // ── Public query functions ──────────────────────────────────────────
 
-export function getSpendingByCategory(
+export async function getSpendingByCategory(
   householdId: string,
   filters: ReportFilters,
   db: LedgrDb = defaultDb,
   comparisonPeriod?: { dateFrom: string; dateTo: string },
-): SpendingRow[] {
-  const currentSpending = aggregateSpending(householdId, filters, db);
-  const enriched = enrichSpendingMap(currentSpending, db);
+): Promise<SpendingRow[]> {
+  const currentSpending = await aggregateSpending(householdId, filters, db);
+  const enriched = await enrichSpendingMap(currentSpending, db);
 
   let prevMap = new Map<string, number>();
   if (comparisonPeriod) {
-    prevMap = aggregateSpending(householdId, { ...filters, ...comparisonPeriod }, db);
+    prevMap = await aggregateSpending(householdId, { ...filters, ...comparisonPeriod }, db);
   }
 
   return enriched.map((row) => ({
@@ -77,11 +77,11 @@ export function getSpendingByCategory(
   }));
 }
 
-export function getIncomeVsExpense(
+export async function getIncomeVsExpense(
   householdId: string,
   filters: ReportFilters,
   db: LedgrDb = defaultDb,
-): IncomeExpenseRow[] {
+): Promise<IncomeExpenseRow[]> {
   const scoped = scopedQuery(householdId, db);
 
   const conditions = [
@@ -100,17 +100,16 @@ export function getIncomeVsExpense(
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  const txns = db
+  const txns = await db
     .select({
       date: transactions.date,
       normalizedAmount: transactions.normalizedAmount,
       categoryId: transactions.categoryId,
     })
     .from(transactions)
-    .where(scoped.where(transactions, ...conditions))
-    .all();
+    .where(scoped.where(transactions, ...conditions));
 
-  const incomeCatIds = getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(db);
 
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const txn of txns) {
@@ -136,19 +135,19 @@ export function getIncomeVsExpense(
     }));
 }
 
-export function getCategoryTrends(
+export async function getCategoryTrends(
   householdId: string,
   filters: ReportFilters,
   db: LedgrDb = defaultDb,
-): CategoryTrendRow[] {
+): Promise<CategoryTrendRow[]> {
   const scoped = scopedQuery(householdId, db);
-  const conditions = spendingBaseConditions(filters, db);
+  const conditions = await spendingBaseConditions(filters, db);
 
   if (filters.categoryIds?.length) {
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  const splitParentIds = findSplitParentIds(scoped, conditions, db);
+  const splitParentIds = await findSplitParentIds(scoped, conditions, db);
 
   // Non-split: group by month + category
   const nonSplitConditions =
@@ -156,9 +155,9 @@ export function getCategoryTrends(
       ? [...conditions, notInArray(transactions.id, splitParentIds)]
       : conditions;
 
-  const nonSplitRows = db
+  const nonSplitRows = await db
     .select({
-      month: sql<string>`substr(${transactions.date}, 1, 7)`,
+      month: sql<string>`substring(${transactions.date} from 1 for 7)`,
       categoryId: transactions.categoryId,
       categoryName: categories.name,
       total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
@@ -166,8 +165,7 @@ export function getCategoryTrends(
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .where(scoped.where(transactions, ...nonSplitConditions))
-    .groupBy(sql`substr(${transactions.date}, 1, 7)`, transactions.categoryId)
-    .all();
+    .groupBy(sql`substring(${transactions.date} from 1 for 7)`, transactions.categoryId);
 
   const trendMap = new Map<string, number>(); // "YYYY-MM|catId" -> total
 
@@ -179,23 +177,21 @@ export function getCategoryTrends(
 
   // Split transactions: need date from parent
   if (splitParentIds.length > 0) {
-    const parentDates = db
+    const parentDates = await db
       .select({ id: transactions.id, date: transactions.date })
       .from(transactions)
-      .where(inArray(transactions.id, splitParentIds))
-      .all();
+      .where(inArray(transactions.id, splitParentIds));
 
     const dateMap = new Map(parentDates.map((p) => [p.id, p.date.slice(0, 7)]));
 
-    const splitRows = db
+    const splitRows = await db
       .select({
         transactionId: transactionSplits.transactionId,
         categoryId: transactionSplits.categoryId,
         amount: transactionSplits.amount,
       })
       .from(transactionSplits)
-      .where(inArray(transactionSplits.transactionId, splitParentIds))
-      .all();
+      .where(inArray(transactionSplits.transactionId, splitParentIds));
 
     for (const row of splitRows) {
       const month = dateMap.get(row.transactionId);
@@ -210,11 +206,10 @@ export function getCategoryTrends(
   const allCatIds = [...new Set([...trendMap.keys()].map((k) => k.split("|")[1]))];
   const catNames = new Map<string, string>();
   if (allCatIds.length > 0) {
-    const cats = db
+    const cats = await db
       .select({ id: categories.id, name: categories.name })
       .from(categories)
-      .where(inArray(categories.id, allCatIds))
-      .all();
+      .where(inArray(categories.id, allCatIds));
     for (const c of cats) catNames.set(c.id, c.name);
   }
 
@@ -241,13 +236,13 @@ export interface IncomeExpenseCategoryRow {
   percentOfTotal: number;
 }
 
-export function getIncomeExpenseByCategory(
+export async function getIncomeExpenseByCategory(
   householdId: string,
   filters: ReportFilters,
   db: LedgrDb = defaultDb,
-): IncomeExpenseCategoryRow[] {
+): Promise<IncomeExpenseCategoryRow[]> {
   const scoped = scopedQuery(householdId, db);
-  const incomeCatIds = getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(db);
 
   const conditions = [
     notDeleted(transactions),
@@ -265,7 +260,7 @@ export function getIncomeExpenseByCategory(
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  const txns = db
+  const txns = await db
     .select({
       categoryId: transactions.categoryId,
       categoryName: categories.name,
@@ -274,8 +269,7 @@ export function getIncomeExpenseByCategory(
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(scoped.where(transactions, ...conditions))
-    .all();
+    .where(scoped.where(transactions, ...conditions));
 
   const months = new Set(txns.map((t) => t.date.slice(0, 7)));
   const monthCount = Math.max(months.size, 1);
@@ -320,19 +314,18 @@ export function getIncomeExpenseByCategory(
   return result.sort((a, b) => b.total - a.total);
 }
 
-export function getReportNetWorthHistory(
+export async function getReportNetWorthHistory(
   householdId: string,
   filters: ReportFilters,
   db: LedgrDb = defaultDb,
-): { date: string; assets: number; liabilities: number; netWorth: number }[] {
+): Promise<{ date: string; assets: number; liabilities: number; netWorth: number }[]> {
   const scoped = scopedQuery(householdId, db);
 
-  const allAccounts = db
+  const allAccountRows = await db
     .select({ id: accounts.id, type: accounts.type, isHidden: accounts.isHidden })
     .from(accounts)
-    .where(scoped.where(accounts, notDeleted(accounts)))
-    .all()
-    .filter((a) => !a.isHidden);
+    .where(scoped.where(accounts, notDeleted(accounts)));
+  const allAccounts = allAccountRows.filter((a) => !a.isHidden);
 
   const accountTypeMap = new Map(allAccounts.map((a) => [a.id, a.type]));
 
@@ -343,7 +336,7 @@ export function getReportNetWorthHistory(
 
   if (filteredAccountIds.length === 0) return [];
 
-  const historyRows = db
+  const historyRows = await db
     .select({
       accountId: balanceHistory.accountId,
       date: balanceHistory.date,
@@ -356,8 +349,7 @@ export function getReportNetWorthHistory(
         gte(balanceHistory.date, filters.dateFrom),
         lte(balanceHistory.date, filters.dateTo),
       ),
-    )
-    .all();
+    );
 
   const byDate = new Map<string, { assets: number; liabilities: number }>();
   for (const row of historyRows) {
@@ -384,13 +376,13 @@ export function getReportNetWorthHistory(
     }));
 }
 
-export function getCashFlowSankey(
+export async function getCashFlowSankey(
   householdId: string,
   filters: ReportFilters,
   db: LedgrDb = defaultDb,
-): { nodes: SankeyNode[]; links: SankeyLink[] } {
+): Promise<{ nodes: SankeyNode[]; links: SankeyLink[] }> {
   const scoped = scopedQuery(householdId, db);
-  const incomeCatIds = getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(db);
 
   const conditions = [
     notDeleted(transactions),
@@ -405,7 +397,7 @@ export function getCashFlowSankey(
     conditions.push(inArray(transactions.accountId, filters.accountIds));
   }
 
-  const txns = db
+  const txns = await db
     .select({
       categoryId: transactions.categoryId,
       categoryName: categories.name,
@@ -413,8 +405,7 @@ export function getCashFlowSankey(
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(scoped.where(transactions, ...conditions))
-    .all();
+    .where(scoped.where(transactions, ...conditions));
 
   const incomeMap = new Map<string, { name: string; total: number }>();
   const expenseMap = new Map<string, { name: string; total: number }>();
@@ -484,16 +475,16 @@ export interface SafeToSpendResult {
   safeToSpend: number;
 }
 
-export function getSafeToSpend(
+export async function getSafeToSpend(
   householdId: string,
   db: LedgrDb = defaultDb,
-): SafeToSpendResult {
+): Promise<SafeToSpendResult> {
   const scoped = scopedQuery(householdId, db);
-  const incomeCatIds = getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(db);
   const { from: dateFrom, to: dateTo } = monthBounds(getCurrentMonth());
 
   // Monthly income (including pending — so paycheck shows immediately)
-  const incomeTxns = db
+  const incomeTxns = await db
     .select({ normalizedAmount: transactions.normalizedAmount })
     .from(transactions)
     .where(
@@ -508,13 +499,12 @@ export function getSafeToSpend(
           ? inArray(transactions.categoryId, [...incomeCatIds])
           : sql`0`,
       ),
-    )
-    .all();
+    );
 
   const monthlyIncome = incomeTxns.reduce((s, t) => s + Math.abs(t.normalizedAmount), 0);
 
   // Recurring expenses: use actual posted amounts when available, projected otherwise
-  const activeRecurring = db
+  const activeRecurring = await db
     .select({
       id: recurringTransactions.id,
       averageAmount: recurringTransactions.averageAmount,
@@ -527,13 +517,12 @@ export function getSafeToSpend(
         eq(recurringTransactions.isActive, true),
         eq(recurringTransactions.isIncome, false),
       ),
-    )
-    .all();
+    );
 
   // Find which recurring transactions already posted this month
   const recurringIds = activeRecurring.map((r) => r.id);
   const postedRecurring = recurringIds.length > 0
-    ? db
+    ? await db
         .select({
           recurringTransactionId: transactions.recurringTransactionId,
           total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
@@ -549,7 +538,6 @@ export function getSafeToSpend(
           ),
         )
         .groupBy(transactions.recurringTransactionId)
-        .all()
     : [];
 
   const postedMap = new Map(
@@ -567,7 +555,8 @@ export function getSafeToSpend(
   }
 
   // Discretionary spending: non-recurring expenses this month
-  const discretionaryTxns = db
+  const notIncomeCondition = await notIncome(db);
+  const discretionaryTxns = await db
     .select({ normalizedAmount: transactions.normalizedAmount })
     .from(transactions)
     .where(
@@ -581,10 +570,9 @@ export function getSafeToSpend(
         isNull(transactions.transferPairId),
         isNull(transactions.recurringTransactionId),
         sql`${transactions.normalizedAmount} > 0`,
-        notIncome(db),
+        notIncomeCondition,
       ),
-    )
-    .all();
+    );
 
   const discretionarySpent = discretionaryTxns.reduce((s, t) => s + t.normalizedAmount, 0);
 

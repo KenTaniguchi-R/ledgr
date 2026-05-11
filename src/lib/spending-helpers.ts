@@ -20,7 +20,7 @@ export interface SpendingChartItem {
 }
 
 
-export function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
+export async function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
   const conditions = [
     notDeleted(transactions),
     lt(transactions.normalizedAmount, 0),
@@ -29,7 +29,7 @@ export function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
     isNull(transactions.transferPairId),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
-    notIncome(db),
+    await notIncome(db),
   ];
   if (filters.accountIds?.length) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
@@ -38,31 +38,30 @@ export function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
 }
 
 
-export function findSplitParentIds(
+export async function findSplitParentIds(
   scoped: ReturnType<typeof scopedQuery>,
-  conditions: ReturnType<typeof spendingBaseConditions>,
+  conditions: Awaited<ReturnType<typeof spendingBaseConditions>>,
   db: LedgrDb,
-): string[] {
-  return db
+): Promise<string[]> {
+  const rows = await db
     .select({ transactionId: transactionSplits.transactionId })
     .from(transactionSplits)
     .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
     .where(scoped.where(transactions, ...conditions))
-    .groupBy(transactionSplits.transactionId)
-    .all()
-    .map((r) => r.transactionId);
+    .groupBy(transactionSplits.transactionId);
+  return rows.map((r) => r.transactionId);
 }
 
 
-export function aggregateSpending(
+export async function aggregateSpending(
   householdId: string,
   filters: ReportFilters,
   db: LedgrDb = defaultDb,
-): Map<string, number> {
+): Promise<Map<string, number>> {
   const scoped = scopedQuery(householdId, db);
-  const conditions = spendingBaseConditions(filters, db);
+  const conditions = await spendingBaseConditions(filters, db);
 
-  const splitParentIds = findSplitParentIds(scoped, conditions, db);
+  const splitParentIds = await findSplitParentIds(scoped, conditions, db);
 
   // Non-split transactions
   const nonSplitConditions =
@@ -70,15 +69,14 @@ export function aggregateSpending(
       ? [...conditions, notInArray(transactions.id, splitParentIds)]
       : conditions;
 
-  const nonSplitRows = db
+  const nonSplitRows = await db
     .select({
       categoryId: transactions.categoryId,
       total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
     })
     .from(transactions)
     .where(scoped.where(transactions, ...nonSplitConditions))
-    .groupBy(transactions.categoryId)
-    .all();
+    .groupBy(transactions.categoryId);
 
   const spending = new Map<string, number>();
   for (const row of nonSplitRows) {
@@ -88,15 +86,14 @@ export function aggregateSpending(
 
   // Split transactions
   if (splitParentIds.length > 0) {
-    const splitRows = db
+    const splitRows = await db
       .select({
         categoryId: transactionSplits.categoryId,
         total: sql<number>`COALESCE(SUM(${transactionSplits.amount}), 0)`,
       })
       .from(transactionSplits)
       .where(inArray(transactionSplits.transactionId, splitParentIds))
-      .groupBy(transactionSplits.categoryId)
-      .all();
+      .groupBy(transactionSplits.categoryId);
 
     for (const row of splitRows) {
       spending.set(row.categoryId, (spending.get(row.categoryId) ?? 0) + row.total);
@@ -106,16 +103,16 @@ export function aggregateSpending(
   return spending;
 }
 
-export function enrichSpendingMap(
+export async function enrichSpendingMap(
   spending: Map<string, number>,
   db: LedgrDb = defaultDb,
-): SpendingChartItem[] {
+): Promise<SpendingChartItem[]> {
   const categoryIds = [...spending.keys()].filter((k) => k !== "uncategorized");
 
   type CatRow = { id: string; name: string; groupName: string | null; groupId: string | null };
   let catRows: CatRow[] = [];
   if (categoryIds.length > 0) {
-    catRows = db
+    catRows = await db
       .select({
         id: categories.id,
         name: categories.name,
@@ -124,8 +121,7 @@ export function enrichSpendingMap(
       })
       .from(categories)
       .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-      .where(inArray(categories.id, categoryIds))
-      .all();
+      .where(inArray(categories.id, categoryIds));
   }
 
   const catMap = new Map(catRows.map((c) => [c.id, c]));

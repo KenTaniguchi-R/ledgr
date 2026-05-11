@@ -20,11 +20,11 @@ export interface BillRow {
   relativeDateLabel: string | null;
 }
 
-export function getUpcomingBills(
+export async function getUpcomingBills(
   householdId: string,
   opts: { search?: string; limit?: number } = {},
   db: LedgrDb = defaultDb,
-): BillRow[] {
+): Promise<BillRow[]> {
   const scoped = scopedQuery(householdId, db);
 
   const conditions = [
@@ -60,7 +60,7 @@ export function getUpcomingBills(
     builder = builder.limit(opts.limit) as typeof builder;
   }
 
-  const rows = builder.all();
+  const rows = await builder;
 
   return rows.map((row) => ({
     id: row.id,
@@ -87,13 +87,13 @@ const MONTHLY_MULTIPLIER: Record<string, number> = {
   yearly: 1 / 12,
 };
 
-export function getRecurringSummary(
+export async function getRecurringSummary(
   householdId: string,
   db: LedgrDb = defaultDb,
-): { monthlyIncome: number; monthlyExpenses: number } {
+): Promise<{ monthlyIncome: number; monthlyExpenses: number }> {
   const scoped = scopedQuery(householdId, db);
 
-  const rows = db
+  const rows = await db
     .select({
       averageAmount: recurringTransactions.averageAmount,
       frequency: recurringTransactions.frequency,
@@ -102,8 +102,7 @@ export function getRecurringSummary(
     .from(recurringTransactions)
     .where(
       scoped.where(recurringTransactions, eq(recurringTransactions.isActive, true)),
-    )
-    .all();
+    );
 
   let monthlyIncome = 0;
   let monthlyExpenses = 0;

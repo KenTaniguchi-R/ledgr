@@ -151,13 +151,13 @@ function buildTransactionConditions(filters: TransactionFilters): (SQL | undefin
   return conditions;
 }
 
-export function getTransactions(
+export async function getTransactions(
   householdId: string,
   filters: TransactionFilters = {},
   limit = 50,
   cursor: string | null = null,
   db: LedgrDb = defaultDb,
-): TransactionPage {
+): Promise<TransactionPage> {
   const conditions = buildTransactionConditions(filters);
 
   // Cursor conditions stay here — not in the shared builder
@@ -169,18 +169,17 @@ export function getTransactions(
   }
 
   const base = baseTransactionQuery(db, householdId);
-  const rows = base.joins(db.select(base.select).from(base.from))
+  const rows = await base.joins(db.select(base.select).from(base.from))
     .where(base.scoped.where(transactions, ...conditions))
     .orderBy(desc(transactions.date), desc(transactions.id))
-    .limit(limit + 1)
-    .all();
+    .limit(limit + 1);
 
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
   const pageIds = pageRows.map((r: typeof pageRows[0]) => r.id);
   const splitRows = pageIds.length > 0
-    ? db
+    ? await db
         .select({
           transactionId: transactionSplits.transactionId,
           count: sql<number>`count(*)`,
@@ -188,7 +187,6 @@ export function getTransactions(
         .from(transactionSplits)
         .where(inArray(transactionSplits.transactionId, pageIds))
         .groupBy(transactionSplits.transactionId)
-        .all()
     : [];
   const splitSet = new Set(splitRows.filter((r) => r.count > 0).map((r) => r.transactionId));
 
@@ -232,15 +230,15 @@ export interface TransactionSummary {
   net: number;
 }
 
-export function getTransactionSummary(
+export async function getTransactionSummary(
   householdId: string,
   filters: TransactionFilters,
   db: LedgrDb = defaultDb,
-): TransactionSummary {
+): Promise<TransactionSummary> {
   const conditions = buildTransactionConditions(filters);
   const base = baseTransactionQuery(db, householdId);
 
-  const result = base.joins(
+  const [result] = await base.joins(
     db
       .select({
         count: sql<number>`count(*)`,
@@ -250,7 +248,7 @@ export function getTransactionSummary(
       .from(transactions)
   )
     .where(base.scoped.where(transactions, ...conditions))
-    .get();
+    .limit(1);
 
   const count = result?.count ?? 0;
   const totalExpense = result?.totalExpense ?? 0;
@@ -264,13 +262,13 @@ export function getTransactionSummary(
   };
 }
 
-export function getTransactionDetail(
+export async function getTransactionDetail(
   householdId: string,
   transactionId: string,
   db: LedgrDb = defaultDb,
-): TransactionDetail | null {
+): Promise<TransactionDetail | null> {
   const base = baseTransactionQuery(db, householdId);
-  const row = base
+  const [row] = await base
     .joins(db.select(base.select).from(base.from))
     .where(
       base.scoped.where(
@@ -279,11 +277,11 @@ export function getTransactionDetail(
         isNull(transactions.deletedAt),
       ),
     )
-    .get();
+    .limit(1);
 
   if (!row) return null;
 
-  const splits = db
+  const splits = await db
     .select({
       id: transactionSplits.id,
       categoryId: transactionSplits.categoryId,
@@ -294,8 +292,7 @@ export function getTransactionDetail(
     })
     .from(transactionSplits)
     .leftJoin(categories, eq(transactionSplits.categoryId, categories.id))
-    .where(eq(transactionSplits.transactionId, transactionId))
-    .all();
+    .where(eq(transactionSplits.transactionId, transactionId));
 
   return {
     ...row,

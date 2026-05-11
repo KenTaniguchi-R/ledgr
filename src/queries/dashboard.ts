@@ -24,18 +24,17 @@ export interface DashboardSummary {
   monthlyNet: number;
 }
 
-export function getDashboardSummary(
+export async function getDashboardSummary(
   householdId: string,
   db: LedgrDb = defaultDb
-): DashboardSummary {
+): Promise<DashboardSummary> {
   const scoped = scopedQuery(householdId, db);
 
   // Net worth from live account balances
-  const allAccounts = db
+  const allAccounts = await db
     .select()
     .from(accounts)
-    .where(scoped.where(accounts, notDeleted(accounts)))
-    .all();
+    .where(scoped.where(accounts, notDeleted(accounts)));
 
   let totalAssets = 0;
   let totalLiabilities = 0;
@@ -51,7 +50,7 @@ export function getDashboardSummary(
   const { from: dateFrom, to: dateTo } = monthBounds(getCurrentMonth());
 
   // Monthly transactions (non-pending, non-deleted)
-  const monthlyTxns = db
+  const monthlyTxns = await db
     .select({
       normalizedAmount: transactions.normalizedAmount,
     })
@@ -64,8 +63,7 @@ export function getDashboardSummary(
         lte(transactions.date, dateTo),
         eq(transactions.pending, false)
       )
-    )
-    .all();
+    );
 
   let monthlyIncome = 0;
   let monthlyExpenses = 0;
@@ -94,19 +92,18 @@ export interface NetWorthPoint {
   netWorth: number;
 }
 
-export function getNetWorthHistory(
+export async function getNetWorthHistory(
   householdId: string,
   range: "1M" | "3M" | "6M" | "1Y" | "all" = "6M",
   db: LedgrDb = defaultDb
-): NetWorthPoint[] {
+): Promise<NetWorthPoint[]> {
   const scoped = scopedQuery(householdId, db);
   const { from: dateFrom } = rangeToDateBounds(range);
 
-  const allAccounts = db
+  const allAccounts = await db
     .select({ id: accounts.id, type: accounts.type, currentBalance: accounts.currentBalance })
     .from(accounts)
-    .where(scoped.where(accounts, notDeleted(accounts)))
-    .all();
+    .where(scoped.where(accounts, notDeleted(accounts)));
 
   const accountTypeMap = new Map(allAccounts.map((a) => [a.id, a.type]));
   const accountIds = allAccounts.map((a) => a.id);
@@ -119,15 +116,14 @@ export function getNetWorthHistory(
     if (dateFrom) {
       conditions.push(gte(balanceHistory.date, dateFrom));
     }
-    historyRows = db
+    historyRows = await db
       .select({
         accountId: balanceHistory.accountId,
         date: balanceHistory.date,
         balance: balanceHistory.balance,
       })
       .from(balanceHistory)
-      .where(and(...conditions))
-      .all();
+      .where(and(...conditions));
   }
 
   // Aggregate by date
@@ -192,17 +188,17 @@ export interface MonthlySpendingRow {
   total: number;
 }
 
-export function getMonthlySpending(
+export async function getMonthlySpending(
   householdId: string,
   month?: string,
   db: LedgrDb = defaultDb
-): MonthlySpendingRow[] {
+): Promise<MonthlySpendingRow[]> {
   const targetMonth = month ?? getCurrentMonth();
   const { from: dateFrom, to: dateTo } = monthBounds(targetMonth);
 
   const filters: ReportFilters = { dateFrom, dateTo };
-  const spending = aggregateSpending(householdId, filters, db);
-  const enriched = enrichSpendingMap(spending, db);
+  const spending = await aggregateSpending(householdId, filters, db);
+  const enriched = await enrichSpendingMap(spending, db);
 
   return enriched.map((item) => ({
     categoryId: item.id,
@@ -222,11 +218,11 @@ export interface CashFlowRow {
   net: number;
 }
 
-export function getCashFlow(
+export async function getCashFlow(
   householdId: string,
   months = 6,
   db: LedgrDb = defaultDb
-): CashFlowRow[] {
+): Promise<CashFlowRow[]> {
   const scoped = scopedQuery(householdId, db);
 
   const today = todayDateString();
@@ -235,9 +231,9 @@ export function getCashFlow(
   d.setDate(1);
   const dateFrom = d.toISOString().slice(0, 10);
 
-  const incomeCatIds = getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(db);
 
-  const txns = db
+  const txns = await db
     .select({
       date: transactions.date,
       normalizedAmount: transactions.normalizedAmount,
@@ -253,8 +249,7 @@ export function getCashFlow(
         eq(transactions.isTransfer, false),
         isNull(transactions.transferPairId)
       )
-    )
-    .all();
+    );
 
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const txn of txns) {
@@ -282,19 +277,18 @@ export function getCashFlow(
 
 // ─── getRecentTransactions ───────────────────────────────────────────────────
 
-export function getRecentTransactions(
+export async function getRecentTransactions(
   householdId: string,
   limit = 5,
   db: LedgrDb = defaultDb
-): TransactionRow[] {
+): Promise<TransactionRow[]> {
   const base = baseTransactionQuery(db, householdId);
 
-  const rows = base
+  const rows = await base
     .joins(db.select(base.select).from(base.from))
     .where(base.scoped.where(transactions, notDeleted(transactions)))
     .orderBy(desc(transactions.date), desc(transactions.id))
-    .limit(limit)
-    .all();
+    .limit(limit);
 
   return rows.map((row: typeof rows[0]) => ({
     ...row,

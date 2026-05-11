@@ -18,25 +18,23 @@ export interface CategoryGroup {
   categories: CategoryOption[];
 }
 
-export function getCategories(
+export async function getCategories(
   householdId: string,
   db: LedgrDb = defaultDb,
-): CategoryGroup[] {
+): Promise<CategoryGroup[]> {
   const scoped = scopedQuery(householdId, db);
 
-  const groups = db
+  const groups = await db
     .select()
     .from(categoryGroups)
     .where(scoped.where(categoryGroups))
-    .orderBy(categoryGroups.sortOrder)
-    .all();
+    .orderBy(categoryGroups.sortOrder);
 
-  const cats = db
+  const cats = await db
     .select()
     .from(categories)
     .where(scoped.where(categories))
-    .orderBy(categories.sortOrder)
-    .all();
+    .orderBy(categories.sortOrder);
 
   const catsByGroup = new Map<string, CategoryOption[]>();
   for (const cat of cats) {

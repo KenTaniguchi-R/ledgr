@@ -59,17 +59,17 @@ export interface BudgetMonth {
  * Handles split transactions: when a transaction has splits,
  * the parent is excluded and splits are summed per category instead.
  */
-function getBudgetSpending(
+async function getBudgetSpending(
   householdId: string,
   month: string,
   db: LedgrDb = defaultDb,
-): Map<string, number> {
+): Promise<Map<string, number>> {
   const scoped = scopedQuery(householdId, db);
   const startDate = `${month}-01`;
   const endDate = `${shiftMonth(month, 1)}-01`;
 
   // Find transaction IDs that have splits
-  const splitParentRows = db
+  const splitParentRows = await db
     .select({ transactionId: transactionSplits.transactionId })
     .from(transactionSplits)
     .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
@@ -84,8 +84,7 @@ function getBudgetSpending(
         eq(transactions.pending, false),
       ),
     )
-    .groupBy(transactionSplits.transactionId)
-    .all();
+    .groupBy(transactionSplits.transactionId);
 
   const splitParentIds = splitParentRows.map((r) => r.transactionId);
 
@@ -104,15 +103,14 @@ function getBudgetSpending(
       ? [...baseConditions, notInArray(transactions.id, splitParentIds)]
       : baseConditions;
 
-  const nonSplitRows = db
+  const nonSplitRows = await db
     .select({
       categoryId: transactions.categoryId,
       total: sql<number>`COALESCE(SUM(ABS(${transactions.normalizedAmount})), 0)`,
     })
     .from(transactions)
     .where(scoped.where(transactions, ...nonSplitConditions))
-    .groupBy(transactions.categoryId)
-    .all();
+    .groupBy(transactions.categoryId);
 
   const spending = new Map<string, number>();
 
@@ -123,15 +121,14 @@ function getBudgetSpending(
 
   // 2) Split transactions: aggregate from transaction_splits per category
   if (splitParentIds.length > 0) {
-    const splitRows = db
+    const splitRows = await db
       .select({
         categoryId: transactionSplits.categoryId,
         total: sql<number>`COALESCE(SUM(${transactionSplits.amount}), 0)`,
       })
       .from(transactionSplits)
       .where(inArray(transactionSplits.transactionId, splitParentIds))
-      .groupBy(transactionSplits.categoryId)
-      .all();
+      .groupBy(transactionSplits.categoryId);
 
     for (const row of splitRows) {
       spending.set(row.categoryId, (spending.get(row.categoryId) ?? 0) + row.total);
@@ -143,37 +140,36 @@ function getBudgetSpending(
 
 // ── Main budget query ────────────────────────────────────────────────
 
-export function getBudgetForMonth(
+export async function getBudgetForMonth(
   householdId: string,
   month: string,
   db: LedgrDb = defaultDb,
-): BudgetMonth {
+): Promise<BudgetMonth> {
   const scoped = scopedQuery(householdId, db);
 
   // Fetch budget row
-  const budgetRow = db
+  const [budgetRow] = await db
     .select()
     .from(budgets)
     .where(scoped.where(budgets, eq(budgets.month, month)))
-    .get();
+    .limit(1);
 
   // Fetch spending map
-  const spending = getBudgetSpending(householdId, month, db);
+  const spending = await getBudgetSpending(householdId, month, db);
 
   // Last synced at
-  const syncRow = db
+  const [syncRow] = await db
     .select({ updatedAt: plaidItems.updatedAt })
     .from(plaidItems)
     .where(scoped.where(plaidItems, eq(plaidItems.status, "active")))
     .orderBy(desc(plaidItems.updatedAt))
-    .limit(1)
-    .get();
+    .limit(1);
 
   const lastSyncedAt = syncRow?.updatedAt ?? null;
 
   // No budget: all spending is unbudgeted
   if (!budgetRow) {
-    const unbudgetedCategories = buildUnbudgetedCategories(spending, new Set(), db);
+    const unbudgetedCategories = await buildUnbudgetedCategories(spending, new Set(), db);
     const totalSpent = [...spending.values()].reduce((a, b) => a + b, 0);
     return {
       budget: null,
@@ -185,7 +181,7 @@ export function getBudgetForMonth(
   }
 
   // Fetch budget categories with joins
-  const budgetCatRows = db
+  const budgetCatRows = await db
     .select({
       budgetCategoryId: budgetCategories.id,
       categoryId: budgetCategories.categoryId,
@@ -200,8 +196,7 @@ export function getBudgetForMonth(
     .from(budgetCategories)
     .innerJoin(categories, eq(budgetCategories.categoryId, categories.id))
     .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-    .where(eq(budgetCategories.budgetId, budgetRow.id))
-    .all();
+    .where(eq(budgetCategories.budgetId, budgetRow.id));
 
   // Build groups
   const groupMap = new Map<string, BudgetGroup>();
@@ -242,7 +237,7 @@ export function getBudgetForMonth(
   const groups = [...groupMap.values()];
 
   // Unbudgeted categories
-  const unbudgetedCategories = buildUnbudgetedCategories(spending, budgetedCategoryIds, db);
+  const unbudgetedCategories = await buildUnbudgetedCategories(spending, budgetedCategoryIds, db);
   const unbudgetedSpent = unbudgetedCategories.reduce((a, c) => a + c.spent, 0);
 
   // Summary
@@ -265,11 +260,11 @@ export function getBudgetForMonth(
 
 // ── Build unbudgeted categories list ─────────────────────────────────
 
-function buildUnbudgetedCategories(
+async function buildUnbudgetedCategories(
   spending: Map<string, number>,
   budgetedCategoryIds: Set<string>,
   db: LedgrDb,
-): UnbudgetedCategory[] {
+): Promise<UnbudgetedCategory[]> {
   const result: UnbudgetedCategory[] = [];
   const unbudgetedIds: string[] = [];
 
@@ -288,7 +283,7 @@ function buildUnbudgetedCategories(
   }
 
   if (unbudgetedIds.length > 0) {
-    const catRows = db
+    const catRows = await db
       .select({
         id: categories.id,
         categoryName: categories.name,
@@ -296,8 +291,7 @@ function buildUnbudgetedCategories(
       })
       .from(categories)
       .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-      .where(inArray(categories.id, unbudgetedIds))
-      .all();
+      .where(inArray(categories.id, unbudgetedIds));
 
     const catMap = new Map(catRows.map((r) => [r.id, r]));
 

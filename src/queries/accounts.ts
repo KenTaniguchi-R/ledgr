@@ -5,22 +5,21 @@ import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 
-export function getAccounts(householdId: string, db: LedgrDb = defaultDb) {
+export async function getAccounts(householdId: string, db: LedgrDb = defaultDb) {
   const scoped = scopedQuery(householdId, db);
-  return db
+  const rows = await db
     .select()
     .from(accounts)
-    .where(scoped.where(accounts, notDeleted(accounts)))
-    .all()
-    .sort((a, b) => {
-      const ai = ACCOUNT_TYPES.indexOf(a.type as (typeof ACCOUNT_TYPES)[number]);
-      const bi = ACCOUNT_TYPES.indexOf(b.type as (typeof ACCOUNT_TYPES)[number]);
-      if (ai !== bi) return ai - bi;
-      return a.name.localeCompare(b.name);
-    });
+    .where(scoped.where(accounts, notDeleted(accounts)));
+  return rows.sort((a, b) => {
+    const ai = ACCOUNT_TYPES.indexOf(a.type as (typeof ACCOUNT_TYPES)[number]);
+    const bi = ACCOUNT_TYPES.indexOf(b.type as (typeof ACCOUNT_TYPES)[number]);
+    if (ai !== bi) return ai - bi;
+    return a.name.localeCompare(b.name);
+  });
 }
 
-export type AccountRow = ReturnType<typeof getAccounts>[number];
+export type AccountRow = Awaited<ReturnType<typeof getAccounts>>[number];
 
 export interface InstitutionGroup {
   institutionName: string;
@@ -32,28 +31,26 @@ export interface InstitutionGroup {
   accounts: AccountRow[];
 }
 
-export function getAccountsByInstitution(
+export async function getAccountsByInstitution(
   householdId: string,
   db: LedgrDb = defaultDb
-): InstitutionGroup[] {
-  const allAccounts = getAccounts(householdId, db);
+): Promise<InstitutionGroup[]> {
+  const allAccounts = await getAccounts(householdId, db);
 
   const scoped = scopedQuery(householdId, db);
-  const items = db
+  const items = await db
     .select()
     .from(plaidItems)
-    .where(scoped.where(plaidItems))
-    .all();
+    .where(scoped.where(plaidItems));
 
   const itemMap = new Map(items.map((i) => [i.id, i]));
 
   const itemIds = items.map((i) => i.id);
   const logos = itemIds.length > 0
-    ? db
+    ? await db
         .select({ plaidItemId: institutionLogos.plaidItemId, logo: institutionLogos.logo })
         .from(institutionLogos)
         .where(inArray(institutionLogos.plaidItemId, itemIds))
-        .all()
     : [];
   const logoMap = new Map(logos.map((l) => [l.plaidItemId, l.logo]));
   const groups = new Map<string, InstitutionGroup>();
@@ -101,11 +98,11 @@ export function getAccountsByInstitution(
   return result;
 }
 
-export function getAccountSummary(
+export async function getAccountSummary(
   householdId: string,
   db: LedgrDb = defaultDb
 ) {
-  const allAccounts = getAccounts(householdId, db).filter(
+  const allAccounts = (await getAccounts(householdId, db)).filter(
     (a) => !a.isHidden
   );
 

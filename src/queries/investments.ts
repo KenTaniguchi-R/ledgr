@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, gte, lte, isNull } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { investmentHoldings, holdingsHistory, investmentTransactions, accounts } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -79,18 +79,13 @@ function decodeCursor(cursor: string): { date: string; id: string } | null {
   }
 }
 
-export function getInvestmentAccountIds(householdId: string, db: LedgrDb = defaultDb): string[] {
+export async function getInvestmentAccountIds(householdId: string, db: LedgrDb = defaultDb): Promise<string[]> {
   const scoped = scopedQuery(householdId, db);
-  const rows = db
+  const rows = await db
     .select({ id: accounts.id })
     .from(accounts)
-    .where(scoped.where(accounts, eq(accounts.type, "investment"), isNull(accounts.deletedAt)))
-    .all();
+    .where(scoped.where(accounts, eq(accounts.type, "investment"), isNull(accounts.deletedAt)));
   return rows.map((r) => r.id);
-}
-
-function inIds(column: { getSQL: () => unknown }, ids: string[]) {
-  return sql`${column} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`;
 }
 
 function computeGainLoss(
@@ -107,32 +102,28 @@ function computeGainLoss(
   };
 }
 
-function resolveAccIds(householdId: string, db: LedgrDb, accIds?: string[]): string[] {
+async function resolveAccIds(householdId: string, db: LedgrDb, accIds?: string[]): Promise<string[]> {
   return accIds ?? getInvestmentAccountIds(householdId, db);
 }
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
-export function getPortfolioSummary(
+export async function getPortfolioSummary(
   householdId: string,
   db: LedgrDb = defaultDb,
   today?: string,
   accIds?: string[],
-): PortfolioSummary {
-  const ids = resolveAccIds(householdId, db, accIds);
+): Promise<PortfolioSummary> {
+  const ids = await resolveAccIds(householdId, db, accIds);
   if (ids.length === 0) return { totalValue: 0, dayChange: null, totalGainLoss: 0, totalCostBasis: 0 };
 
-  const holdingsInAccIds = inIds(investmentHoldings.accountId, ids);
-  const historyInAccIds = inIds(holdingsHistory.accountId, ids);
-
-  const holdings = db
+  const holdings = await db
     .select({
       currentValue: investmentHoldings.currentValue,
       costBasis: investmentHoldings.costBasis,
     })
     .from(investmentHoldings)
-    .where(holdingsInAccIds)
-    .all();
+    .where(inArray(investmentHoldings.accountId, ids));
 
   let totalValue = 0;
   let totalCostBasis = 0;
@@ -146,33 +137,29 @@ export function getPortfolioSummary(
   prevDate.setDate(prevDate.getDate() - 1);
   const yesterdayStr = prevDate.toISOString().slice(0, 10);
 
-  const hasToday = db
+  const [hasToday] = await db
     .select({ id: holdingsHistory.id })
     .from(holdingsHistory)
-    .where(and(historyInAccIds, eq(holdingsHistory.date, todayStr)))
-    .limit(1)
-    .get();
+    .where(and(inArray(holdingsHistory.accountId, ids), eq(holdingsHistory.date, todayStr)))
+    .limit(1);
 
-  const hasYesterday = db
+  const [hasYesterday] = await db
     .select({ id: holdingsHistory.id })
     .from(holdingsHistory)
-    .where(and(historyInAccIds, eq(holdingsHistory.date, yesterdayStr)))
-    .limit(1)
-    .get();
+    .where(and(inArray(holdingsHistory.accountId, ids), eq(holdingsHistory.date, yesterdayStr)))
+    .limit(1);
 
   let dayChange: number | null = null;
   if (hasToday && hasYesterday) {
-    const todayTotal = db
+    const [todayTotal] = await db
       .select({ total: sql<number>`COALESCE(SUM(${holdingsHistory.value}), 0)` })
       .from(holdingsHistory)
-      .where(and(historyInAccIds, eq(holdingsHistory.date, todayStr)))
-      .get();
+      .where(and(inArray(holdingsHistory.accountId, ids), eq(holdingsHistory.date, todayStr)));
 
-    const yesterdayTotal = db
+    const [yesterdayTotal] = await db
       .select({ total: sql<number>`COALESCE(SUM(${holdingsHistory.value}), 0)` })
       .from(holdingsHistory)
-      .where(and(historyInAccIds, eq(holdingsHistory.date, yesterdayStr)))
-      .get();
+      .where(and(inArray(holdingsHistory.accountId, ids), eq(holdingsHistory.date, yesterdayStr)));
 
     dayChange = (todayTotal?.total ?? 0) - (yesterdayTotal?.total ?? 0);
   }
@@ -185,13 +172,13 @@ export function getPortfolioSummary(
   };
 }
 
-export function getPortfolioHistory(
+export async function getPortfolioHistory(
   householdId: string,
   dateRange: { dateFrom: string; dateTo: string },
   db: LedgrDb = defaultDb,
   accIds?: string[],
-): PortfolioPoint[] {
-  const ids = resolveAccIds(householdId, db, accIds);
+): Promise<PortfolioPoint[]> {
+  const ids = await resolveAccIds(householdId, db, accIds);
   if (ids.length === 0) return [];
 
   return db
@@ -201,32 +188,30 @@ export function getPortfolioHistory(
     })
     .from(holdingsHistory)
     .where(and(
-      inIds(holdingsHistory.accountId, ids),
+      inArray(holdingsHistory.accountId, ids),
       gte(holdingsHistory.date, dateRange.dateFrom),
       lte(holdingsHistory.date, dateRange.dateTo),
     ))
     .groupBy(holdingsHistory.date)
-    .orderBy(holdingsHistory.date)
-    .all();
+    .orderBy(holdingsHistory.date);
 }
 
-export function getAssetAllocation(
+export async function getAssetAllocation(
   householdId: string,
   db: LedgrDb = defaultDb,
   accIds?: string[],
-): AllocationSlice[] {
-  const ids = resolveAccIds(householdId, db, accIds);
+): Promise<AllocationSlice[]> {
+  const ids = await resolveAccIds(householdId, db, accIds);
   if (ids.length === 0) return [];
 
-  const rows = db
+  const rows = await db
     .select({
       type: investmentHoldings.type,
       value: sql<number>`SUM(${investmentHoldings.currentValue})`,
     })
     .from(investmentHoldings)
-    .where(inIds(investmentHoldings.accountId, ids))
-    .groupBy(investmentHoldings.type)
-    .all();
+    .where(inArray(investmentHoldings.accountId, ids))
+    .groupBy(investmentHoldings.type);
 
   const total = rows.reduce((sum, r) => sum + (r.value ?? 0), 0);
 
@@ -237,21 +222,19 @@ export function getAssetAllocation(
   }));
 }
 
-export function getHoldings(
+export async function getHoldings(
   householdId: string,
   view: "consolidated" | "by-account",
   accountId: string | undefined,
   db: LedgrDb = defaultDb,
   accIds?: string[],
-): InvestmentHoldingRow[] {
-  const allAccIds = resolveAccIds(householdId, db, accIds);
+): Promise<InvestmentHoldingRow[]> {
+  const allAccIds = await resolveAccIds(householdId, db, accIds);
   const filteredAccIds = accountId ? allAccIds.filter((id) => id === accountId) : allAccIds;
   if (filteredAccIds.length === 0) return [];
 
-  const holdingsFilter = inIds(investmentHoldings.accountId, filteredAccIds);
-
   if (view === "consolidated") {
-    const rows = db
+    const rows = await db
       .select({
         ticker: investmentHoldings.ticker,
         securityName: investmentHoldings.securityName,
@@ -262,10 +245,9 @@ export function getHoldings(
         costBasis: sql<number | null>`SUM(${investmentHoldings.costBasis})`,
       })
       .from(investmentHoldings)
-      .where(holdingsFilter)
+      .where(inArray(investmentHoldings.accountId, filteredAccIds))
       .groupBy(sql`COALESCE(${investmentHoldings.ticker}, ${investmentHoldings.securityName})`)
-      .orderBy(sql`SUM(${investmentHoldings.currentValue}) DESC`)
-      .all();
+      .orderBy(sql`SUM(${investmentHoldings.currentValue}) DESC`);
 
     return rows.map((r) => ({
       ticker: r.ticker,
@@ -279,7 +261,7 @@ export function getHoldings(
     }));
   }
 
-  const rows = db
+  const rows = await db
     .select({
       ticker: investmentHoldings.ticker,
       securityName: investmentHoldings.securityName,
@@ -293,9 +275,8 @@ export function getHoldings(
     })
     .from(investmentHoldings)
     .innerJoin(accounts, eq(investmentHoldings.accountId, accounts.id))
-    .where(holdingsFilter)
-    .orderBy(sql`${investmentHoldings.currentValue} DESC`)
-    .all();
+    .where(inArray(investmentHoldings.accountId, filteredAccIds))
+    .orderBy(sql`${investmentHoldings.currentValue} DESC`);
 
   return rows.map((r) => ({
     ticker: r.ticker,
@@ -311,39 +292,39 @@ export function getHoldings(
   }));
 }
 
-export function getInvestmentTransactions(
+export async function getInvestmentTransactions(
   householdId: string,
   filters: InvestmentFilters = {},
   limit = 50,
   cursor: string | null = null,
   db: LedgrDb = defaultDb,
   accIds?: string[],
-): InvTxnPage {
-  const allAccIds = resolveAccIds(householdId, db, accIds);
+): Promise<InvTxnPage> {
+  const allAccIds = await resolveAccIds(householdId, db, accIds);
   const filteredAccIds = filters.accountId
     ? allAccIds.filter((id) => id === filters.accountId)
     : allAccIds;
   if (filteredAccIds.length === 0) return { rows: [], nextCursor: null };
 
-  const conditions = [
-    inIds(investmentTransactions.accountId, filteredAccIds),
+  const conditions: ReturnType<typeof eq>[] = [
+    inArray(investmentTransactions.accountId, filteredAccIds) as ReturnType<typeof eq>,
   ];
 
   if (filters.type)
     conditions.push(
       eq(investmentTransactions.type, filters.type as "buy" | "sell" | "dividend" | "transfer" | "fee" | "other"),
     );
-  if (filters.dateFrom) conditions.push(gte(investmentTransactions.date, filters.dateFrom));
-  if (filters.dateTo) conditions.push(lte(investmentTransactions.date, filters.dateTo));
+  if (filters.dateFrom) conditions.push(gte(investmentTransactions.date, filters.dateFrom) as ReturnType<typeof eq>);
+  if (filters.dateTo) conditions.push(lte(investmentTransactions.date, filters.dateTo) as ReturnType<typeof eq>);
 
   const decoded = cursor ? decodeCursor(cursor) : null;
   if (decoded) {
     conditions.push(
-      sql`(${investmentTransactions.date} < ${decoded.date} OR (${investmentTransactions.date} = ${decoded.date} AND ${investmentTransactions.id} < ${decoded.id}))`,
+      sql`(${investmentTransactions.date} < ${decoded.date} OR (${investmentTransactions.date} = ${decoded.date} AND ${investmentTransactions.id} < ${decoded.id}))` as ReturnType<typeof eq>,
     );
   }
 
-  const rows = db
+  const rows = await db
     .select({
       id: investmentTransactions.id,
       date: investmentTransactions.date,
@@ -360,8 +341,7 @@ export function getInvestmentTransactions(
     .innerJoin(accounts, eq(investmentTransactions.accountId, accounts.id))
     .where(and(...conditions))
     .orderBy(desc(investmentTransactions.date), desc(investmentTransactions.id))
-    .limit(limit + 1)
-    .all();
+    .limit(limit + 1);
 
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
@@ -376,10 +356,10 @@ export function getInvestmentTransactions(
   return { rows: pageRows, nextCursor };
 }
 
-export function getInvestmentsSummary(
+export async function getInvestmentsSummary(
   householdId: string,
   db: LedgrDb = defaultDb,
-): { totalValue: number; dayChange: number | null } {
-  const summary = getPortfolioSummary(householdId, db);
+): Promise<{ totalValue: number; dayChange: number | null }> {
+  const summary = await getPortfolioSummary(householdId, db);
   return { totalValue: summary.totalValue, dayChange: summary.dayChange };
 }

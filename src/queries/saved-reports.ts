@@ -3,7 +3,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 
-export function getSavedReportsByHousehold(
+export async function getSavedReportsByHousehold(
   householdId: string,
   db: LedgrDb = defaultDb,
 ) {
@@ -12,6 +12,5 @@ export function getSavedReportsByHousehold(
     .select()
     .from(savedReports)
     .where(scoped.where(savedReports))
-    .orderBy(desc(savedReports.updatedAt))
-    .all();
+    .orderBy(desc(savedReports.updatedAt));
 }
