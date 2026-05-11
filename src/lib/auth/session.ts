@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { householdMembers } from "@/db/schema";
 import { provisionHousehold } from "./provision";
+import { isDemoMode, DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 
 export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
@@ -31,6 +32,10 @@ export const getHouseholdId = cache(async (): Promise<string> => {
   const session = await getSession();
   if (!session) {
     throw new Error("Not authenticated");
+  }
+
+  if (isDemoMode(session.user.id)) {
+    return DEMO_HOUSEHOLD_ID;
   }
 
   try {
