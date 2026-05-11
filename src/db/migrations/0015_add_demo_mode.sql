@@ -1,0 +1,1 @@
+ALTER TABLE `user_settings` ADD COLUMN `demo_mode` INTEGER NOT NULL DEFAULT 0;

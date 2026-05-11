@@ -39,6 +39,7 @@ export const userSettings = sqliteTable("user_settings", {
   toolCallingSupported: integer("tool_calling_supported", { mode: "boolean" }),
   mcpEnabled: integer("mcp_enabled").notNull().default(0),
   dashboardLayout: text("dashboard_layout"),
+  demoMode: integer("demo_mode", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
   updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
 });
