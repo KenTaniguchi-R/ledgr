@@ -21,7 +21,7 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { EntityAvatar } from "@/components/atoms/entity-avatar";
+import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { StatusBadge } from "@/components/atoms/status-badge";
 import { SyncStatusBadge, type SyncStatus } from "@/components/atoms/sync-status-badge";
 import type { PlaidItemStatus } from "@/db/schema/plaid";

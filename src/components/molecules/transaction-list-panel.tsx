@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { groupByDate } from "@/lib/transactions";
 import { AmountDisplay } from "@/components/atoms/amount-display";
-import { EntityAvatar } from "@/components/atoms/entity-avatar";
+import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { formatDateShort } from "@/lib/date-utils";
 import type { TransactionRow } from "@/queries/transactions";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SankeyChart, type SankeyNode, type SankeyLink } from "@/components/molecules/sankey-chart";
+import { SankeyChart, type SankeyNode, type SankeyLink } from "@/components/organisms/sankey-chart";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";

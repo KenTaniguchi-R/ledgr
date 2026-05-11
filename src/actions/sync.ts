@@ -2,8 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getHouseholdId, getSession } from "@/lib/auth/session";
-import { guardDemoMode } from "@/lib/demo-mode";
+import { authorizeAction } from "@/lib/auth/authorize-action";
 import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems } from "@/db/schema";
@@ -14,10 +13,9 @@ export async function triggerSync(
   plaidItemId: string,
   db: LedgrDb = defaultDb
 ): Promise<SyncResult> {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return { success: false, error: blocked.error };
+  const auth = await authorizeAction();
+  if ("error" in auth) return { success: false, error: auth.error };
+  const { householdId } = auth;
 
   const scoped = scopedQuery(householdId, db);
 

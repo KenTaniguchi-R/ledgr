@@ -1,6 +1,6 @@
 import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { EntityAvatar } from "@/components/atoms/entity-avatar";
+import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { EditableText } from "@/components/molecules/editable-text";
 import { formatDateShort } from "@/lib/date-utils";
 

@@ -7,8 +7,8 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, transactionSplits } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
-import { getHouseholdId, getSession } from "@/lib/auth/session";
-import { guardDemoMode } from "@/lib/demo-mode";
+import { authorizeAction } from "@/lib/auth/authorize-action";
+import { getHouseholdId } from "@/lib/auth/session";
 import { getTransactionDetail, type TransactionDetail } from "@/queries/transactions";
 
 const transactionIdSchema = z.string().min(1);
@@ -54,10 +54,9 @@ export async function updateTransactionFields(
   data: z.input<typeof updateFieldsSchema>,
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const parsedId = transactionIdSchema.safeParse(transactionId);
   const parsedData = updateFieldsSchema.safeParse(data);
@@ -119,10 +118,9 @@ export async function upsertSplit(
   | { data: { id: string; categoryId: string; amount: number; notes: string | null } }
   | { error: string }
 > {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const parsedId = transactionIdSchema.safeParse(transactionId);
   const parsedData = splitSchema.safeParse(data);
@@ -202,10 +200,9 @@ export async function deleteSplit(
   splitId: string,
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const parsedSplitId = transactionIdSchema.safeParse(splitId);
   if (!parsedSplitId.success) return { error: "Invalid input" };

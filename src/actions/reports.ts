@@ -7,8 +7,8 @@ import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { getHouseholdId, getSession } from "@/lib/auth/session";
-import { guardDemoMode } from "@/lib/demo-mode";
+import { authorizeAction } from "@/lib/auth/authorize-action";
+import { getHouseholdId } from "@/lib/auth/session";
 import { getTransactions, type TransactionRow } from "@/queries/transactions";
 
 const saveReportSchema = z.object({
@@ -31,10 +31,9 @@ export async function saveReport(
     return { error: "Invalid input" };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const id = uuid();
   const now = new Date();
@@ -63,10 +62,9 @@ export async function deleteReport(
     return { error: "Invalid report ID" };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const scoped = scopedQuery(householdId, db);
 

@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Auth | Better Auth |
 | Bank Sync | Plaid Node SDK (optional — CSV import is first-class) |
 | AI | Vercel AI SDK (BYOK — user brings own API key) |
-| Background Jobs | node-cron |
+| Background Jobs | Standalone job functions (snapshot-balances, backfill-balances) |
 | Testing | Vitest + fast-check + Playwright + Stryker + MSW |
 
 ## Key Conventions
@@ -85,7 +85,7 @@ Browser ──▶ Next.js App Router
               Drizzle ORM ──▶ PostgreSQL (via node-postgres Pool)
               Plaid Node SDK ──▶ Plaid API (sandbox/production via PLAID_ENV)
               Vercel AI SDK ──▶ User's LLM provider (Claude/OpenAI/Gemini)
-              node-cron ──▶ Background jobs (sync, snapshots, categorization)
+              Jobs ──▶ Background tasks (sync, snapshots, categorization)
 ```
 
 ## Project Structure
@@ -108,7 +108,7 @@ ledgr/
 │   │   ├── ai/                 # AI categorization, chat
 │   │   ├── auth/               # Better Auth config + adapter
 │   │   ├── import/             # CSV/OFX parsers
-│   │   ├── jobs/               # node-cron scheduler
+│   │   ├── jobs/               # Background job functions (snapshots, backfill)
 │   │   ├── scoped-query.ts     # Household-scoped query wrapper
 │   │   ├── encryption.ts       # AES encrypt/decrypt
 │   │   ├── date-utils.ts       # Timestamp and date helpers (nowISO, todayDateString)
@@ -137,7 +137,7 @@ ledgr/
 
 ## Data Model Highlights
 
-20+ tables. Key entities: `households`, `accounts`, `transactions` (with `transaction_splits`, `transfer_pair_id`), `merchants`, `category_groups`/`categories`/`category_rules`, `budgets`/`budget_categories`, `recurring_transactions`, `goals`, `investment_holdings`/`holdings_history`/`investment_transactions`, `plaid_items`/`sync_log`.
+29 tables. Key entities: `households`, `accounts`, `transactions` (with `transaction_splits`, `transfer_pair_id`), `merchants`, `category_groups`/`categories`/`category_rules`, `budgets`/`budget_categories`, `recurring_transactions`, `investment_holdings`/`holdings_history`/`investment_transactions`, `plaid_items`/`sync_log`, `saved_reports`, `oauth_clients`/`oauth_codes`/`oauth_consents`/`oauth_refresh_tokens`.
 
 See the design spec for full schema with indexes and constraints.
 

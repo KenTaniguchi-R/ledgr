@@ -6,7 +6,7 @@ import {
 import { getCategories } from "@/queries/categories";
 import { getAccounts } from "@/queries/accounts";
 import { parseTransactionFilters } from "@/lib/parse-transaction-filters";
-import { TransactionFilters as FilterBar } from "@/components/molecules/transaction-filters";
+import { TransactionFilters as FilterBar } from "@/components/organisms/transaction-filters";
 import { FilterSummaryBar } from "@/components/molecules/filter-summary-bar";
 import { ReviewEntryButton } from "@/components/molecules/review-entry-button";
 import { TransactionList } from "@/components/organisms/transaction-list";

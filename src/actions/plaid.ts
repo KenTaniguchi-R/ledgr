@@ -9,21 +9,19 @@ import { encrypt, decrypt } from "@/lib/encryption";
 import { plaidAmountToCents } from "@/lib/money";
 import { mapPlaidAccountType, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { todayDateString as todayISO } from "@/lib/date-utils";
-import { getSession, getHouseholdId } from "@/lib/auth/session";
-import { guardDemoMode } from "@/lib/demo-mode";
+import { getHouseholdId } from "@/lib/auth/session";
+import { authorizeAction } from "@/lib/auth/authorize-action";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory, institutionLogos } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 
 export async function createLinkToken() {
-  await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
 
   try {
     const response = await getPlaidClient().linkTokenCreate({
-      user: { client_user_id: session!.user.id },
+      user: { client_user_id: auth.userId },
       client_name: "Ledgr",
       products: [Products.Transactions, Products.Investments],
       country_codes: [CountryCode.Us],
@@ -50,10 +48,8 @@ export async function exchangeAndStoreAccounts(
   | { success: true; accountCount: number; error?: never }
   | { success: false; error: string; accountCount?: never }
 > {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Not authenticated" };
-  const blocked = await guardDemoMode(session.user.id);
-  if (blocked) return { success: false, error: blocked.error };
+  const auth = await authorizeAction();
+  if ("error" in auth) return { success: false, error: auth.error };
 
   try {
     const exchangeRes = await getPlaidClient().itemPublicTokenExchange({
@@ -194,10 +190,9 @@ export async function disconnectPlaidItem(
   plaidItemId: string,
   db: LedgrDb = defaultDb,
 ) {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const scoped = scopedQuery(householdId, db);
 

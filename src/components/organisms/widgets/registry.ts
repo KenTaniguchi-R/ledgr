@@ -16,8 +16,6 @@ export interface WidgetConfig {
   id: string;
   title: string;
   defaultSize: { w: number; h: number };
-  isPlaceholder?: boolean;
-  placeholderText?: string;
 }
 
 export const DASHBOARD_WIDGETS: WidgetConfig[] = [
@@ -30,10 +28,7 @@ export const DASHBOARD_WIDGETS: WidgetConfig[] = [
   { id: "budgets", title: "Budget Progress", defaultSize: { w: 2, h: 1 } },
   { id: "bills", title: "Upcoming Bills", defaultSize: { w: 2, h: 1 } },
   { id: "investments", title: "Investments", defaultSize: { w: 2, h: 1 } },
-  { id: "goals", title: "Goals", defaultSize: { w: 2, h: 1 }, isPlaceholder: true, placeholderText: "Coming in Phase 12" },
 ];
-
-export const ACTIVE_WIDGETS = DASHBOARD_WIDGETS.filter((w) => !w.isPlaceholder);
 
 export function getDefaultLayout(): { desktop: GridItem[]; tablet: GridItem[]; mobile: GridItem[] } {
   const desktop: GridItem[] = [

@@ -3,7 +3,7 @@
 import { memo, useCallback } from "react";
 import { Clock } from "lucide-react";
 import { AmountDisplay } from "@/components/atoms/amount-display";
-import { EntityAvatar } from "@/components/atoms/entity-avatar";
+import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { CategoryPill } from "@/components/molecules/category-pill";
 import { ReviewedDot } from "@/components/molecules/reviewed-dot";
 import { Checkbox } from "@/components/ui/checkbox";

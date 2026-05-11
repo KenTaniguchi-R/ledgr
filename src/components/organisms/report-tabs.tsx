@@ -9,7 +9,7 @@ import { ReportNetWorth } from "./report-net-worth";
 import { ReportCashFlow } from "./report-cash-flow";
 import type { SpendingRow, IncomeExpenseRow, CategoryTrendRow, IncomeExpenseCategoryRow, SafeToSpendResult } from "@/queries/reports";
 import type { NetWorthPoint } from "@/queries/dashboard";
-import type { SankeyNode, SankeyLink } from "@/components/molecules/sankey-chart";
+import type { SankeyNode, SankeyLink } from "@/components/organisms/sankey-chart";
 
 interface ReportTabsProps {
   activeTab: string;

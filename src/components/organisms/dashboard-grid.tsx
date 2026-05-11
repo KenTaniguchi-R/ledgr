@@ -72,9 +72,6 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
   function renderWidget(id: string) {
     const config = DASHBOARD_WIDGETS.find((w) => w.id === id);
     if (!config) return null;
-    if (config.isPlaceholder) {
-      return <WidgetPlaceholder title={config.title} description={config.placeholderText ?? ""} />;
-    }
 
     switch (id) {
       case "net-worth":

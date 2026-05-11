@@ -12,7 +12,7 @@ import {
   type ReportFilters,
 } from "@/queries/reports";
 import { rangeToDateBounds, shiftDateRange, comparisonLabel, getCurrentMonth } from "@/lib/date-utils";
-import { ReportFilterBar } from "@/components/molecules/report-filter-bar";
+import { ReportFilterBar } from "@/components/organisms/report-filter-bar";
 import { ReportTabs } from "@/components/organisms/report-tabs";
 import { SavedReportPicker } from "@/components/organisms/saved-report-picker";
 import { getSavedReportsByHousehold } from "@/queries/saved-reports";

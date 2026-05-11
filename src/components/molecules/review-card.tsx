@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { EntityAvatar } from "@/components/atoms/entity-avatar";
+import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { CategoryPill } from "@/components/molecules/category-pill";
 import { EditableText } from "@/components/molecules/editable-text";

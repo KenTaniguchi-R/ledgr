@@ -2,6 +2,7 @@ import { eq, and, sql, desc, gte, lte, isNull, inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { investmentHoldings, holdingsHistory, investmentTransactions, accounts } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
+import { encodeCursor, decodeCursor } from "@/lib/query-helpers";
 import { todayDateString } from "@/lib/date-utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -64,20 +65,6 @@ export interface InvestmentFilters {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function encodeCursor(date: string, id: string): string {
-  return Buffer.from(JSON.stringify({ date, id })).toString("base64");
-}
-
-function decodeCursor(cursor: string): { date: string; id: string } | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64").toString());
-    if (typeof parsed.date === "string" && typeof parsed.id === "string") return parsed;
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 export async function getInvestmentAccountIds(householdId: string, db: LedgrDb = defaultDb): Promise<string[]> {
   const scoped = scopedQuery(householdId, db);

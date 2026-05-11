@@ -2,7 +2,7 @@ import { eq, like, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL } from
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits, type CategorySource } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, encodeCursor, decodeCursor } from "@/lib/query-helpers";
 
 export interface TransactionFilters {
   dateFrom?: string;
@@ -89,22 +89,6 @@ export function baseTransactionQuery(db: LedgrDb, householdId: string) {
       .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id));
   }
   return { scoped, select, from, joins };
-}
-
-function encodeCursor(date: string, id: string): string {
-  return Buffer.from(JSON.stringify({ date, id })).toString("base64");
-}
-
-function decodeCursor(cursor: string): { date: string; id: string } | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64").toString());
-    if (typeof parsed.date === "string" && typeof parsed.id === "string") {
-      return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 function buildTransactionConditions(filters: TransactionFilters): (SQL | undefined)[] {

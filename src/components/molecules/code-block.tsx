@@ -1,4 +1,4 @@
-import { CopyButton } from "@/components/atoms/copy-button";
+import { CopyButton } from "@/components/molecules/copy-button";
 
 interface CodeBlockProps {
   label: string;

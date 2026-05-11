@@ -7,8 +7,8 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
-import { getHouseholdId, getSession } from "@/lib/auth/session";
-import { guardDemoMode } from "@/lib/demo-mode";
+import { authorizeAction } from "@/lib/auth/authorize-action";
+import { getHouseholdId } from "@/lib/auth/session";
 import { getTransactions, type TransactionFilters, type TransactionPage } from "@/queries/transactions";
 
 const categoryIdSchema = z.string().min(1).nullable();
@@ -40,10 +40,9 @@ export async function updateTransactionCategory(
   categoryId: string | null,
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const parsedTxnId = transactionIdSchema.safeParse(transactionId);
   const parsedCatId = categoryIdSchema.safeParse(categoryId);
@@ -76,10 +75,9 @@ export async function toggleReviewed(
   transactionId: string,
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true; reviewed: boolean } | { error: string }> {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const parsedId = transactionIdSchema.safeParse(transactionId);
   if (!parsedId.success) {
@@ -116,10 +114,9 @@ export async function bulkUpdateCategory(
     return { error: "Invalid input: provide 1-500 transaction IDs" };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
   const scoped = scopedQuery(householdId, db);
 
   const owned = await db
@@ -158,10 +155,9 @@ export async function bulkMarkReviewed(
     return { error: "Invalid input: provide 1-500 transaction IDs" };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
   const scoped = scopedQuery(householdId, db);
 
   const owned = await db

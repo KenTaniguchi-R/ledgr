@@ -261,20 +261,6 @@ CREATE TABLE "recurring_transactions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "goals" (
-	"id" text PRIMARY KEY NOT NULL,
-	"household_id" text NOT NULL,
-	"name" text NOT NULL,
-	"target_amount" integer NOT NULL,
-	"target_date" text,
-	"linked_account_id" text,
-	"icon" text,
-	"color" text,
-	"is_completed" boolean DEFAULT false,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "holdings_history" (
 	"id" text PRIMARY KEY NOT NULL,
 	"account_id" text NOT NULL,
@@ -317,28 +303,6 @@ CREATE TABLE "investment_transactions" (
 	"fees" integer DEFAULT 0,
 	"date" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "notification_preferences" (
-	"id" text PRIMARY KEY NOT NULL,
-	"user_id" text NOT NULL,
-	"bill_reminders" boolean DEFAULT true,
-	"over_budget" boolean DEFAULT true,
-	"large_transactions" boolean DEFAULT true,
-	"large_txn_threshold" integer DEFAULT 50000,
-	"weekly_summary" boolean DEFAULT false,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "saved_filters" (
-	"id" text PRIMARY KEY NOT NULL,
-	"user_id" text NOT NULL,
-	"name" text NOT NULL,
-	"filter_config" text NOT NULL,
-	"is_pinned" boolean DEFAULT false,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "saved_reports" (
@@ -421,8 +385,6 @@ ALTER TABLE "recurring_transactions" ADD CONSTRAINT "recurring_transactions_hous
 ALTER TABLE "recurring_transactions" ADD CONSTRAINT "recurring_transactions_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "recurring_transactions" ADD CONSTRAINT "recurring_transactions_merchant_id_merchants_id_fk" FOREIGN KEY ("merchant_id") REFERENCES "public"."merchants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "recurring_transactions" ADD CONSTRAINT "recurring_transactions_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_household_id_households_id_fk" FOREIGN KEY ("household_id") REFERENCES "public"."households"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_linked_account_id_accounts_id_fk" FOREIGN KEY ("linked_account_id") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "holdings_history" ADD CONSTRAINT "holdings_history_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "investment_holdings" ADD CONSTRAINT "investment_holdings_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "investment_transactions" ADD CONSTRAINT "investment_transactions_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -465,7 +427,6 @@ CREATE UNIQUE INDEX "uq_budget_household_month" ON "budgets" USING btree ("house
 CREATE INDEX "idx_recurring_household" ON "recurring_transactions" USING btree ("household_id");--> statement-breakpoint
 CREATE INDEX "idx_recurring_next" ON "recurring_transactions" USING btree ("next_date");--> statement-breakpoint
 CREATE UNIQUE INDEX "idx_recurring_plaid_stream_id" ON "recurring_transactions" USING btree ("plaid_stream_id");--> statement-breakpoint
-CREATE INDEX "idx_goals_household" ON "goals" USING btree ("household_id");--> statement-breakpoint
 CREATE INDEX "idx_holdingshistory_account_date" ON "holdings_history" USING btree ("account_id","date");--> statement-breakpoint
 CREATE INDEX "idx_holdingshistory_security" ON "holdings_history" USING btree ("plaid_security_id","date");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_holdingshistory_account_security_date" ON "holdings_history" USING btree ("account_id","plaid_security_id","date");--> statement-breakpoint
@@ -474,6 +435,5 @@ CREATE INDEX "idx_holdings_date" ON "investment_holdings" USING btree ("account_
 CREATE INDEX "idx_holdings_security" ON "investment_holdings" USING btree ("plaid_security_id");--> statement-breakpoint
 CREATE INDEX "idx_invtxn_account_date" ON "investment_transactions" USING btree ("account_id","date");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_invtxn_plaid_id" ON "investment_transactions" USING btree ("plaid_investment_transaction_id");--> statement-breakpoint
-CREATE INDEX "idx_savedfilters_user" ON "saved_filters" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "idx_saved_reports_household" ON "saved_reports" USING btree ("household_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_consent_user_client" ON "oauth_consents" USING btree ("user_id","client_id");

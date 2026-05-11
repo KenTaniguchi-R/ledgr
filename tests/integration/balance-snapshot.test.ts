@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createTestDb } from "./setup";
 import { insertHousehold, insertAccount } from "./helpers";
-import { snapshotBalances } from "@/lib/jobs/scheduler";
+import { snapshotBalances } from "@/lib/jobs/snapshot-balances";
 import { balanceHistory } from "@/db/schema";
 import type { LedgrDb } from "@/db";
 

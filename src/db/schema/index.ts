@@ -7,8 +7,6 @@ export * from "./merchants";
 export * from "./transactions";
 export * from "./budgets";
 export * from "./recurring";
-export * from "./goals";
 export * from "./investments";
-export * from "./notifications";
 export * from "./reports";
 export * from "./oauth";

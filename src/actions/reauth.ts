@@ -6,8 +6,7 @@ import { CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
 import { extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { decrypt } from "@/lib/encryption";
-import { getHouseholdId, getSession } from "@/lib/auth/session";
-import { guardDemoMode } from "@/lib/demo-mode";
+import { authorizeAction } from "@/lib/auth/authorize-action";
 import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems } from "@/db/schema";
@@ -50,12 +49,10 @@ export async function createUpdateLinkTokenDirect(
 }
 
 export async function createUpdateLinkToken(plaidItemId: string) {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
 
-  return createUpdateLinkTokenDirect(plaidItemId, householdId);
+  return createUpdateLinkTokenDirect(plaidItemId, auth.householdId);
 }
 
 export async function completeReAuthDirect(
@@ -100,12 +97,10 @@ export async function completeReAuthDirect(
 }
 
 export async function completeReAuth(plaidItemId: string) {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
 
-  const result = await completeReAuthDirect(plaidItemId, householdId);
+  const result = await completeReAuthDirect(plaidItemId, auth.householdId);
   if ("success" in result && result.success) {
     revalidatePath("/accounts");
   }

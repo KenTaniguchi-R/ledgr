@@ -1,6 +1,6 @@
 {
-  "id": "92cadc66-80ec-48d5-b414-7f27f759f3dc",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "4a2ec92e-9853-43e8-bf3f-7289e1f7a5e6",
+  "prevId": "92cadc66-80ec-48d5-b414-7f27f759f3dc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1043,6 +1043,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_accounts_resurrection": {
+          "name": "idx_accounts_resurrection",
+          "columns": [
+            {
+              "expression": "plaid_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "household_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "deleted_at IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

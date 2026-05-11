@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useActionTransition } from "@/hooks/use-action-transition";
 import { Button } from "@/components/ui/button";
 import { bulkUpdateCategory, bulkMarkReviewed } from "@/actions/transactions";
 import type { CategoryGroup } from "@/queries/categories";
@@ -19,19 +19,19 @@ interface BulkActionBarProps {
 }
 
 export function BulkActionBar({ selectedIds, categories, onComplete }: BulkActionBarProps) {
-  const [isPending, startTransition] = useTransition();
+  const { isPending, execute } = useActionTransition();
 
   function handleCategorize(categoryId: string | null) {
     if (!categoryId) return;
     const resolvedId = categoryId === "uncategorized" ? null : categoryId;
-    startTransition(async () => {
+    execute(async () => {
       await bulkUpdateCategory(selectedIds, resolvedId);
       onComplete();
     });
   }
 
   function handleMarkReviewed() {
-    startTransition(async () => {
+    execute(async () => {
       await bulkMarkReviewed(selectedIds, true);
       onComplete();
     });

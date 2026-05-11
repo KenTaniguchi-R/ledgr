@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useActionTransition } from "@/hooks/use-action-transition";
 import { updateTransactionCategory } from "@/actions/transactions";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,7 +32,7 @@ export function CategoryPill({
 }: CategoryPillProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [categoryName, setCategoryName] = useState(currentCategoryName);
-  const [isPending, startTransition] = useTransition();
+  const { isPending, execute } = useActionTransition();
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -55,11 +56,12 @@ export function CategoryPill({
       return;
     }
 
-    startTransition(async () => {
+    execute(async () => {
       const result = await updateTransactionCategory(transactionId, categoryId);
       if ("error" in result) {
         setCategoryName(prevName);
       }
+      return result;
     });
   }
 

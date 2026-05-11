@@ -5,11 +5,12 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { getSession } from "@/lib/auth/session";
+import { authorizeAction } from "@/lib/auth/authorize-action";
 import { decrypt, encrypt } from "@/lib/encryption";
 import { getUserAiSettings } from "@/queries/settings";
 import { createUserModel, type AiProvider } from "@/lib/ai/provider";
 import { generateText, stepCountIs } from "ai";
-import { db, db as defaultDb, type LedgrDb } from "@/db";
+import { db, type LedgrDb } from "@/db";
 import { userSettings } from "@/db/schema";
 import type { DashboardLayout } from "@/components/organisms/widgets/registry";
 
@@ -42,9 +43,9 @@ export interface UpsertAiInput {
 export async function upsertAiSettings(
   userId: string,
   input: UpsertAiInput,
-  db: LedgrDb = defaultDb,
+  txDb: LedgrDb = db,
 ): Promise<void> {
-  const [existing] = await db
+  const [existing] = await txDb
     .select({ id: userSettings.id })
     .from(userSettings)
     .where(eq(userSettings.userId, userId))
@@ -65,11 +66,11 @@ export async function upsertAiSettings(
     if (input.toolCallingSupported !== undefined)
       updates.toolCallingSupported = input.toolCallingSupported;
 
-    await db.update(userSettings)
+    await txDb.update(userSettings)
       .set(updates)
       .where(eq(userSettings.id, existing.id));
   } else {
-    await db.insert(userSettings).values({
+    await txDb.insert(userSettings).values({
       id: uuid(),
       userId,
       aiProvider: input.aiProvider as "openai" | "anthropic" | "google" | "custom",
@@ -89,9 +90,9 @@ export async function upsertAiSettings(
 export async function upsertMcpEnabled(
   userId: string,
   mcpEnabled: boolean,
-  db: LedgrDb = defaultDb,
+  txDb: LedgrDb = db,
 ): Promise<void> {
-  const [existing] = await db
+  const [existing] = await txDb
     .select({ id: userSettings.id })
     .from(userSettings)
     .where(eq(userSettings.userId, userId))
@@ -100,11 +101,11 @@ export async function upsertMcpEnabled(
   const now = new Date();
 
   if (existing) {
-    await db.update(userSettings)
+    await txDb.update(userSettings)
       .set({ mcpEnabled, updatedAt: now })
       .where(eq(userSettings.id, existing.id));
   } else {
-    await db.insert(userSettings).values({
+    await txDb.insert(userSettings).values({
       id: uuid(),
       userId,
       mcpEnabled,
@@ -117,21 +118,21 @@ export async function upsertMcpEnabled(
 export async function saveLayoutForUser(
   userId: string,
   layout: DashboardLayout,
-  db: LedgrDb = defaultDb,
+  txDb: LedgrDb = db,
 ): Promise<void> {
   const layoutJson = JSON.stringify(layout);
-  const [existing] = await db
+  const [existing] = await txDb
     .select({ id: userSettings.id })
     .from(userSettings)
     .where(eq(userSettings.userId, userId))
     .limit(1);
 
   if (existing) {
-    await db.update(userSettings)
+    await txDb.update(userSettings)
       .set({ dashboardLayout: layoutJson })
       .where(eq(userSettings.userId, userId));
   } else {
-    await db.insert(userSettings)
+    await txDb.insert(userSettings)
       .values({ id: uuid(), userId, dashboardLayout: layoutJson });
   }
 }
@@ -139,15 +140,15 @@ export async function saveLayoutForUser(
 export async function updateAiSettings(
   input: z.infer<typeof updateAiSettingsSchema>,
 ): Promise<{ success: true } | { error: string }> {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated" };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
 
   const parsed = updateAiSettingsSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const { aiProvider, aiModel, aiApiKey, aiBaseUrl, aiConfidenceThreshold } = parsed.data;
 
-  await upsertAiSettings(session.user.id, {
+  await upsertAiSettings(auth.userId, {
     aiProvider,
     aiModel,
     aiApiKey: aiApiKey ? encrypt(aiApiKey) : undefined,
@@ -162,8 +163,8 @@ export async function updateAiSettings(
 export async function testAiConnection(
   input: z.infer<typeof testAiConnectionSchema>,
 ): Promise<{ success: true; response: string; toolCallingSupported: boolean } | { error: string }> {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated" };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
 
   const parsed = testAiConnectionSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -172,7 +173,7 @@ export async function testAiConnection(
 
   let apiKey = parsed.data.aiApiKey;
   if (!apiKey) {
-    const stored = await getUserAiSettings(session.user.id);
+    const stored = await getUserAiSettings(auth.userId);
     if (!stored?.rawEncryptedKey) return { error: "No API key configured" };
     apiKey = decrypt(stored.rawEncryptedKey);
   }
@@ -210,7 +211,7 @@ export async function testAiConnection(
       toolCallingSupported = false;
     }
 
-    await upsertAiSettings(session.user.id, {
+    await upsertAiSettings(auth.userId, {
       aiProvider,
       aiModel,
       toolCallingSupported,

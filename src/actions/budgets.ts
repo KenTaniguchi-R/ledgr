@@ -7,8 +7,7 @@ import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { budgets, budgetCategories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { getHouseholdId, getSession } from "@/lib/auth/session";
-import { guardDemoMode } from "@/lib/demo-mode";
+import { authorizeAction } from "@/lib/auth/authorize-action";
 
 const monthSchema = z.string().regex(/^\d{4}-\d{2}$/);
 const budgetTypeSchema = z.enum(["category", "flex"]);
@@ -36,10 +35,9 @@ export async function createBudget(
     return { error: "Invalid month format. Use YYYY-MM." };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const scoped = scopedQuery(householdId, db);
 
@@ -82,10 +80,9 @@ export async function setBudgetCategory(
     return { error: "Invalid input" };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
@@ -127,10 +124,9 @@ export async function removeBudgetCategory(
   categoryId: string,
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
@@ -160,10 +156,9 @@ export async function copyBudgetFromMonth(
     return { error: "Invalid month format. Use YYYY-MM." };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const scoped = scopedQuery(householdId, db);
 
@@ -227,10 +222,9 @@ export async function updateBudgetType(
     return { error: "Invalid budget type" };
   }
 
-  const householdId = await getHouseholdId();
-  const session = await getSession();
-  const blocked = await guardDemoMode(session!.user.id);
-  if (blocked) return blocked as { error: string };
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  const { householdId } = auth;
 
   const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {

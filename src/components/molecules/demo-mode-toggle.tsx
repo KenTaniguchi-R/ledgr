@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useActionTransition } from "@/hooks/use-action-transition";
 import { toggleDemoMode } from "@/actions/settings";
 import {
   Card,
@@ -18,12 +19,13 @@ interface DemoModeToggleProps {
 
 export function DemoModeToggle({ initialEnabled }: DemoModeToggleProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
-  const [isPending, startTransition] = useTransition();
+  const { isPending, execute } = useActionTransition();
 
   function handleToggle(checked: boolean) {
-    startTransition(async () => {
+    execute(async () => {
       const result = await toggleDemoMode();
       if ("success" in result) setEnabled(checked);
+      return result;
     });
   }
 
