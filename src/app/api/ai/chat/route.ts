@@ -1,9 +1,7 @@
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
-import { getUserAiSettings } from "@/queries/settings";
-import { createUserModel, type AiProvider } from "@/lib/ai/provider";
-import { decrypt } from "@/lib/encryption";
+import { getAiConfig, createAiModel } from "@/lib/ai/config";
 import { financialTools } from "@/lib/ai/chat/tools";
 import { buildSystemPrompt } from "@/lib/ai/chat/system-prompt";
 
@@ -15,11 +13,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const settings = await getUserAiSettings(session.user.id);
+  const config = getAiConfig();
+  const model = createAiModel();
 
-  if (!settings?.aiProvider || !settings?.aiModel || !settings.hasKey) {
+  if (!config || !model) {
     return Response.json(
-      { error: "AI not configured. Go to Settings to add your API key." },
+      { error: "AI not configured. Set AI_PROVIDER and AI_MODEL in your .env file." },
       { status: 400 },
     );
   }
@@ -29,20 +28,9 @@ export async function POST(request: Request) {
     return Response.json(blocked, { status: 403 });
   }
 
-  const model = createUserModel({
-    aiProvider: settings.aiProvider as AiProvider,
-    aiModel: settings.aiModel,
-    aiApiKey: decrypt(settings.rawEncryptedKey!),
-    aiBaseUrl: settings.aiBaseUrl ?? undefined,
-    confidenceThreshold: 0.7,
-    toolCalling: settings.toolCallingSupported !== false,
-  });
-
   const { messages }: { messages: UIMessage[] } = await request.json();
   const householdId = await getHouseholdId();
-
-  const useTools = settings.toolCallingSupported !== false;
-  const tools = useTools ? financialTools(householdId) : undefined;
+  const tools = config.toolCalling ? financialTools(householdId) : undefined;
 
   const result = streamText({
     model,
