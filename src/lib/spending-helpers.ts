@@ -7,7 +7,8 @@ import {
   categoryGroups,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, notIncome } from "@/lib/query-helpers";
+import { notDeleted } from "@/lib/query-helpers";
+import { notIncome } from "@/queries/shared-conditions";
 import type { ReportFilters } from "@/queries/reports";
 
 export interface SpendingChartItem {

@@ -7,7 +7,8 @@ import {
   transactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, getIncomeCategoryIds } from "@/lib/query-helpers";
+import { notDeleted } from "@/lib/query-helpers";
+import { getIncomeCategoryIds } from "@/queries/shared-conditions";
 import { aggregateSpending, enrichSpendingMap } from "@/lib/spending-helpers";
 import type { ReportFilters } from "@/queries/reports";
 import { classifyAccountType } from "@/lib/account-utils";

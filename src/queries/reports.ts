@@ -9,7 +9,8 @@ import {
   recurringTransactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, getIncomeCategoryIds, notIncome } from "@/lib/query-helpers";
+import { notDeleted } from "@/lib/query-helpers";
+import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import {
   spendingBaseConditions,
