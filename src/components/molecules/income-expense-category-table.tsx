@@ -3,6 +3,7 @@
 import { centsToDisplay } from "@/lib/money";
 import type { IncomeExpenseCategoryRow } from "@/queries/reports";
 import { ChevronRight } from "lucide-react";
+import { ScrollFade } from "@/components/atoms/scroll-fade";
 
 interface IncomeExpenseCategoryTableProps {
   data: IncomeExpenseCategoryRow[];
@@ -14,15 +15,13 @@ export function IncomeExpenseCategoryTable({ data, onCategoryClick }: IncomeExpe
   const expenseRows = data.filter((r) => !r.isIncome);
 
   return (
-    <div className="overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
-      <div className="min-w-[500px]">
+    <ScrollFade minWidth="500px">
         <div className="border rounded-lg">
           <Section label="Income Sources" rows={incomeRows} onCategoryClick={onCategoryClick} />
           <div className="border-t" />
           <Section label="Expense Categories" rows={expenseRows} onCategoryClick={onCategoryClick} />
         </div>
-      </div>
-    </div>
+    </ScrollFade>
   );
 }
 

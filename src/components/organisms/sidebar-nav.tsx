@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -48,6 +49,7 @@ export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { setOpenMobile } = useSidebar();
+  const closeMobile = useCallback(() => setOpenMobile(false), [setOpenMobile]);
 
   async function handleSignOut() {
     await authClient.signOut();
@@ -76,7 +78,7 @@ export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
                     render={
                       <Link
                         href={item.href}
-                        onClick={() => setOpenMobile(false)}
+                        onClick={closeMobile}
                       />
                     }
                     isActive={isActive}

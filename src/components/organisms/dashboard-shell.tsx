@@ -6,12 +6,13 @@ import { SidebarNav } from "@/components/organisms/sidebar-nav";
 interface DashboardShellProps {
   userName: string;
   userEmail: string;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }
 
-export function DashboardShell({ userName, userEmail, children }: DashboardShellProps) {
+export function DashboardShell({ userName, userEmail, defaultOpen = true, children }: DashboardShellProps) {
   return (
-    <SidebarProvider defaultOpen>
+    <SidebarProvider defaultOpen={defaultOpen}>
       <SidebarNav userName={userName} userEmail={userEmail} />
       <SidebarInset>
         <header className="flex h-12 items-center gap-2 border-b px-4 pt-[env(safe-area-inset-top)] bg-background/95 backdrop-blur-sm md:hidden">

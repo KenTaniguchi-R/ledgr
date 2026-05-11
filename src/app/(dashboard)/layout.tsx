@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getUserAiSettings } from "@/queries/settings";
@@ -17,14 +18,19 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const aiSettings = await getUserAiSettings(session.user.id);
+  const [aiSettings, cookieStore] = await Promise.all([
+    getUserAiSettings(session.user.id),
+    cookies(),
+  ]);
   const hasAiConfigured = !!(aiSettings?.hasKey && aiSettings?.aiProvider);
+  const sidebarDefaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
     <>
       <DashboardShell
         userName={session.user?.name ?? "User"}
         userEmail={session.user?.email ?? ""}
+        defaultOpen={sidebarDefaultOpen}
       >
         {children}
       </DashboardShell>

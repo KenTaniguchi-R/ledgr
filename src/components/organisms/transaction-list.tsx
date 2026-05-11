@@ -128,7 +128,7 @@ export function TransactionList({
           />
         )}
 
-        <div className={`grid ${TRANSACTION_GRID_COLS} items-center h-8 px-2 border-b text-xs font-medium text-muted-foreground`}>
+        <div className={cn("grid items-center h-8 px-2 border-b text-xs font-medium text-muted-foreground", TRANSACTION_GRID_COLS)}>
           <div />
           <div className="hidden sm:flex items-center justify-center">
             <Checkbox

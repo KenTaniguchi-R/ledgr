@@ -8,6 +8,7 @@ import { HoldingRow } from "@/components/molecules/holding-row";
 import { InvestmentTypeBadge } from "@/components/atoms/investment-type-badge";
 import { ComparisonBadge } from "@/components/molecules/comparison-badge";
 import { centsToDisplay } from "@/lib/money";
+import { ScrollFade } from "@/components/atoms/scroll-fade";
 import type { InvestmentHoldingRow } from "@/queries/investments";
 
 interface HoldingsTableProps {
@@ -60,8 +61,7 @@ export function HoldingsTable({ holdings, view }: HoldingsTableProps) {
           ))}
         </div>
       </div>
-      <div className="overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
-        <div className="min-w-[700px]">
+      <ScrollFade minWidth="700px">
           <div className="border rounded-lg overflow-hidden">
             <div className="grid grid-cols-[minmax(80px,1fr)_2fr_80px_80px_100px_100px_100px_90px] gap-2 items-center h-8 px-3 text-xs font-medium text-muted-foreground bg-muted/30 border-b">
               <span>Ticker</span><span>Name</span><span>Type</span><span className="text-right">Shares</span>
@@ -74,8 +74,7 @@ export function HoldingsTable({ holdings, view }: HoldingsTableProps) {
               <div className="flex items-center justify-center h-20 text-sm text-muted-foreground">No holdings found.</div>
             )}
           </div>
-        </div>
-      </div>
+      </ScrollFade>
       <Sheet open={!!selectedHolding} onOpenChange={() => setSelectedHolding(null)}>
         <SheetContent>
           <SheetHeader><SheetTitle>{selectedHolding?.securityName}</SheetTitle></SheetHeader>

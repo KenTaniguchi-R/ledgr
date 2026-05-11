@@ -59,7 +59,8 @@ export const TransactionRow = memo(function TransactionRow({
       onClick={onClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        `group/row grid ${TRANSACTION_GRID_COLS} items-center h-11 sm:h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer`,
+        "group/row grid items-center h-11 sm:h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer",
+        TRANSACTION_GRID_COLS,
         txn.pending && "opacity-60",
         isActive && "bg-muted",
       )}
