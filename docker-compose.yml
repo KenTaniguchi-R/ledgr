@@ -27,14 +27,14 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-4200}:3000"
     env_file:
       - path: .env
         required: false
     environment:
       DATABASE_URL: postgresql://ledgr:${POSTGRES_PASSWORD:-ledgr}@db:5432/ledgr
-      BETTER_AUTH_URL: http://localhost:${PORT:-3000}
-      NEXT_PUBLIC_APP_URL: http://localhost:${PORT:-3000}
+      BETTER_AUTH_URL: http://localhost:${PORT:-4200}
+      NEXT_PUBLIC_APP_URL: http://localhost:${PORT:-4200}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)throw 1}).catch(()=>process.exit(1))"]

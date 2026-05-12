@@ -56,7 +56,7 @@ cd ledgr
 docker compose up -d
 ```
 
-Visit `http://localhost:3000`, create an account, and start exploring.
+Visit `http://localhost:4200`, create an account, and start exploring.
 
 > Secrets (`ENCRYPTION_KEY`, `AUTH_SECRET`) are auto-generated on first run if left blank. Add your Plaid keys to `.env` to enable bank sync — see [Connect Your Bank](#connect-your-bank) below.
 
@@ -89,14 +89,7 @@ Install the Ledgr plugin for [Claude Code](https://docs.anthropic.com/en/docs/cl
 /plugin install ledgr@ledgr
 ```
 
-This installs the MCP server (with OAuth2 authentication) and finance skills like budget checks, savings analysis, and monthly reviews — all in one step.
-
-Set the `LEDGR_URL` environment variable to point to your Ledgr instance:
-
-```bash
-# In your Claude Code settings or shell profile
-export LEDGR_URL=http://localhost:3000
-```
+This installs the MCP server (with OAuth2 authentication) and finance skills like budget checks, savings analysis, and monthly reviews — all in one step. No extra configuration needed.
 
 <details>
 <summary>Other MCP clients (Claude Desktop, VS Code, Cursor, etc.)</summary>
@@ -104,7 +97,7 @@ export LEDGR_URL=http://localhost:3000
 Point any MCP-compatible client to your Ledgr instance using streamable HTTP transport:
 
 ```
-http://localhost:3000/api/mcp
+http://localhost:4200/api/mcp
 ```
 
 On first connection, Ledgr redirects you through an OAuth flow to authorize access.
@@ -158,7 +151,7 @@ Migrations run automatically on container startup.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3000` | Host port for the app |
+| `PORT` | `4200` | Host port for the app |
 | `POSTGRES_PASSWORD` | `ledgr` | Database password (change in production) |
 | `PLAID_CLIENT_ID` | -- | Plaid client ID |
 | `PLAID_SECRET` | -- | Plaid secret key |
