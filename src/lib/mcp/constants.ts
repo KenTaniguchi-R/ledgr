@@ -1,3 +1,7 @@
+export function getLedgrUrl(): string {
+  return process.env.LEDGR_URL ?? "http://localhost:4200";
+}
+
 export const MCP_SCOPES = ["ledgr:read", "ledgr:write", "ledgr:sync"] as const;
 export const DEFAULT_SCOPE = "ledgr:read ledgr:write ledgr:sync";
 

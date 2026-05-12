@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { randomBytes } from "crypto";
+import { getLedgrUrl } from "@/lib/mcp/constants";
 
 function getSigningKey(): Uint8Array {
   const key = process.env.ENCRYPTION_KEY;
@@ -24,7 +25,7 @@ const ISSUER = "ledgr";
 
 export async function signAccessToken(payload: TokenPayload): Promise<string> {
   const expiresIn = payload.expiresInSeconds ?? 3600;
-  const ledgrUrl = process.env.LEDGR_URL ?? "http://localhost:3000";
+  const ledgrUrl = getLedgrUrl();
 
   return new SignJWT({
     household_id: payload.householdId,
@@ -40,7 +41,7 @@ export async function signAccessToken(payload: TokenPayload): Promise<string> {
 }
 
 export async function verifyAccessToken(token: string): Promise<AccessTokenClaims> {
-  const ledgrUrl = process.env.LEDGR_URL ?? "http://localhost:3000";
+  const ledgrUrl = getLedgrUrl();
 
   const { payload } = await jwtVerify(token, getSigningKey(), {
     issuer: ISSUER,

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { MCP_SCOPES } from "@/lib/mcp/constants";
+import { MCP_SCOPES, getLedgrUrl } from "@/lib/mcp/constants";
 
 export function GET() {
-  const ledgrUrl = process.env.LEDGR_URL ?? "http://localhost:3000";
+  const ledgrUrl = getLedgrUrl();
 
   return NextResponse.json({
     issuer: "ledgr",
