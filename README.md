@@ -85,7 +85,7 @@ Visit `http://localhost:4200`, create an account, and start exploring.
 3. Restart: `docker compose restart`
 4. In the app, go to **Accounts > Link Bank** to connect via Plaid
 
-> Don't have Plaid keys yet? The app still works — import transactions via CSV and add Plaid later.
+> Plaid's free trial plan includes 10 production connections and unlimited sandbox access. After that, the Launch plan is pay-as-you-go with no contract. Don't have Plaid keys yet? The app still works — import transactions via CSV and add Plaid later.
 
 <div align="center">
 <img src="docs/images/plaid-link.jpeg" alt="Plaid Link bank connection" width="800" />
