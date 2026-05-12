@@ -93,21 +93,43 @@ Visit `http://localhost:4200`, create an account, and start exploring.
 <em>Connect any of 12,000+ banks through Plaid</em>
 </div>
 
-## Connect to Claude
+## Connect Your AI Agent
 
-Install the Ledgr plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code):
+Ledgr ships with a built-in [MCP](https://modelcontextprotocol.io) server and plugin support. Pick your tool:
 
+**Claude Code**
 ```bash
 /plugin marketplace add KenTaniguchi-R/ledgr
 /plugin install ledgr@ledgr
 ```
 
-This installs the MCP server (with OAuth2 authentication) and finance skills like budget checks, savings analysis, and monthly reviews — all in one step. No extra configuration needed.
+**Codex CLI**
+```bash
+codex plugin marketplace add KenTaniguchi-R/ledgr
+```
+
+**OpenCode** — add to `opencode.json`:
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["ledgr"]
+}
+```
+
+**OpenClaw**
+```bash
+openclaw plugins install ledgr --marketplace KenTaniguchi-R/ledgr
+```
+
+**Hermes**
+```bash
+hermes plugins install KenTaniguchi-R/ledgr
+```
 
 <details>
-<summary>Other MCP clients (Claude Desktop, VS Code, Cursor, etc.)</summary>
+<summary>Other MCP clients (Cursor, Windsurf, Cline, etc.)</summary>
 
-Point any MCP-compatible client to your Ledgr instance using streamable HTTP transport:
+Point any MCP-compatible client to your Ledgr instance:
 
 ```
 http://localhost:4200/api/mcp
