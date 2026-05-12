@@ -1,8 +1,18 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ledgr",
+  "description": "Connect AI assistants to your Ledgr personal finance data",
+  "owner": {
+    "name": "KenTaniguchi-R",
+    "url": "https://github.com/KenTaniguchi-R"
+  },
   "plugins": [
     {
       "name": "ledgr",
-      "path": "ledgr-plugin"
+      "description": "Personal finance skills and MCP server for Ledgr",
+      "source": "./ledgr-plugin",
+      "category": "productivity",
+      "tags": ["finance", "plaid", "banking", "budgeting"]
     }
   ]
 }
