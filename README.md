@@ -80,58 +80,34 @@ Visit `http://localhost:3000`, create an account, and start exploring.
 <em>Connect any of 12,000+ banks through Plaid</em>
 </div>
 
-## Connect to Claude (MCP)
+## Connect to Claude
 
-Ledgr includes a built-in [MCP](https://modelcontextprotocol.io) server. Tell your AI agent:
+Install the Ledgr plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code):
 
-> Add Ledgr as an MCP server at http://localhost:3000/api/mcp/sse using SSE transport.
+```bash
+/plugin marketplace add KenTaniguchi-R/ledgr
+/plugin install ledgr@ledgr
+```
 
-This works in Claude Code, Cursor, Windsurf, and other MCP-capable agents. On first connection, Ledgr redirects you through an OAuth flow to authorize access.
+This installs the MCP server (with OAuth2 authentication) and finance skills like budget checks, savings analysis, and monthly reviews — all in one step.
+
+Set the `LEDGR_URL` environment variable to point to your Ledgr instance:
+
+```bash
+# In your Claude Code settings or shell profile
+export LEDGR_URL=http://localhost:3000
+```
 
 <details>
-<summary>Manual configuration (Claude Desktop, VS Code, etc.)</summary>
+<summary>Other MCP clients (Claude Desktop, VS Code, Cursor, etc.)</summary>
 
-#### Claude Desktop
-
-Add to your config file:
-
-| OS | Path |
-|----|------|
-| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
-| Linux | `~/.config/Claude/claude_desktop_config.json` |
-
-```json
-{
-  "mcpServers": {
-    "ledgr": {
-      "url": "http://localhost:3000/api/mcp/sse"
-    }
-  }
-}
-```
-
-#### VS Code
-
-Add to `.vscode/mcp.json` in your workspace, or open **Command Palette > MCP: Open User Configuration**:
-
-```json
-{
-  "servers": {
-    "ledgr": {
-      "url": "http://localhost:3000/api/mcp/sse"
-    }
-  }
-}
-```
-
-#### Other MCP Clients
-
-Ledgr uses SSE transport. Point any MCP-compatible client to:
+Point any MCP-compatible client to your Ledgr instance using streamable HTTP transport:
 
 ```
-http://localhost:3000/api/mcp/sse
+http://localhost:3000/api/mcp
 ```
+
+On first connection, Ledgr redirects you through an OAuth flow to authorize access.
 
 </details>
 
