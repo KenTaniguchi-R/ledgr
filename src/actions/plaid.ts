@@ -14,6 +14,8 @@ import { authorizeAction } from "@/lib/auth/authorize-action";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { plaidItems, accounts, balanceHistory, institutionLogos } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
+import { syncInstitution } from "@/lib/plaid/sync";
+import { syncInvestments } from "@/lib/plaid/investments";
 
 export async function createLinkToken() {
   const auth = await authorizeAction();
@@ -23,7 +25,8 @@ export async function createLinkToken() {
     const response = await getPlaidClient().linkTokenCreate({
       user: { client_user_id: auth.userId },
       client_name: "Ledgr",
-      products: [Products.Transactions, Products.Investments],
+      products: [Products.Transactions],
+      optional_products: [Products.Investments],
       country_codes: [CountryCode.Us],
       language: "en",
       ...(process.env.PLAID_WEBHOOK_URL
@@ -45,8 +48,8 @@ export async function exchangeAndStoreAccounts(
   householdId: string,
   db: LedgrDb = defaultDb
 ): Promise<
-  | { success: true; accountCount: number; error?: never }
-  | { success: false; error: string; accountCount?: never }
+  | { success: true; accountCount: number; plaidItemId: string; error?: never }
+  | { success: false; error: string; accountCount?: never; plaidItemId?: never }
 > {
   const auth = await authorizeAction();
   if ("error" in auth) return { success: false, error: auth.error };
@@ -186,7 +189,7 @@ export async function exchangeAndStoreAccounts(
       }
     });
 
-    return { success: true, accountCount: plaidAccounts.length };
+    return { success: true, accountCount: plaidAccounts.length, plaidItemId };
   } catch (e: unknown) {
     console.error("Exchange failed:", e);
     const errorCode = extractPlaidErrorCode(e);
@@ -206,7 +209,19 @@ export async function exchangeAndStoreAccounts(
 export async function exchangePublicToken(publicToken: string) {
   const householdId = await getHouseholdId();
   const result = await exchangeAndStoreAccounts(publicToken, householdId);
-  if (result.success) {
+  if (result.success && result.plaidItemId) {
+    const itemId = result.plaidItemId;
+    // Fire-and-forget: sync transactions and investments immediately after linking
+    syncInstitution(itemId, householdId, defaultDb)
+      .then(() => {
+        syncInvestments(itemId, householdId, defaultDb).catch(() => {});
+        revalidatePath("/");
+        revalidatePath("/transactions");
+        revalidatePath("/investments");
+      })
+      .catch((err) => {
+        console.error("[plaid] Auto-sync after link failed:", err);
+      });
     revalidatePath("/accounts");
   }
   return result;
