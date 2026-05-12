@@ -12,17 +12,23 @@ services:
         -c maintenance_work_mem=64MB
         -c random_page_cost=1.1
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     ports:
       - "${DB_PORT:-5433}:5432"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ledgr"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   app:
-    build: .
+    image: ghcr.io/kentaniguchi-r/ledgr:latest
     depends_on:
       db:
         condition: service_healthy
@@ -42,6 +48,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:

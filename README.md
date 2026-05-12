@@ -51,14 +51,27 @@ Claude: Based on your transactions, you spent $342.18 on dining out in April...
 Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
 
 ```bash
-git clone https://github.com/KenTaniguchi-R/ledgr.git
-cd ledgr
+mkdir ledgr && cd ledgr
+curl -O https://raw.githubusercontent.com/KenTaniguchi-R/ledgr/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/KenTaniguchi-R/ledgr/main/.env.example
+```
+
+Generate your encryption key and add it to `.env`:
+
+```bash
+openssl rand -hex 32
+# Paste the output as ENCRYPTION_KEY= in .env
+```
+
+Start the app:
+
+```bash
 docker compose up -d
 ```
 
 Visit `http://localhost:4200`, create an account, and start exploring.
 
-> Secrets (`ENCRYPTION_KEY`, `AUTH_SECRET`) are auto-generated on first run if left blank. Add your Plaid keys to `.env` to enable bank sync — see [Connect Your Bank](#connect-your-bank) below.
+> Add your Plaid keys to `.env` to enable bank sync — see [Connect Your Bank](#connect-your-bank) below. The app works without Plaid via CSV import.
 
 ## Connect Your Bank
 
@@ -149,15 +162,17 @@ Migrations run automatically on container startup.
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `4200` | Host port for the app |
-| `POSTGRES_PASSWORD` | `ledgr` | Database password (change in production) |
-| `PLAID_CLIENT_ID` | -- | Plaid client ID |
-| `PLAID_SECRET` | -- | Plaid secret key |
-| `PLAID_ENV` | `production` | `production` or `sandbox` |
-| `AI_PROVIDER` | -- | `openai`, `anthropic`, `google`, or `custom` |
-| `AI_API_KEY` | -- | Provider API key for AI categorization |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ENCRYPTION_KEY` | Yes | -- | Encrypts Plaid tokens & API keys. `openssl rand -hex 32` |
+| `BETTER_AUTH_SECRET` | Recommended | auto-generated | Session secret. `openssl rand -base64 32` |
+| `PORT` | No | `4200` | Host port for the app |
+| `POSTGRES_PASSWORD` | No | `ledgr` | Database password (change in production) |
+| `PLAID_CLIENT_ID` | No | -- | Plaid client ID |
+| `PLAID_SECRET` | No | -- | Plaid secret key |
+| `PLAID_ENV` | No | `production` | `production` or `sandbox` |
+| `AI_PROVIDER` | No | -- | `openai`, `anthropic`, `google`, or `custom` |
+| `AI_API_KEY` | No | -- | Provider API key for AI categorization |
 
 See [`.env.example`](.env.example) for all options.
 
@@ -177,8 +192,14 @@ See [`.env.example`](.env.example) for all options.
 git clone https://github.com/KenTaniguchi-R/ledgr.git
 cd ledgr
 pnpm install
-cp .env.example .env
+cp .env.example .env        # Fill in ENCRYPTION_KEY
 pnpm dev:setup              # Start DB + migrate + dev server
+```
+
+To run the full app in Docker from source (instead of pulling the pre-built image):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 ### Commands
