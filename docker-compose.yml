@@ -12,7 +12,7 @@ services:
         -c maintenance_work_mem=64MB
         -c random_page_cost=1.1
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     ports:
       - "${DB_PORT:-5433}:5432"
     restart: unless-stopped
