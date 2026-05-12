@@ -211,18 +211,16 @@ export async function exchangePublicToken(publicToken: string) {
   const result = await exchangeAndStoreAccounts(publicToken, householdId);
   if (result.success && result.plaidItemId) {
     const itemId = result.plaidItemId;
-    // Fire-and-forget: sync transactions and investments immediately after linking
-    syncInstitution(itemId, householdId, defaultDb)
-      .then(() => {
-        syncInvestments(itemId, householdId, defaultDb).catch(() => {});
-        revalidatePath("/");
-        revalidatePath("/transactions");
-        revalidatePath("/investments");
-      })
-      .catch((err) => {
-        console.error("[plaid] Auto-sync after link failed:", err);
-      });
+    try {
+      await syncInstitution(itemId, householdId, defaultDb);
+      syncInvestments(itemId, householdId, defaultDb).catch(() => {});
+    } catch (err) {
+      console.error("[plaid] Auto-sync after link failed:", err);
+    }
+    revalidatePath("/");
     revalidatePath("/accounts");
+    revalidatePath("/transactions");
+    revalidatePath("/investments");
   }
   return result;
 }
