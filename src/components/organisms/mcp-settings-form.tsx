@@ -11,15 +11,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Unplug } from "lucide-react";
 import { McpSetupInstructions } from "@/components/molecules/mcp-setup-instructions";
+import { ConnectedClientRow } from "@/components/molecules/connected-client-row";
 
 interface McpSettingsFormProps {
   mcpEnabled: boolean;
   connectedClients: ConnectedClient[];
+}
+
+function useMcpUrl() {
+  return typeof window !== "undefined"
+    ? `${window.location.origin}/api/mcp`
+    : "http://localhost:4200/api/mcp";
 }
 
 export function McpSettingsForm({
@@ -29,11 +34,7 @@ export function McpSettingsForm({
   const [enabled, setEnabled] = useState(initialEnabled);
   const [clients, setClients] = useState(initialClients);
   const [isPending, startTransition] = useTransition();
-
-  const mcpUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/api/mcp`
-      : "http://localhost:3000/api/mcp";
+  const mcpUrl = useMcpUrl();
 
   function handleToggle(checked: boolean) {
     startTransition(async () => {
@@ -86,41 +87,12 @@ export function McpSettingsForm({
           ) : (
             <ul className="space-y-2">
               {clients.map((client) => (
-                <li
+                <ConnectedClientRow
                   key={client.clientId}
-                  className="flex items-center justify-between rounded-lg border px-4 py-3"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {client.clientName ?? client.clientId}
-                    </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {client.scope.split(" ").map((scope) => (
-                        <Badge
-                          key={scope}
-                          variant="secondary"
-                          className="text-[10px] font-mono"
-                        >
-                          {scope}
-                        </Badge>
-                      ))}
-                      <span className="text-xs text-muted-foreground">
-                        Granted{" "}
-                        {new Date(client.grantedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRevoke(client.clientId)}
-                    disabled={isPending}
-                    className="ml-4 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
-                  >
-                    Revoke
-                  </Button>
-                </li>
+                  client={client}
+                  onRevoke={handleRevoke}
+                  disabled={isPending}
+                />
               ))}
             </ul>
           )}
