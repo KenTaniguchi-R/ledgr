@@ -59,7 +59,7 @@ describe("scheduler tasks (integration)", () => {
   describe("runDailySafetySync", () => {
     it("only invokes sync for items returned by listActivePlaidItems", async () => {
       const syncOne = vi
-        .fn<Parameters<typeof import("@/lib/plaid/sync").syncInstitution>, Promise<SyncResult>>()
+        .fn<typeof import("@/lib/plaid/sync").syncInstitution>()
         .mockResolvedValue({ success: true } as SyncResult);
 
       await runDailySafetySync({ db, syncOne });
