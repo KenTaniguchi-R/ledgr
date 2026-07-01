@@ -30,7 +30,7 @@ function activeVersion(): number {
   let version = 1;
   for (const name of Object.keys(process.env)) {
     const match = /^ENCRYPTION_KEY_V(\d+)$/.exec(name);
-    if (match) version = Math.max(version, Number(match[1]));
+    if (match && process.env[name]) version = Math.max(version, Number(match[1]));
   }
   return version;
 }

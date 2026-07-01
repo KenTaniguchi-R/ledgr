@@ -18,6 +18,7 @@ export type RotationReport = {
  *
  * Operator flow: add ENCRYPTION_KEY_V<N> → restart app → run `pnpm rotate-keys`
  * → once it reports 0 rotated and 0 failed, the old key can be retired.
+ * Run rotation during a low-write window — a concurrent reauth between this job's read and write could otherwise be overwritten with a stale token.
  */
 export async function rotateEncryptionKeys(
   dbInstance: LedgrDb = defaultDb,

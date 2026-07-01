@@ -110,6 +110,11 @@ describe("key versioning", () => {
     expect(needsRotation(v1Ciphertext.replace(/^v1:/, ""))).toBe(true);
   });
 
+  it("ignores an empty ENCRYPTION_KEY_V2 when picking the active version", () => {
+    process.env.ENCRYPTION_KEY_V2 = "";
+    expect(encrypt("token")).toMatch(/^v1:/);
+  });
+
   test.prop([fc.string()])("round-trips arbitrary strings (single key)", (s) => {
     expect(decrypt(encrypt(s))).toBe(s);
   });
