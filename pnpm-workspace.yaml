@@ -1,0 +1,9 @@
+allowBuilds:
+  better-sqlite3: true
+  cpu-features: true
+  esbuild: true
+  msw: true
+  protobufjs: true
+  sharp: true
+  ssh2: true
+  unrs-resolver: true
