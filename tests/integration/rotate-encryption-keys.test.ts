@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
+import { insertHousehold, insertPlaidItem } from "./helpers";
 import type { LedgrDb } from "@/db";
-import { households } from "@/db/schema";
 import { plaidItems } from "@/db/schema/plaid";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { rotateEncryptionKeys } from "@/lib/jobs/rotate-encryption-keys";
@@ -27,11 +27,9 @@ describe("rotateEncryptionKeys (integration)", () => {
     const legacyToken = encrypt("access-prod-legacy").replace(/^v1:/, "");
     const v1Token = encrypt("access-prod-v1");
 
-    await db.insert(households).values({ id: "hh-rot", name: "Rotate HH" });
-    await db.insert(plaidItems).values([
-      { id: "item-legacy", householdId: "hh-rot", accessToken: legacyToken },
-      { id: "item-v1", householdId: "hh-rot", accessToken: v1Token },
-    ]);
+    const { householdId } = await insertHousehold(db, "Rotate HH");
+    await insertPlaidItem(db, householdId, { id: "item-legacy", accessToken: legacyToken });
+    await insertPlaidItem(db, householdId, { id: "item-v1", accessToken: v1Token });
 
     // Introduce v2 — it becomes the active write key.
     process.env.ENCRYPTION_KEY_V2 = randomBytes(32).toString("hex");
@@ -42,7 +40,7 @@ describe("rotateEncryptionKeys (integration)", () => {
     const rows = await db
       .select({ id: plaidItems.id, accessToken: plaidItems.accessToken })
       .from(plaidItems)
-      .where(eq(plaidItems.householdId, "hh-rot"));
+      .where(eq(plaidItems.householdId, householdId));
     for (const row of rows) {
       expect(row.accessToken).toMatch(/^v2:/);
     }
@@ -57,11 +55,9 @@ describe("rotateEncryptionKeys (integration)", () => {
   it("isolates per-row failures and keeps going", async () => {
     // Clear the V2 key from the previous test so this token is written as v1.
     delete process.env.ENCRYPTION_KEY_V2;
-    await db.insert(households).values({ id: "hh-bad", name: "Bad HH" });
-    await db.insert(plaidItems).values([
-      { id: "item-garbage", householdId: "hh-bad", accessToken: "not-valid-ciphertext" },
-      { id: "item-good", householdId: "hh-bad", accessToken: encrypt("access-good") },
-    ]);
+    const { householdId } = await insertHousehold(db, "Bad HH");
+    await insertPlaidItem(db, householdId, { id: "item-garbage", accessToken: "not-valid-ciphertext" });
+    await insertPlaidItem(db, householdId, { id: "item-good", accessToken: encrypt("access-good") });
     process.env.ENCRYPTION_KEY_V2 = randomBytes(32).toString("hex");
 
     const report = await rotateEncryptionKeys(db);

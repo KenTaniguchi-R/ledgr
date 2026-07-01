@@ -12,13 +12,17 @@ export type RotationReport = {
 
 /**
  * Re-encrypts every plaid_items.access_token written with an older key
- * version using the active (highest-configured) key. Idempotent — rows
- * already on the active version are skipped. Per-row errors are isolated
- * and reported so one corrupt row can't block a rotation.
+ * version using the active (highest-configured) key. This is the single
+ * operator entry point for rotation — when a new encrypted column is added
+ * (e.g. per-user AI API keys), extend this job so `pnpm rotate-keys` keeps
+ * covering everything. Idempotent — rows already on the active version are
+ * skipped. Per-row errors are isolated and reported so one corrupt row
+ * can't block a rotation.
  *
  * Operator flow: add ENCRYPTION_KEY_V<N> → restart app → run `pnpm rotate-keys`
  * → once it reports 0 rotated and 0 failed, the old key can be retired.
- * Run rotation during a low-write window — a concurrent reauth between this job's read and write could otherwise be overwritten with a stale token.
+ * Run rotation during a low-write window — a concurrent reauth between this
+ * job's read and write could otherwise be overwritten with a stale token.
  */
 export async function rotateEncryptionKeys(
   dbInstance: LedgrDb = defaultDb,

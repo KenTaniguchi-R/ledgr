@@ -68,7 +68,6 @@ describe("encryption", () => {
 describe("key versioning", () => {
   afterEach(() => {
     delete process.env.ENCRYPTION_KEY_V2;
-    delete process.env.ENCRYPTION_KEY_V3;
   });
 
   it("prefixes new ciphertext with the active key version", () => {

@@ -5,8 +5,11 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const VERSION_PREFIX = /^v(\d+):/;
 
+const KEY_ENV_PREFIX = "ENCRYPTION_KEY_V";
+const KEY_ENV_PATTERN = new RegExp(`^${KEY_ENV_PREFIX}(\\d+)$`);
+
 function keyEnvName(version: number): string {
-  return version === 1 ? "ENCRYPTION_KEY" : `ENCRYPTION_KEY_V${version}`;
+  return version === 1 ? "ENCRYPTION_KEY" : `${KEY_ENV_PREFIX}${version}`;
 }
 
 function getKeyForVersion(version: number): Buffer {
@@ -29,7 +32,7 @@ function activeVersion(): number {
   }
   let version = 1;
   for (const name of Object.keys(process.env)) {
-    const match = /^ENCRYPTION_KEY_V(\d+)$/.exec(name);
+    const match = KEY_ENV_PATTERN.exec(name);
     if (match && process.env[name]) version = Math.max(version, Number(match[1]));
   }
   return version;
