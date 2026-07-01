@@ -12,6 +12,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:setup": "pnpm db:generate && pnpm db:migrate",
     "db:studio": "drizzle-kit studio",
+    "rotate-keys": "node --env-file-if-exists=.env --import tsx scripts/rotate-keys.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -89,6 +90,7 @@
     "jsdom": "^29.1.1",
     "msw": "^2.14.5",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.5"
   }
