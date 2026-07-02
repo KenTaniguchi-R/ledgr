@@ -39,6 +39,12 @@ jobs:
     name: mutation (incremental)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    # Non-blocking for now. Stryker is verified working against the
+    # testcontainers suite locally (score 67% >= 60 break threshold), but a
+    # full cold-cache run over lib+actions+queries has not been timed in CI.
+    # It runs and reports; it does not gate merges. Flip to blocking (remove
+    # this) once a full run is observed green and acceptably fast in CI.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
         with:

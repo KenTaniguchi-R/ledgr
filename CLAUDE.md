@@ -173,9 +173,9 @@ New features and bugfixes start **test-first** (superpowers `test-driven-develop
    - or `pnpm test:watch` for continuous feedback
 2. **Green** — write the minimal code to pass. Re-run until green.
 3. **Refactor** — clean up with tests staying green.
-4. **Commit** — the `pre-commit` hook (`simple-git-hooks` + `lint-staged`) runs `eslint --fix` + `vitest related --run` on changed files. A failing related test blocks the commit. (DB-related changes pull in integration tests, which need Docker running.)
+4. **Commit** — the `pre-commit` hook (`simple-git-hooks` + `lint-staged`) runs `eslint --fix` on changed files (fast, no Docker). Run tests yourself before committing via `test:changed`/`test:watch`.
 
-Enforcement layers, fast → slow: `test:changed`/watch → pre-commit hook → CI. If CI is red, the merge is blocked (once branch protection requires the `test` check).
+Enforcement layers, fast → slow: `test:changed`/watch (you, locally) → pre-commit hook (lint) → CI (full suite). The test gate lives in CI — integration tests need Docker and are too heavy for a pre-commit hook — so red blocks the merge once branch protection requires the `test` check.
 
 **Time in tests:** never hardcode absolute dates that must fall in a "recent" window — queries compute windows from `new Date()`, so hardcoded dates silently rot as the calendar moves. Derive fixture dates relative to now (see `dashboard-queries.test.ts`).
 

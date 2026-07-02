@@ -30,10 +30,7 @@
     "pre-commit": "pnpm exec lint-staged"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "vitest related --run"
-    ]
+    "*.{ts,tsx}": "eslint --fix"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.76",
