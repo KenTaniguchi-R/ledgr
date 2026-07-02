@@ -173,13 +173,11 @@ export async function getCategoryTrends(
     .select({
       month: sql<string>`substring(${transactions.date} from 1 for 7)`,
       categoryId: transactions.categoryId,
-      categoryName: categories.name,
       total: sumAbs(transactions.normalizedAmount),
     })
     .from(transactions)
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .where(scoped.where(transactions, ...nonSplitConditions))
-    .groupBy(sql`substring(${transactions.date} from 1 for 7)`, transactions.categoryId, categories.name);
+    .groupBy(sql`substring(${transactions.date} from 1 for 7)`, transactions.categoryId);
 
   const trendMap = new Map<string, number>(); // "YYYY-MM|catId" -> total
 
