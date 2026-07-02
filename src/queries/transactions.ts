@@ -1,4 +1,4 @@
-import { eq, like, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, ilike, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits, type CategorySource } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -112,7 +112,7 @@ function buildTransactionConditions(filters: TransactionFilters): (SQL | undefin
     conditions.push(eq(transactions.reviewed, filters.reviewed));
   }
   if (filters.search) {
-    conditions.push(like(transactions.name, `%${filters.search}%`));
+    conditions.push(ilike(transactions.name, `%${filters.search}%`));
   }
   if (filters.amountMin !== undefined) {
     conditions.push(sql`abs(${transactions.normalizedAmount}) >= ${filters.amountMin}`);

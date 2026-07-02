@@ -3,10 +3,14 @@ import { createTestDb } from "./setup";
 import { households } from "../../src/db/schema";
 
 describe("createTestDb", () => {
-  let close: () => Promise<void>;
+  let close: (() => Promise<void>) | undefined;
 
   afterEach(async () => {
+    // Null out after closing: the "isolated instances" test manages its own
+    // cleanup and never reassigns `close`, so without this the stale (already
+    // ended) pool from the previous test would be closed a second time.
     await close?.();
+    close = undefined;
   });
 
   it("creates a working database with schema", async () => {
