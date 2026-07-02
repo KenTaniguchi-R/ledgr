@@ -79,14 +79,23 @@ describe("getNetWorthHistory", () => {
       currentBalance: 20000,
     });
 
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: "2026-04-01", balance: 70000 });
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: "2026-04-01", balance: 15000 });
+    // A historical date inside the 3M window but not today: first of last month.
+    // Relative to "now" so the test is deterministic whenever the suite runs.
+    const histDate = (() => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: histDate, balance: 70000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: 15000 });
 
     const result = await getNetWorthHistory(householdId, "3M", db);
 
     expect(result.length).toBeGreaterThanOrEqual(2);
 
-    const historicalPoint = result.find((r) => r.date === "2026-04-01");
+    const historicalPoint = result.find((r) => r.date === histDate);
     expect(historicalPoint).toBeDefined();
     expect(historicalPoint!.assets).toBe(70000);
     expect(historicalPoint!.liabilities).toBe(15000);
@@ -161,20 +170,30 @@ describe("getCashFlow", () => {
       isIncome: true,
     });
 
+    // Current month and previous month both fall inside the getCashFlow(3)
+    // window no matter when the suite runs.
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const lastMonth = (() => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 1);
+      return d.toISOString().slice(0, 7);
+    })();
+
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-05",
+      date: `${thisMonth}-05`,
       normalizedAmount: -4000,
       amount: 4000,
     });
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-15",
+      date: `${thisMonth}-15`,
       normalizedAmount: 150000,
       amount: -150000,
       categoryId: incomeCatId,
     });
 
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-04-10",
+      date: `${lastMonth}-10`,
       normalizedAmount: -2500,
       amount: 2500,
     });
@@ -183,30 +202,32 @@ describe("getCashFlow", () => {
 
     expect(result.length).toBeGreaterThanOrEqual(2);
 
-    const aprilData = result.find((r) => r.month === "2026-04");
-    expect(aprilData).toBeDefined();
-    expect(aprilData!.expenses).toBe(2500);
-    expect(aprilData!.income).toBe(0);
-    expect(aprilData!.net).toBe(-2500);
+    const lastMonthData = result.find((r) => r.month === lastMonth);
+    expect(lastMonthData).toBeDefined();
+    expect(lastMonthData!.expenses).toBe(2500);
+    expect(lastMonthData!.income).toBe(0);
+    expect(lastMonthData!.net).toBe(-2500);
 
-    const mayData = result.find((r) => r.month === "2026-05");
-    expect(mayData).toBeDefined();
-    expect(mayData!.expenses).toBe(4000);
-    expect(mayData!.income).toBe(150000);
-    expect(mayData!.net).toBe(150000 - 4000);
+    const thisMonthData = result.find((r) => r.month === thisMonth);
+    expect(thisMonthData).toBeDefined();
+    expect(thisMonthData!.expenses).toBe(4000);
+    expect(thisMonthData!.income).toBe(150000);
+    expect(thisMonthData!.net).toBe(150000 - 4000);
   });
 
   it("excludes transfer transactions", async () => {
     const { householdId } = await insertHousehold(db);
     const { accountId } = await insertAccount(db, householdId);
 
+    const thisMonth = new Date().toISOString().slice(0, 7);
+
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-05",
+      date: `${thisMonth}-05`,
       normalizedAmount: -3000,
       amount: 3000,
     });
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-10",
+      date: `${thisMonth}-10`,
       normalizedAmount: -50000,
       amount: 50000,
       isTransfer: true,
@@ -214,9 +235,9 @@ describe("getCashFlow", () => {
 
     const result = await getCashFlow(householdId, 3, db);
 
-    const mayData = result.find((r) => r.month === "2026-05");
-    expect(mayData).toBeDefined();
-    expect(mayData!.expenses).toBe(3000);
+    const thisMonthData = result.find((r) => r.month === thisMonth);
+    expect(thisMonthData).toBeDefined();
+    expect(thisMonthData!.expenses).toBe(3000);
   });
 });
 
