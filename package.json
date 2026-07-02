@@ -20,9 +20,20 @@
     "test:e2e:ui": "playwright test --ui",
     "test:mutate": "stryker run",
     "test:mutate:incremental": "stryker run --incremental",
+    "test:changed": "vitest related --run $(git diff --name-only HEAD)",
+    "prepare": "simple-git-hooks",
     "build:mcp-widgets": "tsx src/lib/mcp/apps/build.ts",
     "dev:db": "docker compose up db -d",
     "dev:setup": "pnpm dev:db && until pg_isready -h localhost -p 5432 2>/dev/null; do sleep 1; done && pnpm db:migrate && pnpm dev"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "vitest related --run"
+    ]
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.76",
@@ -58,12 +69,6 @@
     "uuid": "^14.0.0",
     "zod": "^4.4.3"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "unrs-resolver"
-    ]
-  },
   "devDependencies": {
     "@fast-check/vitest": "^0.4.1",
     "@playwright/test": "^1.59.1",
@@ -88,7 +93,9 @@
     "eslint-config-next": "16.2.6",
     "fast-check": "^4.7.0",
     "jsdom": "^29.1.1",
+    "lint-staged": "^17.0.8",
     "msw": "^2.14.5",
+    "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
