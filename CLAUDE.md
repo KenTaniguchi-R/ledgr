@@ -164,7 +164,22 @@ See the design spec for full schema with indexes and constraints.
 - Bug fix: 2-3 regression tests proving the fix
 - Refactor: 0 new tests (existing tests must pass)
 
-**CI pipeline order:** typecheck → lint → vitest → stryker (incremental) → playwright
+### TDD Workflow (new work)
+
+New features and bugfixes start **test-first** (superpowers `test-driven-development` skill). The red-green-refactor loop, mapped to this repo:
+
+1. **Red** — write the smallest failing test next to the code (`*.test.ts` colocated, or `tests/integration/` if it needs the DB). Run it and watch it fail:
+   - `pnpm test:changed` — runs only tests related to your changed files (fast loop)
+   - or `pnpm test:watch` for continuous feedback
+2. **Green** — write the minimal code to pass. Re-run until green.
+3. **Refactor** — clean up with tests staying green.
+4. **Commit** — the `pre-commit` hook (`simple-git-hooks` + `lint-staged`) runs `eslint --fix` + `vitest related --run` on changed files. A failing related test blocks the commit. (DB-related changes pull in integration tests, which need Docker running.)
+
+Enforcement layers, fast → slow: `test:changed`/watch → pre-commit hook → CI. If CI is red, the merge is blocked (once branch protection requires the `test` check).
+
+**Time in tests:** never hardcode absolute dates that must fall in a "recent" window — queries compute windows from `new Date()`, so hardcoded dates silently rot as the calendar moves. Derive fixture dates relative to now (see `dashboard-queries.test.ts`).
+
+**CI pipeline order:** typecheck → lint → vitest → stryker (incremental). Wired in `.github/workflows/ci.yml` (runs on push to `main` + all PRs; mutation is PR-only). Playwright is not yet in the blocking job.
 
 ## Auto-Categorization Pipeline
 
