@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Wallet, Layers, Crown } from "lucide-react";
-import { CategoryIcon } from "@/components/atoms/category-icon";
+import { CategoryIconTile } from "@/components/atoms/category-icon";
 import { ChartViewToggle } from "@/components/atoms/chart-view-toggle";
 import { SpendingChart } from "@/components/atoms/spending-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
@@ -86,9 +86,8 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
               >
                 <TableCell className="px-3 py-2">
                   <div className="flex items-center gap-3">
-                    <span
-                      aria-hidden
-                      className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+                    <CategoryIconTile
+                      name={row.categoryIcon ?? row.groupIcon}
                       style={
                         i < 8
                           ? {
@@ -97,9 +96,7 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
                             }
                           : undefined
                       }
-                    >
-                      <CategoryIcon name={row.categoryIcon ?? row.groupIcon} size={16} />
-                    </span>
+                    />
                     <div className="min-w-0">
                       <div className="text-sm">{row.categoryName}</div>
                       {row.groupName && (
