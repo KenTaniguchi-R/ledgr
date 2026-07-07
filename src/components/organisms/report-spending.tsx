@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Wallet, Layers, Crown, Tag } from "lucide-react";
-import { DynamicIcon, type IconName } from "lucide-react/dynamic";
+import { Wallet, Layers, Crown } from "lucide-react";
+import { CategoryIcon } from "@/components/atoms/category-icon";
 import { ChartViewToggle } from "@/components/atoms/chart-view-toggle";
 import { SpendingChart } from "@/components/atoms/spending-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
@@ -98,15 +98,7 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
                           : undefined
                       }
                     >
-                      {row.groupIcon ? (
-                        <DynamicIcon
-                          name={row.groupIcon as IconName}
-                          size={16}
-                          fallback={() => <Tag size={16} />}
-                        />
-                      ) : (
-                        <Tag size={16} />
-                      )}
+                      <CategoryIcon name={row.categoryIcon ?? row.groupIcon} size={16} />
                     </span>
                     <div className="min-w-0">
                       <div className="text-sm">{row.categoryName}</div>

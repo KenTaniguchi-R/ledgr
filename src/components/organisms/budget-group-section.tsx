@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { CategoryIcon } from "@/components/atoms/category-icon";
 import { BudgetCategoryRow } from "@/components/molecules/budget-category-row";
 import { Table, TableBody } from "@/components/ui/table";
 import { centsToDisplay } from "@/lib/money";
@@ -45,7 +46,9 @@ export function BudgetGroupSection({
           ) : (
             <ChevronDown className="size-4" />
           )}
-          {groupIcon && <span>{groupIcon}</span>}
+          {groupIcon && (
+            <CategoryIcon name={groupIcon} size={16} className="text-muted-foreground" />
+          )}
           {groupName}
           {isFixed && (
             <span className="text-xs text-muted-foreground font-normal">Fixed</span>

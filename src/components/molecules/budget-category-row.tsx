@@ -2,6 +2,7 @@
 
 import { useState, useRef, useTransition, useCallback } from "react";
 import { X } from "lucide-react";
+import { CategoryIcon } from "@/components/atoms/category-icon";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { AmountDisplay } from "@/components/atoms/amount-display";
@@ -102,7 +103,9 @@ export function BudgetCategoryRow({
     <TableRow className="hover:bg-transparent">
       <TableCell className="py-2 px-3 text-sm">
         <span className="flex items-center gap-2">
-          {categoryIcon && <span>{categoryIcon}</span>}
+          {categoryIcon && (
+            <CategoryIcon name={categoryIcon} size={14} className="text-muted-foreground shrink-0" />
+          )}
           {categoryName}
         </span>
       </TableCell>

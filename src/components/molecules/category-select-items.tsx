@@ -3,6 +3,7 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@/components/ui/select";
+import { CategoryIcon } from "@/components/atoms/category-icon";
 import type { CategoryGroup } from "@/queries/categories";
 
 interface CategorySelectItemsProps {
@@ -22,7 +23,12 @@ export function CategorySelectItems({ categories }: CategorySelectItemsProps) {
           </SelectLabel>
           {group.categories.map((cat) => (
             <SelectItem key={cat.id} value={cat.id}>
-              {cat.icon ? `${cat.icon} ` : ""}{cat.name}
+              <span className="flex items-center gap-2">
+                {cat.icon && (
+                  <CategoryIcon name={cat.icon} size={14} className="text-muted-foreground shrink-0" />
+                )}
+                {cat.name}
+              </span>
             </SelectItem>
           ))}
         </SelectGroup>

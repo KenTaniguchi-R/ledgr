@@ -3,6 +3,7 @@
 import { centsToDisplay } from "@/lib/money";
 import type { IncomeExpenseCategoryRow } from "@/queries/reports";
 import { ChevronRight } from "lucide-react";
+import { CategoryIcon } from "@/components/atoms/category-icon";
 import { ScrollFade } from "@/components/atoms/scroll-fade";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -74,7 +75,13 @@ function Section({
               className={rowClass}
               onClick={() => onCategoryClick?.(row.categoryId, row.isIncome)}
             >
-              <TableCell className="px-3 py-2 flex items-center gap-1">
+              <TableCell className="px-3 py-2 flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+                >
+                  <CategoryIcon name={row.categoryIcon} size={14} />
+                </span>
                 <span>{row.categoryName}</span>
                 {onCategoryClick && (
                   <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />

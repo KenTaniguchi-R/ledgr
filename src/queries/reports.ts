@@ -33,6 +33,7 @@ export interface SpendingRow {
   groupName: string | null;
   groupId: string | null;
   groupIcon: string | null;
+  categoryIcon: string | null;
   total: number;
   prevTotal: number;
 }
@@ -73,6 +74,7 @@ export async function getSpendingByCategory(
     groupName: row.groupName,
     groupId: row.groupId,
     groupIcon: row.groupIcon,
+    categoryIcon: row.categoryIcon,
     total: row.value,
     prevTotal: prevMap.get(row.id ?? "uncategorized") ?? 0,
   }));
@@ -245,6 +247,7 @@ export async function getCategoryTrends(
 export interface IncomeExpenseCategoryRow {
   categoryId: string;
   categoryName: string;
+  categoryIcon: string | null;
   isIncome: boolean;
   total: number;
   monthlyAverage: number;
@@ -279,6 +282,7 @@ export async function getIncomeExpenseByCategory(
     .select({
       categoryId: transactions.categoryId,
       categoryName: categories.name,
+      categoryIcon: categories.icon,
       normalizedAmount: transactions.normalizedAmount,
       date: transactions.date,
     })
@@ -289,7 +293,10 @@ export async function getIncomeExpenseByCategory(
   const months = new Set(txns.map((t) => t.date.slice(0, 7)));
   const monthCount = Math.max(months.size, 1);
 
-  const byCat = new Map<string, { name: string; isIncome: boolean; total: number }>();
+  const byCat = new Map<
+    string,
+    { name: string; icon: string | null; isIncome: boolean; total: number }
+  >();
   for (const txn of txns) {
     if (!txn.categoryId) continue;
     const isIncome = incomeCatIds.has(txn.categoryId);
@@ -300,6 +307,7 @@ export async function getIncomeExpenseByCategory(
     } else {
       byCat.set(txn.categoryId, {
         name: resolvedCategoryLabel(txn.categoryName),
+        icon: txn.categoryIcon,
         isIncome,
         total: amount,
       });
@@ -319,6 +327,7 @@ export async function getIncomeExpenseByCategory(
     result.push({
       categoryId,
       categoryName: cat.name,
+      categoryIcon: cat.icon,
       isIncome: cat.isIncome,
       total: cat.total,
       monthlyAverage: Math.round(cat.total / monthCount),

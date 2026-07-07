@@ -19,6 +19,7 @@ export interface SpendingChartItem {
   groupName: string | null;
   groupId: string | null;
   groupIcon: string | null;
+  categoryIcon: string | null;
 }
 
 
@@ -117,6 +118,7 @@ export async function enrichSpendingMap(
     groupName: string | null;
     groupId: string | null;
     groupIcon: string | null;
+    categoryIcon: string | null;
   };
   let catRows: CatRow[] = [];
   if (categoryIds.length > 0) {
@@ -127,6 +129,7 @@ export async function enrichSpendingMap(
         groupName: categoryGroups.name,
         groupId: categoryGroups.id,
         groupIcon: categoryGroups.icon,
+        categoryIcon: categories.icon,
       })
       .from(categories)
       .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
@@ -145,6 +148,7 @@ export async function enrichSpendingMap(
         groupName: null,
         groupId: null,
         groupIcon: null,
+        categoryIcon: null,
       });
     } else {
       const cat = catMap.get(key);
@@ -155,6 +159,7 @@ export async function enrichSpendingMap(
         groupName: cat?.groupName ?? null,
         groupId: cat?.groupId ?? null,
         groupIcon: cat?.groupIcon ?? null,
+        categoryIcon: cat?.categoryIcon ?? null,
       });
     }
   }
