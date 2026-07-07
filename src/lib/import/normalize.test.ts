@@ -47,4 +47,22 @@ describe("normalizeImportedRows", () => {
     expect(result[0].householdId).toBe(householdId);
     expect(result[0].accountId).toBe(accountId);
   });
+
+  test("skips rows missing a date or description", () => {
+    const rows = [
+      { Date: "", Amount: "1.00", Description: "No date" },
+      { Date: "2024-01-15", Amount: "1.00", Description: "" },
+      { Date: "2024-01-15", Amount: "1.00", Description: "Kept" },
+    ];
+    const result = normalizeImportedRows(rows, mapping, accountId, householdId, "positive_is_expense");
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("Kept");
+  });
+
+  test("trims surrounding whitespace from the description", () => {
+    const rows = [{ Date: "2024-01-15", Amount: "1.00", Description: "  Coffee  " }];
+    const result = normalizeImportedRows(rows, mapping, accountId, householdId, "positive_is_expense");
+    expect(result[0].name).toBe("Coffee");
+    expect(result[0].originalName).toBe("Coffee");
+  });
 });
