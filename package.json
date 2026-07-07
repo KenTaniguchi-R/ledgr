@@ -13,6 +13,7 @@
     "db:setup": "pnpm db:generate && pnpm db:migrate",
     "db:studio": "drizzle-kit studio",
     "rotate-keys": "node --env-file-if-exists=.env --import tsx scripts/rotate-keys.ts",
+    "backfill-clean-names": "node --env-file-if-exists=.env --import tsx scripts/backfill-clean-names.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

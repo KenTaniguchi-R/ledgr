@@ -1,6 +1,7 @@
 import { v4 as uuid } from "uuid";
 import type { ValidatedMapping } from "./mapper";
 import { parseToCents } from "@/lib/money";
+import { cleanTransactionName } from "./clean-name";
 
 export type AmountConvention = "positive_is_expense" | "positive_is_income";
 
@@ -68,7 +69,7 @@ export function normalizeImportedRows(
       householdId,
       date: parseDateToISO(dateStr),
       originalName: description.trim(),
-      name: description.trim(),
+      name: cleanTransactionName(description),
       amount: amountCents,
       externalId: null,
     });
