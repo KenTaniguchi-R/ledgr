@@ -158,7 +158,7 @@ export async function categorizeWithAi(
       const { output } = await generateText({
         model,
         output: Output.object({ schema: categorizationSchema }),
-        system:
+        instructions:
           "You are a financial transaction categorization assistant. Be precise and conservative.",
         prompt: buildCategorizationPrompt(batchInputs, categoryInfos, examples),
       });
