@@ -87,7 +87,7 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
                 <TableCell className="px-3 py-2">
                   <div className="flex items-center gap-3">
                     <CategoryIconTile
-                      name={row.categoryIcon ?? row.groupIcon}
+                      name={row.categoryIcon}
                       style={
                         i < 8
                           ? {

@@ -18,7 +18,6 @@ export interface SpendingChartItem {
   value: number;
   groupName: string | null;
   groupId: string | null;
-  groupIcon: string | null;
   categoryIcon: string | null;
 }
 
@@ -117,7 +116,6 @@ export async function enrichSpendingMap(
     name: string;
     groupName: string | null;
     groupId: string | null;
-    groupIcon: string | null;
     categoryIcon: string | null;
   };
   let catRows: CatRow[] = [];
@@ -128,7 +126,6 @@ export async function enrichSpendingMap(
         name: categories.name,
         groupName: categoryGroups.name,
         groupId: categoryGroups.id,
-        groupIcon: categoryGroups.icon,
         categoryIcon: categories.icon,
       })
       .from(categories)
@@ -147,7 +144,6 @@ export async function enrichSpendingMap(
         value,
         groupName: null,
         groupId: null,
-        groupIcon: null,
         categoryIcon: null,
       });
     } else {
@@ -158,7 +154,6 @@ export async function enrichSpendingMap(
         value,
         groupName: cat?.groupName ?? null,
         groupId: cat?.groupId ?? null,
-        groupIcon: cat?.groupIcon ?? null,
         categoryIcon: cat?.categoryIcon ?? null,
       });
     }
