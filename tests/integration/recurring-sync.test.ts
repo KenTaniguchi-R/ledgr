@@ -14,7 +14,7 @@ import {
   insertAccount,
   insertTransaction,
 } from "./helpers";
-import { recurringTransactions, transactions } from "../../src/db/schema";
+import { recurringTransactions, transactions, merchants } from "../../src/db/schema";
 import { eq } from "drizzle-orm";
 import { resetPlaidClient } from "../../src/lib/plaid/client";
 import type { LedgrDb } from "../../src/db";
@@ -91,6 +91,43 @@ describe("syncRecurringTransactions", () => {
     expect(salary).toBeDefined();
     expect(salary!.isIncome).toBe(true);
     expect(salary!.averageAmount).toBe(-300000);
+  });
+
+  it("creates and links a merchant for named streams; falls back to the description otherwise", async () => {
+    server.use(recurringGetHandler);
+    const { householdId, plaidItemId } = await seedForSync(db);
+
+    const { syncRecurringTransactions } = await import(
+      "../../src/lib/plaid/recurring"
+    );
+    await syncRecurringTransactions(plaidItemId, householdId, "access-sandbox-test-token", db);
+
+    const [merchant] = await db
+      .select()
+      .from(merchants)
+      .where(eq(merchants.householdId, householdId));
+    const netflixMerchant = await db
+      .select()
+      .from(merchants)
+      .where(eq(merchants.name, "Netflix"));
+    expect(netflixMerchant).toHaveLength(1);
+
+    const rows = await db
+      .select()
+      .from(recurringTransactions)
+      .where(eq(recurringTransactions.householdId, householdId));
+
+    // Named stream → merchant row created and linked by id.
+    const netflix = rows.find((r) => r.plaidStreamId === TEST_STREAM_IDS.netflix)!;
+    expect(netflix.merchantId).toBe(netflixMerchant[0].id);
+
+    // Null merchant_name → no merchant link, name derived from titleCase(description).
+    const salary = rows.find((r) => r.plaidStreamId === TEST_STREAM_IDS.salary)!;
+    expect(salary.merchantId).toBeNull();
+    expect(salary.name).toBe("Direct Deposit Employer");
+
+    // Sanity: at least one merchant was persisted.
+    expect(merchant).toBeDefined();
   });
 
   it("updates existing stream when amounts/dates change", async () => {
