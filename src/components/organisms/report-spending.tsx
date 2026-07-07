@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { Wallet, Layers, Crown, Tag } from "lucide-react";
+import { DynamicIcon, type IconName } from "lucide-react/dynamic";
 import { ChartViewToggle } from "@/components/atoms/chart-view-toggle";
 import { SpendingChart } from "@/components/atoms/spending-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { ComparisonBadge } from "@/components/molecules/comparison-badge";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { centsToDisplay } from "@/lib/money";
+import { CHART_COLORS } from "@/lib/chart-colors";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import type { SpendingRow } from "@/queries/reports";
 
@@ -29,10 +32,10 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
   const totalSpent = data.reduce((s, r) => s + r.total, 0);
   const topCategory = data.length > 0 ? data[0] : null;
   const summaryItems: SummaryItem[] = [
-    { label: "Total Spent", value: totalSpent, color: "expense" },
-    { label: "Categories", value: data.length, format: "number" },
+    { label: "Total Spent", value: totalSpent, color: "expense", icon: Wallet },
+    { label: "Categories", value: data.length, format: "number", icon: Layers },
     ...(topCategory
-      ? [{ label: `Top: ${topCategory.categoryName}`, value: topCategory.total } as SummaryItem]
+      ? [{ label: `Top: ${topCategory.categoryName}`, value: topCategory.total, icon: Crown } as SummaryItem]
       : []),
   ];
 
@@ -67,17 +70,43 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
             </tr>
           </thead>
           <tbody>
-            {data.map((row) => (
+            {data.map((row, i) => (
               <tr
                 key={row.categoryId ?? "uncategorized"}
                 className="border-b last:border-0 cursor-pointer hover:bg-muted/50"
                 onClick={() => handleDrillDown({ id: row.categoryId, name: row.categoryName })}
               >
                 <td className="px-3 py-2">
-                  <div className="text-sm">{row.categoryName}</div>
-                  {row.groupName && (
-                    <div className="text-xs text-muted-foreground">{row.groupName}</div>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <span
+                      aria-hidden
+                      className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+                      style={
+                        i < 8
+                          ? {
+                              color: CHART_COLORS[i],
+                              backgroundColor: CHART_COLORS[i].replace(")", " / 0.12)"),
+                            }
+                          : undefined
+                      }
+                    >
+                      {row.groupIcon ? (
+                        <DynamicIcon
+                          name={row.groupIcon as IconName}
+                          size={16}
+                          fallback={() => <Tag size={16} />}
+                        />
+                      ) : (
+                        <Tag size={16} />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm">{row.categoryName}</div>
+                      {row.groupName && (
+                        <div className="text-xs text-muted-foreground">{row.groupName}</div>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums font-medium">
                   {centsToDisplay(row.total)}

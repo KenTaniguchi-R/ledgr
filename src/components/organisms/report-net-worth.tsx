@@ -1,5 +1,6 @@
 "use client";
 
+import { Wallet, TrendingUp } from "lucide-react";
 import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import type { NetWorthPoint } from "@/queries/dashboard";
@@ -17,12 +18,13 @@ export function ReportNetWorth({ data }: ReportNetWorthProps) {
     : "0.0";
 
   const summaryItems: SummaryItem[] = [
-    { label: "Current Net Worth", value: latest?.netWorth ?? 0, color: "dynamic" },
+    { label: "Current Net Worth", value: latest?.netWorth ?? 0, color: "dynamic", icon: Wallet },
     {
       label: "Change",
       value: change,
       color: "dynamic",
       secondaryLabel: `${change >= 0 ? "+" : ""}${changePct}%`,
+      icon: TrendingUp,
     },
   ];
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronsUpDown, X } from "lucide-react";
+import { ChevronsUpDown, X, CalendarDays, Landmark, Tags } from "lucide-react";
 import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden />
       <DateRangeSelector value={currentPreset} onChange={handlePresetChange} />
 
       <Input
@@ -78,6 +79,7 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
         <PopoverTrigger
           render={<Button variant="outline" size="sm" className="h-8 text-xs" />}
         >
+          <Landmark className="mr-1 h-3.5 w-3.5" />
           {selectedAccountIds.length > 0
             ? `${selectedAccountIds.length} account${selectedAccountIds.length > 1 ? "s" : ""}`
             : "All accounts"}
@@ -109,6 +111,7 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
         <PopoverTrigger
           render={<Button variant="outline" size="sm" className="h-8 text-xs" />}
         >
+          <Tags className="mr-1 h-3.5 w-3.5" />
           {selectedCategoryIds.length > 0
             ? `${selectedCategoryIds.length} categor${selectedCategoryIds.length > 1 ? "ies" : "y"}`
             : "All categories"}

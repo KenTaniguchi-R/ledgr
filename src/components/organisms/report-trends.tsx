@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Wallet, CalendarDays } from "lucide-react";
 import { TrendLineChart } from "@/components/atoms/trend-line-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,8 +50,8 @@ export function ReportTrends({ data }: ReportTrendsProps) {
   const monthlyAvg = monthCount > 0 ? Math.round(totalSpent / monthCount) : 0;
 
   const summaryItems: SummaryItem[] = [
-    { label: "Total Spent", value: totalSpent, color: "expense" },
-    { label: "Monthly Average", value: monthlyAvg },
+    { label: "Total Spent", value: totalSpent, color: "expense", icon: Wallet },
+    { label: "Monthly Average", value: monthlyAvg, icon: CalendarDays },
   ];
 
   return (
