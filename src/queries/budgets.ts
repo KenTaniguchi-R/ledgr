@@ -10,6 +10,7 @@ import {
 import { scopedQuery } from "@/lib/scoped-query";
 import { monthBounds } from "@/lib/date-utils";
 import { aggregateSpending } from "@/lib/spending-helpers";
+import { UNCATEGORIZED } from "@/lib/labels";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -183,7 +184,7 @@ async function buildUnbudgetedCategories(
     if (key === "uncategorized") {
       result.push({
         categoryId: "uncategorized",
-        categoryName: "Uncategorized",
+        categoryName: UNCATEGORIZED,
         groupName: "Other",
         spent,
       });

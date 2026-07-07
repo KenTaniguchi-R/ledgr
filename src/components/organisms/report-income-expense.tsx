@@ -7,6 +7,7 @@ import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-su
 import { IncomeExpenseCategoryTable } from "@/components/molecules/income-expense-category-table";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
+import { resolvedCategoryLabel } from "@/lib/labels";
 import type { IncomeExpenseRow, IncomeExpenseCategoryRow } from "@/queries/reports";
 
 interface ReportIncomeExpenseProps {
@@ -39,7 +40,7 @@ export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseP
     const cat = categoryData?.find((c) => c.categoryId === categoryId);
     setDrillDown({
       categoryId,
-      categoryName: cat?.categoryName ?? "Unknown",
+      categoryName: resolvedCategoryLabel(cat?.categoryName),
       type: isIncome ? "income" : "expense",
       tabContext: "Income vs Expense",
     });

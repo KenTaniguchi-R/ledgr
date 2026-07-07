@@ -18,6 +18,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { CategorySelectItems } from "@/components/molecules/category-select-items";
+import { UNCATEGORIZED } from "@/lib/labels";
 import type { CategoryGroup } from "@/queries/categories";
 
 interface AccountOption {
@@ -85,7 +86,7 @@ export function TransactionFilters({ accounts, categories }: TransactionFiltersP
   const selectedCategoryId = searchParams.get("category");
   const selectedCategoryName = (() => {
     if (!selectedCategoryId) return "All categories";
-    if (selectedCategoryId === "uncategorized") return "Uncategorized";
+    if (selectedCategoryId === "uncategorized") return UNCATEGORIZED;
     for (const group of categories) {
       const cat = group.categories.find((c) => c.id === selectedCategoryId);
       if (cat) return cat.name;

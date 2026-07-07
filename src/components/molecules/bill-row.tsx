@@ -2,6 +2,7 @@ import { AmountDisplay } from "@/components/atoms/amount-display";
 import { BillStatusIndicator } from "@/components/atoms/bill-status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { categoryLabel } from "@/lib/labels";
 import type { BillRow as BillRowType } from "@/queries/recurring";
 
 interface BillRowProps {
@@ -26,7 +27,7 @@ export function BillRow({ bill }: BillRowProps) {
     >
       <span className="font-medium truncate">{bill.name}</span>
       <span className="text-muted-foreground truncate text-xs">
-        {bill.categoryName ?? "Uncategorized"}
+        {categoryLabel(bill.categoryName)}
       </span>
       <span className="text-right">
         {bill.averageAmount !== null && (

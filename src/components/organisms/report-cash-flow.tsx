@@ -7,6 +7,7 @@ import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
+import { resolvedCategoryLabel } from "@/lib/labels";
 import type { IncomeExpenseRow, SafeToSpendResult } from "@/queries/reports";
 
 interface ReportCashFlowProps {
@@ -61,7 +62,7 @@ export function ReportCashFlow({
     const node = sankeyNodes.find((n) => n.id === nodeId);
     setDrillDown({
       categoryId: catId,
-      categoryName: node?.name ?? "Unknown",
+      categoryName: resolvedCategoryLabel(node?.name),
       type,
       tabContext: "Cash Flow",
     });

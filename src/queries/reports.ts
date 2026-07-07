@@ -12,6 +12,7 @@ import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, sumAbs } from "@/lib/query-helpers";
 import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
+import { resolvedCategoryLabel } from "@/lib/labels";
 import {
   aggregateSpending,
   enrichSpendingMap,
@@ -233,7 +234,7 @@ export async function getCategoryTrends(
     result.push({
       period,
       categoryId,
-      categoryName: catNames.get(categoryId) ?? "Unknown",
+      categoryName: resolvedCategoryLabel(catNames.get(categoryId)),
       total,
     });
   }
@@ -298,7 +299,7 @@ export async function getIncomeExpenseByCategory(
       existing.total += amount;
     } else {
       byCat.set(txn.categoryId, {
-        name: txn.categoryName ?? "Unknown",
+        name: resolvedCategoryLabel(txn.categoryName),
         isIncome,
         total: amount,
       });
@@ -430,11 +431,11 @@ export async function getCashFlowSankey(
       const existing = incomeMap.get(txn.categoryId);
       const amount = Math.abs(txn.normalizedAmount);
       if (existing) existing.total += amount;
-      else incomeMap.set(txn.categoryId, { name: txn.categoryName ?? "Unknown", total: amount });
+      else incomeMap.set(txn.categoryId, { name: resolvedCategoryLabel(txn.categoryName), total: amount });
     } else if (txn.normalizedAmount > 0) {
       const existing = expenseMap.get(txn.categoryId);
       if (existing) existing.total += txn.normalizedAmount;
-      else expenseMap.set(txn.categoryId, { name: txn.categoryName ?? "Unknown", total: txn.normalizedAmount });
+      else expenseMap.set(txn.categoryId, { name: resolvedCategoryLabel(txn.categoryName), total: txn.normalizedAmount });
     }
   }
 

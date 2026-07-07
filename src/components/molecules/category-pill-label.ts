@@ -1,3 +1,5 @@
+import { UNCATEGORIZED } from "@/lib/labels";
+
 export type CategoryPillVariant = "category" | "transfer" | "uncategorized";
 
 /**
@@ -12,5 +14,5 @@ export function categoryPillLabel(
 ): { text: string; variant: CategoryPillVariant } {
   if (categoryName) return { text: categoryName, variant: "category" };
   if (isTransfer) return { text: "Transfer", variant: "transfer" };
-  return { text: "Uncategorized", variant: "uncategorized" };
+  return { text: UNCATEGORIZED, variant: "uncategorized" };
 }

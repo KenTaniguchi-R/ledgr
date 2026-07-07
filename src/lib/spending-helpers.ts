@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, sumAbs, sumCol } from "@/lib/query-helpers";
+import { UNCATEGORIZED, resolvedCategoryLabel } from "@/lib/labels";
 import { notIncome } from "@/queries/shared-conditions";
 import type { ReportFilters } from "@/queries/reports";
 
@@ -139,7 +140,7 @@ export async function enrichSpendingMap(
     if (key === "uncategorized") {
       result.push({
         id: null,
-        name: "Uncategorized",
+        name: UNCATEGORIZED,
         value,
         groupName: null,
         groupId: null,
@@ -149,7 +150,7 @@ export async function enrichSpendingMap(
       const cat = catMap.get(key);
       result.push({
         id: key,
-        name: cat?.name ?? "Unknown",
+        name: resolvedCategoryLabel(cat?.name),
         value,
         groupName: cat?.groupName ?? null,
         groupId: cat?.groupId ?? null,

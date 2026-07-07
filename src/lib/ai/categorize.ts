@@ -8,6 +8,7 @@ import {
   categoryGroups,
 } from "@/db/schema";
 import { notDeleted } from "@/lib/query-helpers";
+import { resolvedCategoryLabel } from "@/lib/labels";
 import { getAiConfig, createAiModel } from "./config";
 
 const categorizationSchema = z.object({
@@ -136,7 +137,9 @@ export async function categorizeWithAi(
     .filter((e) => e.categoryId)
     .map((e) => ({
       description: e.name,
-      categoryName: cats.find((c) => c.id === e.categoryId)?.name ?? "Unknown",
+      categoryName: resolvedCategoryLabel(
+        cats.find((c) => c.id === e.categoryId)?.name,
+      ),
     }));
 
   const threshold = config.confidenceThreshold;

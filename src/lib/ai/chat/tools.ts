@@ -13,6 +13,7 @@ import {
 import { eq, and, gte, lte, like, desc } from "drizzle-orm";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
+import { categoryLabel, resolvedCategoryLabel } from "@/lib/labels";
 
 export function financialTools(householdId: string) {
   const scoped = scopedQuery(householdId);
@@ -46,7 +47,7 @@ export function financialTools(householdId: string) {
         const byCategory = new Map<string, number>();
         for (const row of rows) {
           if (row.amount <= 0) continue;
-          const key = row.categoryName ?? "Uncategorized";
+          const key = categoryLabel(row.categoryName);
           byCategory.set(key, (byCategory.get(key) ?? 0) + row.amount);
         }
 
@@ -102,7 +103,7 @@ export function financialTools(householdId: string) {
           description: r.name.slice(0, 60),
           amount: `$${(Math.abs(r.amount) / 100).toFixed(2)}`,
           type: r.amount > 0 ? ("expense" as const) : ("income" as const),
-          category: r.categoryName ?? "Uncategorized",
+          category: categoryLabel(r.categoryName),
         }));
       },
     }),
@@ -280,7 +281,7 @@ export function financialTools(householdId: string) {
           const spent = spentRows.reduce((sum, r) => sum + (r.amount > 0 ? r.amount : 0), 0);
 
           results.push({
-            category: cat?.name ?? "Unknown",
+            category: resolvedCategoryLabel(cat?.name),
             budgeted: `$${(bc.limitAmount / 100).toFixed(2)}`,
             spent: `$${(spent / 100).toFixed(2)}`,
             remaining: `$${((bc.limitAmount - spent) / 100).toFixed(2)}`,
