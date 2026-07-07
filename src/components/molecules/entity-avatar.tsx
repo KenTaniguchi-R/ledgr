@@ -1,7 +1,5 @@
-"use client";
-
-import { useState } from "react";
 import { resolveEntityLogo, getInitials } from "@/lib/logos";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface EntityAvatarProps {
@@ -13,9 +11,9 @@ interface EntityAvatarProps {
   size?: "sm" | "md";
 }
 
-const sizeClasses = {
-  sm: "size-6 text-[10px]",
-  md: "size-8 text-xs",
+const fallbackTextClass = {
+  sm: "text-[10px]",
+  md: "text-xs",
 } as const;
 
 export function EntityAvatar({
@@ -26,31 +24,20 @@ export function EntityAvatar({
   pfcPrimary,
   size = "md",
 }: EntityAvatarProps) {
-  const [imgError, setImgError] = useState(false);
   const resolved = resolveEntityLogo({ logoUrl, logoBase64, name, primaryColor, pfcPrimary });
-
-  if (resolved.type === "image" && !imgError) {
-    return (
-      <img
-        src={resolved.src}
-        alt=""
-        onError={() => setImgError(true)}
-        className={cn("rounded-full bg-white object-cover shrink-0", sizeClasses[size])}
-      />
-    );
-  }
-
-  const { initial, backgroundColor } = resolved.type === "initials"
-    ? resolved
-    : getInitials(name, primaryColor);
+  const { initial, backgroundColor } = getInitials(name, primaryColor);
 
   return (
-    <div
-      aria-hidden="true"
-      className={cn("rounded-full flex items-center justify-center font-medium text-white shrink-0", sizeClasses[size])}
-      style={{ backgroundColor }}
-    >
-      {initial}
-    </div>
+    <Avatar size={size === "sm" ? "sm" : "default"} aria-hidden="true">
+      {resolved.type === "image" && (
+        <AvatarImage src={resolved.src} alt="" className="bg-white" />
+      )}
+      <AvatarFallback
+        className={cn("font-medium text-white", fallbackTextClass[size])}
+        style={{ backgroundColor }}
+      >
+        {initial}
+      </AvatarFallback>
+    </Avatar>
   );
 }

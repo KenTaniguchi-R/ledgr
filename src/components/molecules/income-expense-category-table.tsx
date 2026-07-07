@@ -4,6 +4,15 @@ import { centsToDisplay } from "@/lib/money";
 import type { IncomeExpenseCategoryRow } from "@/queries/reports";
 import { ChevronRight } from "lucide-react";
 import { ScrollFade } from "@/components/atoms/scroll-fade";
+import { Progress } from "@/components/ui/progress";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface IncomeExpenseCategoryTableProps {
   data: IncomeExpenseCategoryRow[];
@@ -42,56 +51,56 @@ function Section({
     );
   }
 
+  const rowClass = onCategoryClick ? "cursor-pointer group" : "hover:bg-transparent";
+
   return (
     <div>
       <div className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/30">
         {label}
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left text-muted-foreground">
-            <th className="px-3 py-1.5 font-medium">Category</th>
-            <th className="px-3 py-1.5 font-medium text-right">Total</th>
-            <th className="px-3 py-1.5 font-medium text-right">Monthly Avg</th>
-            <th className="px-3 py-1.5 font-medium text-right w-24">%</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="text-sm">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent text-muted-foreground">
+            <TableHead className="h-auto px-3 py-1.5">Category</TableHead>
+            <TableHead className="h-auto px-3 py-1.5 text-right">Total</TableHead>
+            <TableHead className="h-auto px-3 py-1.5 text-right">Monthly Avg</TableHead>
+            <TableHead className="h-auto px-3 py-1.5 text-right w-24">%</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr
+            <TableRow
               key={row.categoryId}
-              className={`border-b last:border-0 ${onCategoryClick ? "cursor-pointer hover:bg-muted/50 group" : ""}`}
+              className={rowClass}
               onClick={() => onCategoryClick?.(row.categoryId, row.isIncome)}
             >
-              <td className="px-3 py-2 flex items-center gap-1">
+              <TableCell className="px-3 py-2 flex items-center gap-1">
                 <span>{row.categoryName}</span>
                 {onCategoryClick && (
                   <ChevronRight className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 )}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums font-medium">
+              </TableCell>
+              <TableCell className="px-3 py-2 text-right tabular-nums font-medium">
                 {centsToDisplay(row.total)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+              </TableCell>
+              <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                 {centsToDisplay(row.monthlyAverage)}
-              </td>
-              <td className="px-3 py-2 text-right">
+              </TableCell>
+              <TableCell className="px-3 py-2 text-right">
                 <div className="flex items-center justify-end gap-1.5">
-                  <div className="w-12 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${Math.min(row.percentOfTotal, 100)}%` }}
-                    />
-                  </div>
+                  <Progress
+                    value={Math.min(row.percentOfTotal, 100)}
+                    className="w-12"
+                  />
                   <span className="tabular-nums text-xs text-muted-foreground w-8 text-right">
                     {row.percentOfTotal.toFixed(0)}%
                   </span>
                 </div>
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

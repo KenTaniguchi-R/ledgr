@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { BudgetCategoryRow } from "@/components/molecules/budget-category-row";
+import { Table, TableBody } from "@/components/ui/table";
 import { centsToDisplay } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { BudgetCategoryRow as BudgetCatRow } from "@/queries/budgets";
@@ -55,25 +56,23 @@ export function BudgetGroupSection({
         </span>
       </button>
       {!collapsed && (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <tbody>
-              {categories.map((cat) => (
-                <BudgetCategoryRow
-                  key={cat.categoryId}
-                  budgetId={budgetId}
-                  budgetCategoryId={cat.budgetCategoryId}
-                  categoryId={cat.categoryId}
-                  categoryName={cat.categoryName}
-                  categoryIcon={cat.categoryIcon}
-                  limitAmount={cat.limitAmount}
-                  spent={cat.spent}
-                  onSaved={onSaved}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableBody>
+            {categories.map((cat) => (
+              <BudgetCategoryRow
+                key={cat.categoryId}
+                budgetId={budgetId}
+                budgetCategoryId={cat.budgetCategoryId}
+                categoryId={cat.categoryId}
+                categoryName={cat.categoryName}
+                categoryIcon={cat.categoryIcon}
+                limitAmount={cat.limitAmount}
+                spent={cat.spent}
+                onSaved={onSaved}
+              />
+            ))}
+          </TableBody>
+        </Table>
       )}
     </div>
   );

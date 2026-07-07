@@ -1,3 +1,5 @@
+import { Progress } from "@/components/ui/progress";
+
 interface ReviewProgressBarProps {
   current: number;
   total: number;
@@ -12,12 +14,7 @@ export function ReviewProgressBar({ current, total }: ReviewProgressBarProps) {
         <span>{current} of {total} reviewed</span>
         <span>{pct}%</span>
       </div>
-      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary transition-[width] duration-200"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <Progress value={pct} className="h-1.5" />
     </div>
   );
 }

@@ -1,5 +1,14 @@
 "use client";
 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
 interface Props {
   headers: string[];
   rows: Record<string, string>[];
@@ -12,25 +21,25 @@ export function ImportPreview({ headers, rows, totalRows }: Props) {
       <p className="text-sm text-muted-foreground">
         Showing {rows.length} of {totalRows} rows
       </p>
-      <div className="overflow-x-auto rounded border">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/50">
-            <tr>
+      <div className="rounded border">
+        <Table className="text-xs">
+          <TableHeader className="bg-muted/50">
+            <TableRow className="hover:bg-transparent">
               {headers.map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
+                <TableHead key={h} className="h-auto px-3 py-2">{h}</TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row, i) => (
-              <tr key={i} className="border-t">
+              <TableRow key={i} className="hover:bg-transparent">
                 {headers.map((h) => (
-                  <td key={h} className="px-3 py-1.5 truncate max-w-[200px]">{row[h]}</td>
+                  <TableCell key={h} className="px-3 py-1.5 truncate max-w-[200px]">{row[h]}</TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

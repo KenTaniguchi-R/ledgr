@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { BudgetSummaryBar } from "@/components/atoms/budget-summary-bar";
 import { BudgetGroupSection } from "@/components/organisms/budget-group-section";
 import { AmountDisplay } from "@/components/atoms/amount-display";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import type { BudgetMonth } from "@/queries/budgets";
 
 interface BudgetTableProps {
@@ -80,23 +81,23 @@ export function BudgetTable({ data }: BudgetTableProps) {
               <AmountDisplay amount={data.unbudgeted.spent} className="text-xs" />
             </span>
           </div>
-          <table className="w-full">
-            <tbody>
+          <Table>
+            <TableBody>
               {data.unbudgeted.categories.map((cat) => (
-                <tr key={cat.categoryId} className="border-b last:border-b-0">
-                  <td className="py-2 px-3 text-sm text-muted-foreground">
+                <TableRow key={cat.categoryId} className="hover:bg-transparent">
+                  <TableCell className="py-2 px-3 text-sm text-muted-foreground">
                     {cat.categoryName}
                     {cat.groupName && (
                       <span className="text-xs ml-1">({cat.groupName})</span>
                     )}
-                  </td>
-                  <td className="py-2 px-3 text-right">
+                  </TableCell>
+                  <TableCell className="py-2 px-3 text-right">
                     <AmountDisplay amount={cat.spent} className="text-xs" />
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

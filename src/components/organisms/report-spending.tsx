@@ -8,6 +8,14 @@ import { SpendingChart } from "@/components/atoms/spending-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { ComparisonBadge } from "@/components/molecules/comparison-badge";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { centsToDisplay } from "@/lib/money";
 import { CHART_COLORS } from "@/lib/chart-colors";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
@@ -61,22 +69,22 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
       </div>
 
       <div className="border rounded-lg">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Category</th>
-              <th className="px-3 py-2 font-medium text-right">Amount</th>
-              {compLabel && <th className="px-3 py-2 font-medium text-right">Change</th>}
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="text-sm">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent text-muted-foreground">
+              <TableHead className="h-auto px-3 py-2">Category</TableHead>
+              <TableHead className="h-auto px-3 py-2 text-right">Amount</TableHead>
+              {compLabel && <TableHead className="h-auto px-3 py-2 text-right">Change</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {data.map((row, i) => (
-              <tr
+              <TableRow
                 key={row.categoryId ?? "uncategorized"}
-                className="border-b last:border-0 cursor-pointer hover:bg-muted/50"
+                className="cursor-pointer"
                 onClick={() => handleDrillDown({ id: row.categoryId, name: row.categoryName })}
               >
-                <td className="px-3 py-2">
+                <TableCell className="px-3 py-2">
                   <div className="flex items-center gap-3">
                     <span
                       aria-hidden
@@ -107,23 +115,23 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
                       )}
                     </div>
                   </div>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium">
+                </TableCell>
+                <TableCell className="px-3 py-2 text-right tabular-nums font-medium">
                   {centsToDisplay(row.total)}
-                </td>
+                </TableCell>
                 {compLabel && (
-                  <td className="px-3 py-2 text-right">
+                  <TableCell className="px-3 py-2 text-right">
                     <ComparisonBadge
                       current={row.total}
                       previous={row.prevTotal}
                       periodLabel={compLabel}
                     />
-                  </td>
+                  </TableCell>
                 )}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       <DrillDownSheet

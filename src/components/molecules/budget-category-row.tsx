@@ -3,6 +3,7 @@
 import { useState, useRef, useTransition, useCallback } from "react";
 import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { BudgetProgressBar } from "@/components/atoms/budget-progress-bar";
 import { setBudgetCategory, removeBudgetCategory } from "@/actions/budgets";
@@ -98,14 +99,14 @@ export function BudgetCategoryRow({
   }
 
   return (
-    <tr className="border-b last:border-b-0">
-      <td className="py-2 px-3 text-sm">
+    <TableRow className="hover:bg-transparent">
+      <TableCell className="py-2 px-3 text-sm">
         <span className="flex items-center gap-2">
           {categoryIcon && <span>{categoryIcon}</span>}
           {categoryName}
         </span>
-      </td>
-      <td className="py-2 px-3">
+      </TableCell>
+      <TableCell className="py-2 px-3">
         <div className="relative w-28">
           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
             $
@@ -122,11 +123,11 @@ export function BudgetCategoryRow({
             placeholder="0.00"
           />
         </div>
-      </td>
-      <td className="py-2 px-3">
+      </TableCell>
+      <TableCell className="py-2 px-3">
         <AmountDisplay amount={spent} className="text-xs" />
-      </td>
-      <td className="py-2 px-3">
+      </TableCell>
+      <TableCell className="py-2 px-3">
         {error ? (
           <span role="alert" aria-live="polite" className="text-xs text-destructive">
             {error}
@@ -141,11 +142,11 @@ export function BudgetCategoryRow({
             {centsToDisplay(optimisticRemaining)}
           </span>
         )}
-      </td>
-      <td className="py-2 px-3 w-32">
+      </TableCell>
+      <TableCell className="py-2 px-3 w-32">
         <BudgetProgressBar spent={spent} limit={optimisticLimit} />
-      </td>
-      <td className="py-2 px-1 w-8">
+      </TableCell>
+      <TableCell className="py-2 px-1 w-8">
         {budgetCategoryId && (
           <button
             onClick={() => {
@@ -170,7 +171,7 @@ export function BudgetCategoryRow({
             <X className="size-3" />
           </button>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
