@@ -126,6 +126,7 @@ export function TransactionDetailPanel({
               currentCategoryId={txn.categoryId}
               currentCategoryName={txn.categoryName}
               categories={categories}
+              isTransfer={txn.isTransfer}
             />
           </div>
         )}
