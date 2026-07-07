@@ -7,10 +7,9 @@ const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
-});
-
-pool.on("connect", (client) => {
-  client.query("SET statement_timeout = '30s'");
+  // Applied natively by pg on each connection — avoids racing a fire-and-forget
+  // `SET statement_timeout` query against the caller's first query on cold connections.
+  statement_timeout: 30_000,
 });
 
 export const db = drizzle({ client: pool, schema });

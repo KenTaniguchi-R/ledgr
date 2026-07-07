@@ -3,7 +3,7 @@ import { getSessionCookie } from "better-auth/cookies";
 
 const publicPaths = ["/login", "/signup", "/api/auth", "/api/health", "/api/plaid/oauth-return", "/api/plaid/webhook", "/.well-known", "/api/mcp"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (publicPaths.some((p) => pathname.startsWith(p))) {
