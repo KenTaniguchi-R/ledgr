@@ -7,6 +7,7 @@ import { server } from "../mocks/server";
 import { encrypt } from "@/lib/encryption";
 import { resetPlaidClient } from "@/lib/plaid/client";
 import { households, householdMembers, plaidItems, accounts, syncLog } from "@/db/schema";
+import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 import type { LedgrDb } from "@/db";
 
 const HOUSEHOLD_ID = "hh-webhook-test";
@@ -165,6 +166,51 @@ describe("dispatchWebhook", () => {
 
     const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("revoked");
+  });
+
+  it("ITEM:ERROR for an unknown plaid_item_id is a no-op", async () => {
+    const { dispatchWebhook } = await import("@/lib/plaid/webhook-handlers");
+    await setup();
+    await seedTestData(db);
+
+    await dispatchWebhook({
+      webhook_type: "ITEM",
+      webhook_code: "ERROR",
+      item_id: "no-such-plaid-item",
+      error: { error_type: "ITEM_ERROR", error_code: "ITEM_LOGIN_REQUIRED", error_message: "login required" },
+    }, db);
+
+    // The seeded item is untouched because nothing matched.
+    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    expect(item!.status).toBe("active");
+  });
+
+  it("never mutates a demo-household item on ITEM:ERROR", async () => {
+    const { dispatchWebhook } = await import("@/lib/plaid/webhook-handlers");
+    await setup();
+    const now = new Date();
+    await db.insert(households).values({ id: DEMO_HOUSEHOLD_ID, name: "Demo", createdAt: now, updatedAt: now });
+    await db.insert(plaidItems).values({
+      id: "demo-item",
+      householdId: DEMO_HOUSEHOLD_ID,
+      accessToken: encrypt("access-sandbox-demo"),
+      plaidItemId: "plaid-demo-item",
+      institutionName: "Demo Bank",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await dispatchWebhook({
+      webhook_type: "ITEM",
+      webhook_code: "ERROR",
+      item_id: "plaid-demo-item",
+      error: { error_type: "ITEM_ERROR", error_code: "ITEM_LOGIN_REQUIRED", error_message: "login required" },
+    }, db);
+
+    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, "demo-item"));
+    expect(item!.status).toBe("active");
+    expect(item!.errorCode).toBeNull();
   });
 
   it("unknown webhook type is a no-op", async () => {
