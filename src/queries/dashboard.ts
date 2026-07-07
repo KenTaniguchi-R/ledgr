@@ -24,6 +24,34 @@ export interface DashboardSummary {
   monthlyNet: number;
 }
 
+/**
+ * YYYY-MM of the household's most recent non-pending transaction, or null when
+ * there is no activity. Used to resolve the "effective" dashboard month so a
+ * returning user whose latest data is from an earlier month doesn't land on an
+ * all-zero current month.
+ */
+export async function getLatestActivityMonth(
+  householdId: string,
+  db: LedgrDb = defaultDb
+): Promise<string | null> {
+  const scoped = scopedQuery(householdId, db);
+
+  const rows = await db
+    .select({ date: transactions.date })
+    .from(transactions)
+    .where(
+      scoped.where(
+        transactions,
+        notDeleted(transactions),
+        eq(transactions.pending, false)
+      )
+    )
+    .orderBy(desc(transactions.date))
+    .limit(1);
+
+  return rows.length > 0 ? rows[0].date.slice(0, 7) : null;
+}
+
 export async function getDashboardSummary(
   householdId: string,
   db: LedgrDb = defaultDb
@@ -47,7 +75,8 @@ export async function getDashboardSummary(
     }
   }
 
-  const { from: dateFrom, to: dateTo } = monthBounds(getCurrentMonth());
+  const effectiveMonth = (await getLatestActivityMonth(householdId, db)) ?? getCurrentMonth();
+  const { from: dateFrom, to: dateTo } = monthBounds(effectiveMonth);
 
   // Monthly transactions (non-pending, non-deleted)
   const monthlyTxns = await db
@@ -152,19 +181,25 @@ export async function getNetWorthHistory(
       netWorth: assets - liabilities,
     }));
 
-  // Synthetic today point from live currentBalance
+  // Synthetic today point from live currentBalance. Only emit it when at least
+  // one account carries a balance — otherwise there is no net worth to plot and
+  // a zero point would render as a degenerate chart instead of an empty state.
   const today = todayDateString();
   // Remove any existing today entry from history (will be replaced by live)
   const withoutToday = result.filter((p) => p.date !== today);
 
+  const accountsWithBalance = allAccounts.filter((a) => a.currentBalance !== null);
+  if (accountsWithBalance.length === 0) {
+    return withoutToday;
+  }
+
   let todayAssets = 0;
   let todayLiabilities = 0;
-  for (const account of allAccounts) {
-    if (account.currentBalance === null) continue;
+  for (const account of accountsWithBalance) {
     if (classifyAccountType(account.type) === "asset") {
-      todayAssets += account.currentBalance;
+      todayAssets += account.currentBalance!;
     } else {
-      todayLiabilities += account.currentBalance;
+      todayLiabilities += account.currentBalance!;
     }
   }
 
@@ -193,7 +228,7 @@ export async function getMonthlySpending(
   month?: string,
   db: LedgrDb = defaultDb
 ): Promise<MonthlySpendingRow[]> {
-  const targetMonth = month ?? getCurrentMonth();
+  const targetMonth = month ?? (await getLatestActivityMonth(householdId, db)) ?? getCurrentMonth();
   const { from: dateFrom, to: dateTo } = monthBounds(targetMonth);
 
   const filters: ReportFilters = { dateFrom, dateTo };

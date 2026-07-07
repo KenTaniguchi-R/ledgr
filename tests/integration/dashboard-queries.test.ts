@@ -15,7 +15,17 @@ import {
   getMonthlySpending,
   getCashFlow,
   getRecentTransactions,
+  getLatestActivityMonth,
 } from "../../src/queries/dashboard";
+
+// Month strings derived relative to "now" so tests stay deterministic as the
+// calendar moves (see repo convention: never hardcode "recent" dates).
+function monthsAgo(n: number): string {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - n);
+  return d.toISOString().slice(0, 7);
+}
 import type { LedgrDb } from "../../src/db";
 
 let db: LedgrDb;
@@ -108,9 +118,90 @@ describe("getNetWorthHistory", () => {
     expect(todayPoint!.liabilities).toBe(20000);
     expect(todayPoint!.netWorth).toBe(60000);
   });
+
+  it("returns empty array when no account has a balance", async () => {
+    // The CSV-import scenario: accounts exist but carry no balance, so there is
+    // no net worth to plot. The chart must see an empty series to render its
+    // empty state instead of a degenerate zero-axis.
+    const { householdId } = await insertHousehold(db);
+    await insertAccount(db, householdId, { type: "checking", currentBalance: null });
+
+    const result = await getNetWorthHistory(householdId, "6M", db);
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe("getLatestActivityMonth", () => {
+  it("returns the YYYY-MM of the most recent non-pending transaction", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
+
+    await insertTransaction(db, householdId, accountId, { date: "2026-03-15" });
+    await insertTransaction(db, householdId, accountId, { date: "2026-05-20" });
+    // A later, still-pending transaction must not count as activity.
+    await insertTransaction(db, householdId, accountId, { date: "2026-06-01", pending: true });
+
+    const result = await getLatestActivityMonth(householdId, db);
+
+    expect(result).toBe("2026-05");
+  });
+
+  it("returns null when the household has no transactions", async () => {
+    const { householdId } = await insertHousehold(db);
+    expect(await getLatestActivityMonth(householdId, db)).toBeNull();
+  });
+});
+
+describe("getDashboardSummary latest-activity fallback", () => {
+  it("uses the latest month with activity when the current month is empty", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId, {
+      type: "checking",
+      currentBalance: 100000,
+    });
+
+    const activityMonth = monthsAgo(2);
+    await insertTransaction(db, householdId, accountId, {
+      date: `${activityMonth}-05`,
+      normalizedAmount: -4000,
+      amount: 4000,
+    });
+    await insertTransaction(db, householdId, accountId, {
+      date: `${activityMonth}-10`,
+      normalizedAmount: 250000,
+      amount: -250000,
+    });
+
+    const result = await getDashboardSummary(householdId, db);
+
+    expect(result.monthlyExpenses).toBe(4000);
+    expect(result.monthlyIncome).toBe(250000);
+    expect(result.monthlyNet).toBe(250000 - 4000);
+  });
 });
 
 describe("getMonthlySpending", () => {
+  it("falls back to the latest month with activity when no month is given", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Food" });
+    const { categoryId } = await insertCategory(db, householdId, groupId, { name: "Groceries" });
+
+    const activityMonth = monthsAgo(1);
+    await insertTransaction(db, householdId, accountId, {
+      date: `${activityMonth}-05`,
+      normalizedAmount: -6000,
+      amount: 6000,
+      categoryId,
+    });
+
+    const result = await getMonthlySpending(householdId, undefined, db);
+
+    expect(result.length).toBe(1);
+    expect(result[0].total).toBe(6000);
+  });
+
   it("groups expense transactions by category", async () => {
     const { householdId } = await insertHousehold(db);
     const { accountId } = await insertAccount(db, householdId);
