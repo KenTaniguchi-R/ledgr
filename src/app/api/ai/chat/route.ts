@@ -1,4 +1,11 @@
-import { streamText, convertToModelMessages, UIMessage, isStepCount } from "ai";
+import {
+  streamText,
+  convertToModelMessages,
+  UIMessage,
+  isStepCount,
+  toUIMessageStream,
+  createUIMessageStreamResponse,
+} from "ai";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { getAiConfig, createAiModel } from "@/lib/ai/config";
@@ -40,5 +47,7 @@ export async function POST(request: Request) {
     abortSignal: request.signal,
   });
 
-  return result.toUIMessageStreamResponse();
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream, tools }),
+  });
 }
