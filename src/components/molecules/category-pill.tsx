@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty } from "@/components/ui/command";
 import { CategoryCommandItems } from "@/components/molecules/category-command-items";
+import { categoryPillLabel } from "@/components/molecules/category-pill-label";
 import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ interface CategoryPillProps {
   currentCategoryName: string | null;
   categories: CategoryGroup[];
   disabled?: boolean;
+  isTransfer?: boolean;
   onCategoryChange?: (categoryId: string | null, categoryName: string | null) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -26,6 +28,7 @@ export function CategoryPill({
   currentCategoryName,
   categories,
   disabled = false,
+  isTransfer = false,
   onCategoryChange,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -79,9 +82,15 @@ export function CategoryPill({
         }
       >
         <Badge variant="outline" className="text-xs truncate">
-          {categoryName ?? (
-            <span className="italic text-muted-foreground">Uncategorized</span>
-          )}
+          {(() => {
+            const { text, variant } = categoryPillLabel(categoryName, isTransfer);
+            if (variant === "category") return text;
+            return (
+              <span className={cn("text-muted-foreground", variant === "uncategorized" && "italic")}>
+                {text}
+              </span>
+            );
+          })()}
         </Badge>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[220px] p-0">

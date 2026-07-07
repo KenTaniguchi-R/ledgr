@@ -5,5 +5,6 @@ allowBuilds:
   msw: true
   protobufjs: true
   sharp: true
+  simple-git-hooks: false
   ssh2: true
   unrs-resolver: true

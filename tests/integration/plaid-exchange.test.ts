@@ -32,7 +32,7 @@ afterAll(() => {
 
 describe("plaid exchange flow", () => {
   let db: LedgrDb;
-  let close: () => Promise<void>;
+  let close: (() => Promise<void>) | undefined;
 
   beforeEach(() => {
     resetPlaidClient();
@@ -40,7 +40,11 @@ describe("plaid exchange flow", () => {
 
   afterEach(async () => {
     server.resetHandlers();
+    // Null out after closing: the pure-unit "maps account types" test never
+    // calls setup(), so without this the stale (already ended) pool from the
+    // previous test would be closed a second time and throw.
     await close?.();
+    close = undefined;
   });
 
   async function setup() {

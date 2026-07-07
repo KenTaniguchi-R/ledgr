@@ -6,6 +6,7 @@ import {
   getCashFlow,
   getRecentTransactions,
   getInvestmentsSummary,
+  getLatestActivityMonth,
 } from "@/queries/dashboard";
 import { getAccounts } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
@@ -20,7 +21,7 @@ import type { DashboardData } from "@/components/organisms/dashboard-grid";
 export default async function DashboardPage() {
   const [session, householdId] = await Promise.all([getSession(), getHouseholdId()]);
 
-  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
+  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, latestActivityMonth, savedLayout] =
     await Promise.all([
       getDashboardSummary(householdId),
       getNetWorthHistory(householdId, "6M"),
@@ -31,8 +32,14 @@ export default async function DashboardPage() {
       getBudgetForMonth(householdId, getCurrentMonth()),
       getUpcomingBills(householdId, { limit: 5 }),
       getInvestmentsSummary(householdId),
+      getLatestActivityMonth(householdId),
       session ? getLayoutForUser(session.user.id) : null,
     ]);
+
+  // The Spending widget's initial month must match the data getMonthlySpending
+  // resolved to (latest activity month when the current month is empty), so the
+  // widget doesn't open on an empty current month.
+  const spendingMonth = latestActivityMonth ?? getCurrentMonth();
 
   const accounts = allAccounts
     .filter((a) => !a.isHidden)
@@ -44,6 +51,7 @@ export default async function DashboardPage() {
     summary,
     netWorthHistory,
     monthlySpending,
+    spendingMonth,
     cashFlow,
     recentTransactions,
     accounts,

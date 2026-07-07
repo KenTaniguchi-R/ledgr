@@ -15,7 +15,17 @@ import {
   getMonthlySpending,
   getCashFlow,
   getRecentTransactions,
+  getLatestActivityMonth,
 } from "../../src/queries/dashboard";
+
+// Month strings derived relative to "now" so tests stay deterministic as the
+// calendar moves (see repo convention: never hardcode "recent" dates).
+function monthsAgo(n: number): string {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - n);
+  return d.toISOString().slice(0, 7);
+}
 import type { LedgrDb } from "../../src/db";
 
 let db: LedgrDb;
@@ -79,14 +89,23 @@ describe("getNetWorthHistory", () => {
       currentBalance: 20000,
     });
 
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: "2026-04-01", balance: 70000 });
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: "2026-04-01", balance: 15000 });
+    // A historical date inside the 3M window but not today: first of last month.
+    // Relative to "now" so the test is deterministic whenever the suite runs.
+    const histDate = (() => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: histDate, balance: 70000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: 15000 });
 
     const result = await getNetWorthHistory(householdId, "3M", db);
 
     expect(result.length).toBeGreaterThanOrEqual(2);
 
-    const historicalPoint = result.find((r) => r.date === "2026-04-01");
+    const historicalPoint = result.find((r) => r.date === histDate);
     expect(historicalPoint).toBeDefined();
     expect(historicalPoint!.assets).toBe(70000);
     expect(historicalPoint!.liabilities).toBe(15000);
@@ -99,9 +118,90 @@ describe("getNetWorthHistory", () => {
     expect(todayPoint!.liabilities).toBe(20000);
     expect(todayPoint!.netWorth).toBe(60000);
   });
+
+  it("returns empty array when no account has a balance", async () => {
+    // The CSV-import scenario: accounts exist but carry no balance, so there is
+    // no net worth to plot. The chart must see an empty series to render its
+    // empty state instead of a degenerate zero-axis.
+    const { householdId } = await insertHousehold(db);
+    await insertAccount(db, householdId, { type: "checking", currentBalance: null });
+
+    const result = await getNetWorthHistory(householdId, "6M", db);
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe("getLatestActivityMonth", () => {
+  it("returns the YYYY-MM of the most recent non-pending transaction", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
+
+    await insertTransaction(db, householdId, accountId, { date: "2026-03-15" });
+    await insertTransaction(db, householdId, accountId, { date: "2026-05-20" });
+    // A later, still-pending transaction must not count as activity.
+    await insertTransaction(db, householdId, accountId, { date: "2026-06-01", pending: true });
+
+    const result = await getLatestActivityMonth(householdId, db);
+
+    expect(result).toBe("2026-05");
+  });
+
+  it("returns null when the household has no transactions", async () => {
+    const { householdId } = await insertHousehold(db);
+    expect(await getLatestActivityMonth(householdId, db)).toBeNull();
+  });
+});
+
+describe("getDashboardSummary latest-activity fallback", () => {
+  it("uses the latest month with activity when the current month is empty", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId, {
+      type: "checking",
+      currentBalance: 100000,
+    });
+
+    const activityMonth = monthsAgo(2);
+    await insertTransaction(db, householdId, accountId, {
+      date: `${activityMonth}-05`,
+      normalizedAmount: -4000,
+      amount: 4000,
+    });
+    await insertTransaction(db, householdId, accountId, {
+      date: `${activityMonth}-10`,
+      normalizedAmount: 250000,
+      amount: -250000,
+    });
+
+    const result = await getDashboardSummary(householdId, db);
+
+    expect(result.monthlyExpenses).toBe(4000);
+    expect(result.monthlyIncome).toBe(250000);
+    expect(result.monthlyNet).toBe(250000 - 4000);
+  });
 });
 
 describe("getMonthlySpending", () => {
+  it("falls back to the latest month with activity when no month is given", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId);
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Food" });
+    const { categoryId } = await insertCategory(db, householdId, groupId, { name: "Groceries" });
+
+    const activityMonth = monthsAgo(1);
+    await insertTransaction(db, householdId, accountId, {
+      date: `${activityMonth}-05`,
+      normalizedAmount: -6000,
+      amount: 6000,
+      categoryId,
+    });
+
+    const result = await getMonthlySpending(householdId, undefined, db);
+
+    expect(result.length).toBe(1);
+    expect(result[0].total).toBe(6000);
+  });
+
   it("groups expense transactions by category", async () => {
     const { householdId } = await insertHousehold(db);
     const { accountId } = await insertAccount(db, householdId);
@@ -161,20 +261,30 @@ describe("getCashFlow", () => {
       isIncome: true,
     });
 
+    // Current month and previous month both fall inside the getCashFlow(3)
+    // window no matter when the suite runs.
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const lastMonth = (() => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 1);
+      return d.toISOString().slice(0, 7);
+    })();
+
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-05",
+      date: `${thisMonth}-05`,
       normalizedAmount: -4000,
       amount: 4000,
     });
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-15",
+      date: `${thisMonth}-15`,
       normalizedAmount: 150000,
       amount: -150000,
       categoryId: incomeCatId,
     });
 
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-04-10",
+      date: `${lastMonth}-10`,
       normalizedAmount: -2500,
       amount: 2500,
     });
@@ -183,30 +293,32 @@ describe("getCashFlow", () => {
 
     expect(result.length).toBeGreaterThanOrEqual(2);
 
-    const aprilData = result.find((r) => r.month === "2026-04");
-    expect(aprilData).toBeDefined();
-    expect(aprilData!.expenses).toBe(2500);
-    expect(aprilData!.income).toBe(0);
-    expect(aprilData!.net).toBe(-2500);
+    const lastMonthData = result.find((r) => r.month === lastMonth);
+    expect(lastMonthData).toBeDefined();
+    expect(lastMonthData!.expenses).toBe(2500);
+    expect(lastMonthData!.income).toBe(0);
+    expect(lastMonthData!.net).toBe(-2500);
 
-    const mayData = result.find((r) => r.month === "2026-05");
-    expect(mayData).toBeDefined();
-    expect(mayData!.expenses).toBe(4000);
-    expect(mayData!.income).toBe(150000);
-    expect(mayData!.net).toBe(150000 - 4000);
+    const thisMonthData = result.find((r) => r.month === thisMonth);
+    expect(thisMonthData).toBeDefined();
+    expect(thisMonthData!.expenses).toBe(4000);
+    expect(thisMonthData!.income).toBe(150000);
+    expect(thisMonthData!.net).toBe(150000 - 4000);
   });
 
   it("excludes transfer transactions", async () => {
     const { householdId } = await insertHousehold(db);
     const { accountId } = await insertAccount(db, householdId);
 
+    const thisMonth = new Date().toISOString().slice(0, 7);
+
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-05",
+      date: `${thisMonth}-05`,
       normalizedAmount: -3000,
       amount: 3000,
     });
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-05-10",
+      date: `${thisMonth}-10`,
       normalizedAmount: -50000,
       amount: 50000,
       isTransfer: true,
@@ -214,9 +326,9 @@ describe("getCashFlow", () => {
 
     const result = await getCashFlow(householdId, 3, db);
 
-    const mayData = result.find((r) => r.month === "2026-05");
-    expect(mayData).toBeDefined();
-    expect(mayData!.expenses).toBe(3000);
+    const thisMonthData = result.find((r) => r.month === thisMonth);
+    expect(thisMonthData).toBeDefined();
+    expect(thisMonthData!.expenses).toBe(3000);
   });
 });
 

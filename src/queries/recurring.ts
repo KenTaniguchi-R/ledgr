@@ -1,4 +1,4 @@
-import { eq, asc, like } from "drizzle-orm";
+import { eq, asc, ilike } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { recurringTransactions, merchants, categories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -33,7 +33,7 @@ export async function getUpcomingBills(
   ];
 
   if (opts.search) {
-    conditions.push(like(recurringTransactions.name, `%${opts.search}%`));
+    conditions.push(ilike(recurringTransactions.name, `%${opts.search}%`));
   }
 
   let builder = db

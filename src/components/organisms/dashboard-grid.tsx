@@ -29,6 +29,7 @@ export interface DashboardData {
   summary: DashboardSummary;
   netWorthHistory: NetWorthPoint[];
   monthlySpending: MonthlySpendingRow[];
+  spendingMonth: string;
   cashFlow: CashFlowRow[];
   recentTransactions: TransactionRow[];
   accounts: { id: string; name: string; type: AccountType; currentBalance: number | null; currency: string | null }[];
@@ -52,7 +53,7 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
   const [nwRange, setNwRange] = useState("6M");
   const [nwData, setNwData] = useState(data.netWorthHistory);
   const [nwLoading, startNwTransition] = useTransition();
-  const [spendMonth, setSpendMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [spendMonth, setSpendMonth] = useState(data.spendingMonth);
   const [spendData, setSpendData] = useState(data.monthlySpending);
   const [spendLoading, startSpendTransition] = useTransition();
 

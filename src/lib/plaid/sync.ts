@@ -17,6 +17,7 @@ import {
   TRANSIENT_ERROR_CODES,
   retryWithBackoff,
 } from "./utils";
+import { cleanTransactionName } from "@/lib/import/clean-name";
 import type { LedgrDb } from "@/db";
 import {
   plaidItems,
@@ -180,7 +181,7 @@ export function processBatch(
       plaidAccountId: txn.account_id,
       date: txn.date,
       originalName: txn.name,
-      name: txn.merchant_name ? titleCase(txn.merchant_name) : txn.name,
+      name: txn.merchant_name ? titleCase(txn.merchant_name) : cleanTransactionName(txn.name),
       amount: amountCents,
       normalizedAmount: normalizedAmt,
       currency: txn.iso_currency_code ?? "USD",
