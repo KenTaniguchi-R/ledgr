@@ -2,6 +2,7 @@
 
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
+import { toolPartLabel } from "./chat-message-part";
 
 interface Props {
   message: UIMessage;
@@ -26,16 +27,11 @@ export function ChatMessage({ message }: Props) {
               </p>
             );
           }
-          if (part.type === "dynamic-tool") {
-            const isDone =
-              part.state === "output-available" ||
-              part.state === "output-error" ||
-              part.state === "output-denied";
+          const toolLabel = toolPartLabel(part);
+          if (toolLabel) {
             return (
               <p key={i} className="text-xs text-muted-foreground italic">
-                {isDone
-                  ? `Done: ${part.toolName}`
-                  : `Running: ${part.toolName}...`}
+                {toolLabel}
               </p>
             );
           }

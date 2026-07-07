@@ -1,4 +1,11 @@
-import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
+import {
+  streamText,
+  convertToModelMessages,
+  UIMessage,
+  isStepCount,
+  toUIMessageStream,
+  createUIMessageStreamResponse,
+} from "ai";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { getAiConfig, createAiModel } from "@/lib/ai/config";
@@ -34,11 +41,13 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model,
-    system: await buildSystemPrompt(householdId),
+    instructions: await buildSystemPrompt(householdId),
     messages: await convertToModelMessages(messages),
-    ...(tools ? { tools, stopWhen: stepCountIs(5) } : {}),
+    ...(tools ? { tools, stopWhen: isStepCount(5) } : {}),
     abortSignal: request.signal,
   });
 
-  return result.toUIMessageStreamResponse();
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream, tools }),
+  });
 }
