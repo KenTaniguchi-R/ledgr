@@ -31,6 +31,7 @@ export interface SpendingRow {
   categoryName: string;
   groupName: string | null;
   groupId: string | null;
+  groupIcon: string | null;
   total: number;
   prevTotal: number;
 }
@@ -70,6 +71,7 @@ export async function getSpendingByCategory(
     categoryName: row.name,
     groupName: row.groupName,
     groupId: row.groupId,
+    groupIcon: row.groupIcon,
     total: row.value,
     prevTotal: prevMap.get(row.id ?? "uncategorized") ?? 0,
   }));

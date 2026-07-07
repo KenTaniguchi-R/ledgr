@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TrendingUp, TrendingDown, Scale } from "lucide-react";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { IncomeExpenseCategoryTable } from "@/components/molecules/income-expense-category-table";
@@ -29,9 +30,9 @@ export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseP
   const totalNet = totalIncome - totalExpenses;
 
   const summaryItems: SummaryItem[] = [
-    { label: "Total Income", value: totalIncome, color: "income" },
-    { label: "Total Expenses", value: totalExpenses, color: "expense" },
-    { label: "Net", value: totalNet, color: "dynamic" },
+    { label: "Total Income", value: totalIncome, color: "income", icon: TrendingUp },
+    { label: "Total Expenses", value: totalExpenses, color: "expense", icon: TrendingDown },
+    { label: "Net", value: totalNet, color: "dynamic", icon: Scale },
   ];
 
   function handleCategoryDrillDown(categoryId: string, isIncome: boolean) {

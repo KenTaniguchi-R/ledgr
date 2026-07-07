@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TrendingUp, Repeat, Receipt, PiggyBank } from "lucide-react";
 import { SankeyChart, type SankeyNode, type SankeyLink } from "@/components/organisms/sankey-chart";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
@@ -35,14 +36,15 @@ export function ReportCashFlow({
   })();
 
   const summaryItems: SummaryItem[] = [
-    { label: "Total Income", value: safeToSpend.monthlyIncome, color: "income" },
-    { label: "Recurring Bills", value: safeToSpend.recurringExpenses, color: "expense" },
-    { label: "Spent So Far", value: safeToSpend.discretionarySpent, color: "expense" },
+    { label: "Total Income", value: safeToSpend.monthlyIncome, color: "income", icon: TrendingUp },
+    { label: "Recurring Bills", value: safeToSpend.recurringExpenses, color: "expense", icon: Repeat },
+    { label: "Spent So Far", value: safeToSpend.discretionarySpent, color: "expense", icon: Receipt },
     {
       label: "Safe to Spend",
       value: safeToSpend.safeToSpend,
       color: safeColor,
       secondaryLabel: isCurrentMonth ? undefined : "(current month)",
+      icon: PiggyBank,
     },
   ];
 

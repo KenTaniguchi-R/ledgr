@@ -17,6 +17,7 @@ export interface SpendingChartItem {
   value: number;
   groupName: string | null;
   groupId: string | null;
+  groupIcon: string | null;
 }
 
 
@@ -109,7 +110,13 @@ export async function enrichSpendingMap(
 ): Promise<SpendingChartItem[]> {
   const categoryIds = [...spending.keys()].filter((k) => k !== "uncategorized");
 
-  type CatRow = { id: string; name: string; groupName: string | null; groupId: string | null };
+  type CatRow = {
+    id: string;
+    name: string;
+    groupName: string | null;
+    groupId: string | null;
+    groupIcon: string | null;
+  };
   let catRows: CatRow[] = [];
   if (categoryIds.length > 0) {
     catRows = await db
@@ -118,6 +125,7 @@ export async function enrichSpendingMap(
         name: categories.name,
         groupName: categoryGroups.name,
         groupId: categoryGroups.id,
+        groupIcon: categoryGroups.icon,
       })
       .from(categories)
       .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
@@ -129,7 +137,14 @@ export async function enrichSpendingMap(
 
   for (const [key, value] of spending.entries()) {
     if (key === "uncategorized") {
-      result.push({ id: null, name: "Uncategorized", value, groupName: null, groupId: null });
+      result.push({
+        id: null,
+        name: "Uncategorized",
+        value,
+        groupName: null,
+        groupId: null,
+        groupIcon: null,
+      });
     } else {
       const cat = catMap.get(key);
       result.push({
@@ -138,6 +153,7 @@ export async function enrichSpendingMap(
         value,
         groupName: cat?.groupName ?? null,
         groupId: cat?.groupId ?? null,
+        groupIcon: cat?.groupIcon ?? null,
       });
     }
   }

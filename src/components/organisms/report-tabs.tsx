@@ -1,5 +1,6 @@
 "use client";
 
+import { PieChart, ArrowLeftRight, Waypoints, TrendingUp, LineChart } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { ReportSpending } from "./report-spending";
@@ -47,12 +48,22 @@ export function ReportTabs({
       value={activeTab}
       onValueChange={(tab) => updateFilter("tab", tab === "spending" ? null : tab)}
     >
-      <TabsList>
-        <TabsTrigger value="spending">Spending</TabsTrigger>
-        <TabsTrigger value="income-expense">Income vs Expense</TabsTrigger>
-        <TabsTrigger value="cash-flow">Cash Flow</TabsTrigger>
-        <TabsTrigger value="trends">Trends</TabsTrigger>
-        <TabsTrigger value="net-worth">Net Worth</TabsTrigger>
+      <TabsList className="h-9">
+        <TabsTrigger value="spending">
+          <PieChart /> Spending
+        </TabsTrigger>
+        <TabsTrigger value="income-expense">
+          <ArrowLeftRight /> Income vs Expense
+        </TabsTrigger>
+        <TabsTrigger value="cash-flow">
+          <Waypoints /> Cash Flow
+        </TabsTrigger>
+        <TabsTrigger value="trends">
+          <TrendingUp /> Trends
+        </TabsTrigger>
+        <TabsTrigger value="net-worth">
+          <LineChart /> Net Worth
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="spending" className="mt-4">
