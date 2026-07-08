@@ -21,6 +21,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:mutate": "stryker run",
     "test:mutate:incremental": "stryker run --incremental",
+    "test:mutate:diff": "bash scripts/mutate-diff.sh",
     "test:changed": "vitest related --run $(git diff --name-only HEAD)",
     "prepare": "simple-git-hooks",
     "build:mcp-widgets": "tsx src/lib/mcp/apps/build.ts",
