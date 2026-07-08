@@ -1,66 +1,88 @@
 # Privacy Policy
 
-_Last updated: 2026-07-07_
+_Last updated: 2026-07-08_
 
-Ledgr is **open-source, self-hosted personal finance software**. You run your own
-private instance on infrastructure you control. This document explains how Ledgr
-handles data so that you — the person deploying and using it — can act as an informed
-data controller.
+Ledgr ("Ledgr", "we", "us") is a personal finance application that lets you securely
+connect your financial accounts to see your transactions, balances, budgets, net worth,
+and investment holdings in one place. This policy explains what data we collect, how we
+use it, who we share it with, and the choices and rights you have.
 
-## Who controls your data
+For the hosted Ledgr service, **we are the data controller** for the personal data
+described below.
 
-In a self-hosted deployment, **you are the data controller.** Your financial data lives
-in **your** PostgreSQL database on **your** infrastructure. The Ledgr project and its
-maintainers **do not receive, store, transmit, or have any access to your data.** Ledgr
-does not phone home, and it contains no analytics or telemetry that reports your usage or
-financial information to any third party.
+## Data we collect
 
-## What data Ledgr stores
+- **Account information** — your email address and an encrypted (hashed) password used to
+  sign in.
+- **Financial account data (via Plaid)** — when you connect a financial institution, we
+  receive account details, balances, transactions, and (if you enable it) investment
+  holdings and investment transactions.
+- **Usage and device data** — basic technical information (e.g. session, IP address) needed
+  to operate and secure the service.
 
-Within your own instance, Ledgr stores:
+## How we use your data
 
-- **Account credentials** — your email address and a hashed password (via Better Auth).
-- **Financial data connected through Plaid** — accounts, balances, transactions, and (if
-  you enable it) investment holdings and investment transactions.
-- **Encrypted Plaid access tokens** — encrypted at rest at the application layer
-  (AES-256-GCM). See [SECURITY.md](./SECURITY.md).
+We use your data only to provide and improve the service you signed up for:
 
-All of this is stored **only** in the database you operate.
+- Displaying your accounts, transactions, balances, budgets, net worth, and holdings.
+- Categorizing transactions and detecting recurring bills.
+- Securing your account and preventing abuse.
 
-## Third parties
+We do **not** sell your personal data, and we do **not** use your financial data for
+advertising.
 
-- **Plaid** connects your financial institutions and acts as a data processor for that
-  connection. When you link an account, you consent through Plaid Link and Plaid's own
-  terms and privacy policy apply to their processing. See Plaid's
+## Legal basis and consent
+
+We process your financial data to perform the service you request. You connect financial
+accounts only through **Plaid Link**, which presents the data being shared and obtains
+your consent before any account is linked.
+
+## Who we share data with (processors)
+
+We share data only with service providers that help us run Ledgr, under contractual
+confidentiality and security obligations:
+
+- **Plaid** — connects your financial institutions and provides the account data. Plaid's
+  handling of your data is described in Plaid's
   [End User Privacy Policy](https://plaid.com/legal/#end-user-privacy-policy).
-- **AI provider (optional, BYOK)** — if you enable AI-assisted categorization or chat, the
-  relevant transaction data is sent to the LLM provider whose API key **you** supply
-  (e.g. OpenAI, Anthropic, Google). This is off unless you configure it, and their privacy
-  terms apply to that processing.
+- **Hosting and database providers** — operate the infrastructure that stores your data,
+  with encryption at rest.
+- **AI provider (optional)** — if you enable AI-assisted categorization or chat, the
+  relevant transaction data is sent to the configured LLM provider to generate a response.
+  This feature is off unless you enable it.
 
-Ledgr integrates with no other third-party services by default.
-
-## Consent
-
-Account connections are made only with your explicit consent through Plaid Link, which
-presents the data being shared before any account is linked.
-
-## Data retention and deletion
-
-You control retention entirely. Within Ledgr you can:
-
-- **Disconnect a financial institution**, which revokes the Plaid access token.
-- **Delete your data**, including a full account deletion that removes your accounts,
-  transactions, balances, and investment records from your database.
-
-Because you operate the database, you may also delete data directly at any time.
+We may also disclose data if required by law or to protect the rights and safety of our
+users and the service.
 
 ## Security
 
-For the security architecture and how to report a vulnerability, see
-[SECURITY.md](./SECURITY.md). Operators are responsible for deploying Ledgr behind HTTPS
-and for enabling encryption at rest on their database or host.
+We protect your data with encryption in transit (TLS 1.2+) and at rest. Plaid access
+tokens are additionally encrypted at the application layer (AES-256-GCM). Access to your
+data is isolated per user. See [SECURITY.md](./SECURITY.md) for details and how to report
+a vulnerability.
+
+## Data retention and deletion
+
+We keep your data for as long as your account is active. You can:
+
+- **Delete your financial data** at any time, which disconnects your institutions and
+  erases your accounts, transactions, balances, and investment records.
+- **Delete your account**, which permanently erases your data and closes your account.
+
+When you delete an account or disconnect an institution, we revoke the associated Plaid
+access at Plaid.
+
+## Your rights
+
+Depending on your location, you may have rights to access, correct, export, or delete your
+personal data, and to withdraw consent. To exercise these rights, use the in-app controls
+or contact us at the address below.
+
+## Changes to this policy
+
+We may update this policy from time to time. Material changes will be communicated within
+the application or by email.
 
 ## Contact
 
-Questions about this policy: **taniguchi.ryusei@gmail.com**.
+Questions or requests regarding this policy or your data: **taniguchi.ryusei@gmail.com**.
