@@ -8,8 +8,10 @@ export default async function SettingsPage() {
   const session = await getSession();
   if (!session) return null;
 
-  const mcpSettings = await getMcpSettings(session.user.id);
-  const demoEnabled = await isDemoMode(session.user.id);
+  const [mcpSettings, demoEnabled] = await Promise.all([
+    getMcpSettings(session.user.id),
+    isDemoMode(session.user.id),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-8">

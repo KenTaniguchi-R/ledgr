@@ -44,22 +44,23 @@ export default async function InvestmentsPage({
     type,
   };
 
+  // getAccounts is independent of accIds — start it concurrently.
+  const accountsPromise = getAccounts(householdId);
   const accIds = await getInvestmentAccountIds(householdId);
 
-  const [summary, history, allocation] = await Promise.all([
+  const [summary, history, allocation, holdings, transactions] = await Promise.all([
     getPortfolioSummary(householdId, undefined, undefined, accIds),
     getPortfolioHistory(householdId, { dateFrom: dateFrom ?? dateTo, dateTo }, undefined, accIds),
     getAssetAllocation(householdId, undefined, accIds),
+    tab === "holdings"
+      ? getHoldings(householdId, view, accountId, undefined, accIds)
+      : Promise.resolve(null),
+    tab === "transactions"
+      ? getInvestmentTransactions(householdId, filters, 50, null, undefined, accIds)
+      : Promise.resolve(null),
   ]);
 
-  const holdings =
-    tab === "holdings" ? await getHoldings(householdId, view, accountId, undefined, accIds) : null;
-  const transactions =
-    tab === "transactions"
-      ? await getInvestmentTransactions(householdId, filters, 50, null, undefined, accIds)
-      : null;
-
-  const allAccounts = await getAccounts(householdId);
+  const allAccounts = await accountsPromise;
   const investmentAccounts = allAccounts
     .filter((a) => a.type === "investment")
     .map((a) => ({ id: a.id, name: a.name }));

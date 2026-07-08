@@ -59,6 +59,14 @@ export default async function ReportsPage({
     compLabel = comparisonLabel(shifted.from, shifted.to);
   }
 
+  // These three are independent of the active tab — kick them off up front so
+  // they run concurrently with the tab-specific query below.
+  const sharedPromise = Promise.all([
+    getCategories(householdId),
+    getAccounts(householdId),
+    getSavedReportsByHousehold(householdId),
+  ]);
+
   // Only fetch data for active tab
   let spendingData;
   let incomeExpenseData;
@@ -73,14 +81,24 @@ export default async function ReportsPage({
     case "spending":
       spendingData = await getSpendingByCategory(householdId, filters, undefined, compPeriod);
       break;
-    case "income-expense":
-      incomeExpenseData = await getIncomeVsExpense(householdId, filters);
-      incomeExpenseCategoryData = await getIncomeExpenseByCategory(householdId, filters);
+    case "income-expense": {
+      const [ie, ieCat] = await Promise.all([
+        getIncomeVsExpense(householdId, filters),
+        getIncomeExpenseByCategory(householdId, filters),
+      ]);
+      incomeExpenseData = ie;
+      incomeExpenseCategoryData = ieCat;
       break;
+    }
     case "cash-flow": {
-      sankeyData = await getCashFlowSankey(householdId, filters);
-      safeToSpendData = await getSafeToSpend(householdId);
-      cashFlowBarData = await getIncomeVsExpense(householdId, filters);
+      const [sankey, safeToSpend, cashFlowBar] = await Promise.all([
+        getCashFlowSankey(householdId, filters),
+        getSafeToSpend(householdId),
+        getIncomeVsExpense(householdId, filters),
+      ]);
+      sankeyData = sankey;
+      safeToSpendData = safeToSpend;
+      cashFlowBarData = cashFlowBar;
       break;
     }
     case "trends":
@@ -94,10 +112,8 @@ export default async function ReportsPage({
   const currentMonth = getCurrentMonth();
   const isCurrentMonth = dateFrom <= `${currentMonth}-01` && dateTo >= `${currentMonth}-01`;
 
-  const allCategories = await getCategories(householdId);
-  const allAccounts = await getAccounts(householdId);
+  const [allCategories, allAccounts, savedReports] = await sharedPromise;
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
-  const savedReports = await getSavedReportsByHousehold(householdId);
 
   return (
     <div className="space-y-4">

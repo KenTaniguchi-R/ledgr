@@ -8,8 +8,10 @@ import { EmptyStateCTA } from "@/components/organisms/empty-state-cta";
 export default async function AccountsPage() {
   const householdId = await getHouseholdId();
 
-  const groups = await getAccountsByInstitution(householdId);
-  const summary = await getAccountSummary(householdId);
+  const [groups, summary] = await Promise.all([
+    getAccountsByInstitution(householdId),
+    getAccountSummary(householdId),
+  ]);
 
   const hasAccounts = groups.some((g) => g.accounts.length > 0);
 

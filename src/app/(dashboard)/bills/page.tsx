@@ -12,8 +12,10 @@ export default async function BillsPage({
 }) {
   const householdId = await getHouseholdId();
   const params = await searchParams;
-  const bills = await getUpcomingBills(householdId, { search: params.q });
-  const summary = await getRecurringSummary(householdId);
+  const [bills, summary] = await Promise.all([
+    getUpcomingBills(householdId, { search: params.q }),
+    getRecurringSummary(householdId),
+  ]);
 
   return (
     <div className="space-y-4">
