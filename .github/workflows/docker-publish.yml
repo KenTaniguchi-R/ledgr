@@ -55,7 +55,7 @@ jobs:
 
       # Report all fixable HIGH/CRITICAL findings to the Security tab.
       - name: Scan image with Trivy (report)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ledgr:scan
           format: sarif
@@ -72,7 +72,7 @@ jobs:
 
       # Gate the release: fail if a fixable CRITICAL vulnerability is present.
       - name: Scan image with Trivy (gate)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ledgr:scan
           format: table
