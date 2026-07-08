@@ -84,6 +84,64 @@ describe("getIncomeVsExpense", () => {
   });
 });
 
+describe("getIncomeExpenseByCategory", () => {
+  test("income sums abs amount, expense sums raw signed amount", async () => {
+    const { getIncomeExpenseByCategory } = await import("../../src/queries/reports");
+    const result = await getIncomeExpenseByCategory(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
+
+    const salary = result.find((r) => r.categoryName === "Salary");
+    const food = result.find((r) => r.categoryName === "Food");
+    const rent = result.find((r) => r.categoryName === "Rent");
+
+    expect(salary?.isIncome).toBe(true);
+    expect(salary?.total).toBe(500000); // abs of +500000
+    expect(food?.isIncome).toBe(false);
+    expect(food?.total).toBe(-8000); // raw signed (-5000 + -3000)
+    expect(rent?.total).toBe(-100000); // raw signed
+  });
+
+  test("sorts rows by total descending", async () => {
+    const { getIncomeExpenseByCategory } = await import("../../src/queries/reports");
+    const result = await getIncomeExpenseByCategory(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
+
+    expect(result.map((r) => r.categoryName)).toEqual(["Salary", "Food", "Rent"]);
+  });
+
+  test("monthlyAverage divides by distinct month count; null-category months count in the divisor but rows are excluded", async () => {
+    // A lone null-category txn in January adds a third distinct month to the
+    // divisor even though it produces no output row.
+    await insertTransaction(db, householdId, accountId, { date: "2026-01-20", normalizedAmount: -9999, amount: 9999, categoryId: null, name: "Uncat Jan" });
+
+    const { getIncomeExpenseByCategory } = await import("../../src/queries/reports");
+    const result = await getIncomeExpenseByCategory(householdId, { dateFrom: "2026-01-01", dateTo: "2026-03-31" }, db);
+
+    // No row for the null-category transaction.
+    expect(result.every((r) => r.categoryName !== "Uncat Jan")).toBe(true);
+
+    // Food = Feb (-4000) + Mar (-8000) = -12000 over 3 distinct months.
+    const food = result.find((r) => r.categoryName === "Food");
+    expect(food?.total).toBe(-12000);
+    expect(food?.monthlyAverage).toBe(Math.round(-12000 / 3)); // -4000
+  });
+
+  test("percentOfTotal is relative to the income vs expense pool", async () => {
+    const { getIncomeExpenseByCategory } = await import("../../src/queries/reports");
+    const result = await getIncomeExpenseByCategory(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
+
+    const salary = result.find((r) => r.categoryName === "Salary");
+    const food = result.find((r) => r.categoryName === "Food");
+    const rent = result.find((r) => r.categoryName === "Rent");
+
+    // Only income category -> 100% of income pool.
+    expect(salary?.percentOfTotal).toBeCloseTo(100, 5);
+    // Expense categories sum raw signed amounts, so the expense pool total is
+    // negative. The `denominator > 0` guard therefore yields 0 for every
+    // expense row (preserved current behavior).
+    expect(food?.percentOfTotal).toBe(0);
+    expect(rent?.percentOfTotal).toBe(0);
+  });
+});
+
 describe("getCategoryTrends", () => {
   test("groups by month and category", async () => {
     const { getCategoryTrends } = await import("../../src/queries/reports");

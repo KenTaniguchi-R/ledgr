@@ -1,4 +1,4 @@
-import { eq, gte, lt, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
+import { eq, gte, lt, lte, sql, and, inArray, notInArray, isNull, isNotNull } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -272,62 +272,58 @@ export async function getIncomeExpenseByCategory(
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  const txns = await db
+  // Distinct-month divisor over ALL matching txns (including null-category ones,
+  // which produce no output row but still count toward the month span). Matches
+  // the prior `new Set(txns.map(...date.slice(0,7)))` over the full result set.
+  const monthExpr = sql<string>`substring(${transactions.date}, 1, 7)`;
+  const [monthRow] = await db
+    .select({
+      count: sql<number>`COUNT(DISTINCT ${monthExpr})`.mapWith(Number),
+    })
+    .from(transactions)
+    .where(scoped.where(transactions, ...conditions));
+  const monthCount = Math.max(monthRow?.count ?? 0, 1);
+
+  // Per-category totals: income categories sum ABS(amount), everything else sums
+  // the raw signed amount — pushed into SQL via SUM(CASE ...). Null-category rows
+  // are excluded from the grouping (they never produced a row in the JS version).
+  const isIncome =
+    incomeCatIds.size > 0
+      ? sql`COALESCE(${inArray(transactions.categoryId, [...incomeCatIds])}, false)`
+      : sql`false`;
+
+  const catRows = await db
     .select({
       categoryId: transactions.categoryId,
       categoryName: categories.name,
       categoryIcon: categories.icon,
-      normalizedAmount: transactions.normalizedAmount,
-      date: transactions.date,
+      total: sql<number>`COALESCE(SUM(CASE WHEN ${isIncome} THEN ABS(${transactions.normalizedAmount}) ELSE ${transactions.normalizedAmount} END), 0)`.mapWith(Number),
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(scoped.where(transactions, ...conditions));
-
-  const months = new Set(txns.map((t) => t.date.slice(0, 7)));
-  const monthCount = Math.max(months.size, 1);
-
-  const byCat = new Map<
-    string,
-    { name: string; icon: string | null; isIncome: boolean; total: number }
-  >();
-  for (const txn of txns) {
-    if (!txn.categoryId) continue;
-    const isIncome = incomeCatIds.has(txn.categoryId);
-    const existing = byCat.get(txn.categoryId);
-    const amount = isIncome ? Math.abs(txn.normalizedAmount) : txn.normalizedAmount;
-    if (existing) {
-      existing.total += amount;
-    } else {
-      byCat.set(txn.categoryId, {
-        name: resolvedCategoryLabel(txn.categoryName),
-        icon: txn.categoryIcon,
-        isIncome,
-        total: amount,
-      });
-    }
-  }
+    .where(scoped.where(transactions, ...conditions, isNotNull(transactions.categoryId)))
+    .groupBy(transactions.categoryId, categories.name, categories.icon);
 
   let totalIncome = 0;
   let totalExpenses = 0;
-  for (const cat of byCat.values()) {
-    if (cat.isIncome) totalIncome += cat.total;
-    else totalExpenses += cat.total;
+  for (const row of catRows) {
+    if (incomeCatIds.has(row.categoryId!)) totalIncome += row.total;
+    else totalExpenses += row.total;
   }
 
-  const result: IncomeExpenseCategoryRow[] = [];
-  for (const [categoryId, cat] of byCat.entries()) {
-    const denominator = cat.isIncome ? totalIncome : totalExpenses;
-    result.push({
-      categoryId,
-      categoryName: cat.name,
-      categoryIcon: cat.icon,
-      isIncome: cat.isIncome,
-      total: cat.total,
-      monthlyAverage: Math.round(cat.total / monthCount),
-      percentOfTotal: denominator > 0 ? (cat.total / denominator) * 100 : 0,
-    });
-  }
+  const result: IncomeExpenseCategoryRow[] = catRows.map((row) => {
+    const rowIsIncome = incomeCatIds.has(row.categoryId!);
+    const denominator = rowIsIncome ? totalIncome : totalExpenses;
+    return {
+      categoryId: row.categoryId!,
+      categoryName: resolvedCategoryLabel(row.categoryName),
+      categoryIcon: row.categoryIcon,
+      isIncome: rowIsIncome,
+      total: row.total,
+      monthlyAverage: Math.round(row.total / monthCount),
+      percentOfTotal: denominator > 0 ? (row.total / denominator) * 100 : 0,
+    };
+  });
 
   return result.sort((a, b) => b.total - a.total);
 }
