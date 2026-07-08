@@ -1,6 +1,45 @@
 import type { CSSProperties } from "react";
-import { DynamicIcon, type IconName } from "lucide-react/dynamic";
-import { Tag } from "lucide-react";
+import {
+  type LucideIcon,
+  Tag,
+  Banknote,
+  Car,
+  CarFront,
+  CircleDollarSign,
+  Clapperboard,
+  Coffee,
+  Cpu,
+  DollarSign,
+  Droplet,
+  Dumbbell,
+  Fuel,
+  Gift,
+  GraduationCap,
+  Heart,
+  HeartPulse,
+  Home,
+  Key,
+  Lamp,
+  Landmark,
+  Laptop,
+  Pill,
+  Plane,
+  Repeat,
+  Shirt,
+  ShoppingBag,
+  ShoppingCart,
+  Smartphone,
+  SquareParking,
+  Stethoscope,
+  TrainFront,
+  TrendingUp,
+  Umbrella,
+  User,
+  Utensils,
+  Wifi,
+  Wrench,
+  Zap,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CategoryIconProps {
@@ -11,21 +50,59 @@ interface CategoryIconProps {
 }
 
 /**
- * Renders a category or category-group icon from its stored lucide name.
- * Icon names live in the DB (see src/db/seed/categories.ts) as kebab-case
- * lucide identifiers and are resolved at render time via lucide's dynamic
- * loader, with a Tag fallback for missing or unrecognized names.
+ * Static map of the category/group icon names written by the seed
+ * (src/db/seed/categories.ts) to their lucide components. Category icons are
+ * a bounded, seed-only set, so a static map avoids lucide's dynamic-import
+ * manifest (~1,500 entries) and the per-icon fetch waterfall, and renders on
+ * the server. Keep this in sync with the seed; unknown names fall back to Tag.
+ */
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  banknote: Banknote,
+  car: Car,
+  "car-front": CarFront,
+  "circle-dollar-sign": CircleDollarSign,
+  clapperboard: Clapperboard,
+  coffee: Coffee,
+  cpu: Cpu,
+  "dollar-sign": DollarSign,
+  droplet: Droplet,
+  dumbbell: Dumbbell,
+  fuel: Fuel,
+  gift: Gift,
+  "graduation-cap": GraduationCap,
+  heart: Heart,
+  "heart-pulse": HeartPulse,
+  home: Home,
+  key: Key,
+  lamp: Lamp,
+  landmark: Landmark,
+  laptop: Laptop,
+  pill: Pill,
+  plane: Plane,
+  repeat: Repeat,
+  shirt: Shirt,
+  "shopping-bag": ShoppingBag,
+  "shopping-cart": ShoppingCart,
+  smartphone: Smartphone,
+  "square-parking": SquareParking,
+  stethoscope: Stethoscope,
+  "train-front": TrainFront,
+  "trending-up": TrendingUp,
+  umbrella: Umbrella,
+  user: User,
+  utensils: Utensils,
+  wifi: Wifi,
+  wrench: Wrench,
+  zap: Zap,
+};
+
+/**
+ * Renders a category or category-group icon from its stored lucide name,
+ * falling back to a generic Tag for missing or unrecognized names.
  */
 export function CategoryIcon({ name, size = 16, className }: CategoryIconProps) {
-  if (!name) return <Tag size={size} className={className} />;
-  return (
-    <DynamicIcon
-      name={name as IconName}
-      size={size}
-      className={className}
-      fallback={() => <Tag size={size} className={className} />}
-    />
-  );
+  const Icon = (name && CATEGORY_ICONS[name]) || Tag;
+  return <Icon size={size} className={className} />;
 }
 
 interface CategoryIconTileProps {

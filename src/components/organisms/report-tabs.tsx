@@ -1,16 +1,38 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { PieChart, ArrowLeftRight, Waypoints, TrendingUp, LineChart } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
-import { ReportSpending } from "./report-spending";
-import { ReportIncomeExpense } from "./report-income-expense";
-import { ReportTrends } from "./report-trends";
-import { ReportNetWorth } from "./report-net-worth";
-import { ReportCashFlow } from "./report-cash-flow";
 import type { SpendingRow, IncomeExpenseRow, CategoryTrendRow, IncomeExpenseCategoryRow, SafeToSpendResult } from "@/queries/reports";
 import type { NetWorthPoint } from "@/queries/dashboard";
 import type { SankeyNode, SankeyLink } from "@/components/organisms/sankey-chart";
+
+// Each report panel pulls in recharts (or d3-sankey). Load only the active
+// tab's panel so those chart libs stay out of the Reports initial bundle.
+const tabLoading = () => (
+  <div className="animate-pulse text-muted-foreground py-8 text-center text-sm">Loading…</div>
+);
+const ReportSpending = dynamic(
+  () => import("./report-spending").then((m) => ({ default: m.ReportSpending })),
+  { ssr: false, loading: tabLoading },
+);
+const ReportIncomeExpense = dynamic(
+  () => import("./report-income-expense").then((m) => ({ default: m.ReportIncomeExpense })),
+  { ssr: false, loading: tabLoading },
+);
+const ReportTrends = dynamic(
+  () => import("./report-trends").then((m) => ({ default: m.ReportTrends })),
+  { ssr: false, loading: tabLoading },
+);
+const ReportNetWorth = dynamic(
+  () => import("./report-net-worth").then((m) => ({ default: m.ReportNetWorth })),
+  { ssr: false, loading: tabLoading },
+);
+const ReportCashFlow = dynamic(
+  () => import("./report-cash-flow").then((m) => ({ default: m.ReportCashFlow })),
+  { ssr: false, loading: tabLoading },
+);
 
 interface ReportTabsProps {
   activeTab: string;

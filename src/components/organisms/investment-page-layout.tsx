@@ -1,13 +1,27 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp } from "lucide-react";
 import { PortfolioSummaryHeader } from "@/components/organisms/portfolio-summary-header";
 import { HoldingsTable } from "@/components/organisms/holdings-table";
 import { InvestmentTransactionList } from "@/components/organisms/investment-transaction-list";
-import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
-import { SpendingChart, type SpendingChartItem } from "@/components/atoms/spending-chart";
+import type { SpendingChartItem } from "@/components/atoms/spending-chart";
+
+// Recharts-backed charts — load lazily so recharts stays out of the
+// Investments initial bundle.
+const chartLoading = () => (
+  <div className="animate-pulse text-muted-foreground py-8 text-center text-sm">Loading…</div>
+);
+const NetWorthAreaChart = dynamic(
+  () => import("@/components/atoms/net-worth-area-chart").then((m) => ({ default: m.NetWorthAreaChart })),
+  { ssr: false, loading: chartLoading },
+);
+const SpendingChart = dynamic(
+  () => import("@/components/atoms/spending-chart").then((m) => ({ default: m.SpendingChart })),
+  { ssr: false, loading: chartLoading },
+);
 import type {
   PortfolioSummary,
   PortfolioPoint,
