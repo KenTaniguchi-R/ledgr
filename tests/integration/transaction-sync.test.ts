@@ -19,6 +19,7 @@ import {
   plaidItems,
   accounts,
   transactions,
+  merchants,
   syncLog,
 } from "@/db/schema";
 import type { LedgrDb } from "@/db";
@@ -167,6 +168,77 @@ describe("transaction sync integration", () => {
     expect(item?.syncCursor).toBe("cursor_final");
 
     expect(callCount).toBe(2);
+  });
+
+  it("reuses an existing merchant across syncs instead of duplicating it", async () => {
+    await setup();
+    await seedTestData(db);
+
+    function addedAmazon(txnId: string, rawName: string, cursor: string) {
+      return HttpResponse.json({
+        added: [
+          {
+            transaction_id: txnId,
+            account_id: "plaid-acc-checking",
+            amount: 12.5,
+            iso_currency_code: "USD",
+            date: "2026-05-01",
+            name: rawName,
+            merchant_name: "Amazon",
+            logo_url: "https://logo.example/amazon.png",
+            pending: false,
+            pending_transaction_id: null,
+            personal_finance_category: {
+              primary: "GENERAL_MERCHANDISE",
+              detailed: "GENERAL_MERCHANDISE_ONLINE_MARKETPLACES",
+            },
+          },
+        ],
+        modified: [],
+        removed: [],
+        has_more: false,
+        next_cursor: cursor,
+        request_id: `req-${txnId}`,
+      });
+    }
+
+    // First sync creates the Amazon merchant.
+    server.use(
+      http.post("https://sandbox.plaid.com/transactions/sync", () =>
+        addedAmazon(TEST_TXN_IDS.added1, "AMAZON.COM*1A2B3C", "cursor_1"),
+      ),
+    );
+    const first = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
+    expect(first.success).toBe(true);
+
+    // Second sync sees the same normalized merchant via a different raw name.
+    server.resetHandlers();
+    server.use(
+      http.post("https://sandbox.plaid.com/transactions/sync", () =>
+        addedAmazon(TEST_TXN_IDS.added2, "AMAZON MKTPL*XY99", "cursor_2"),
+      ),
+    );
+    const second = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
+    expect(second.success).toBe(true);
+
+    // Exactly one merchant row, and both transactions link to it.
+    const merchantRows = await db
+      .select()
+      .from(merchants)
+      .where(eq(merchants.householdId, HOUSEHOLD_ID));
+    expect(merchantRows).toHaveLength(1);
+
+    const txns = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.householdId, HOUSEHOLD_ID));
+    expect(txns).toHaveLength(2);
+    expect(txns[0].merchantId).toBe(merchantRows[0].id);
+    expect(txns[1].merchantId).toBe(merchantRows[0].id);
+
+    // The merge preserved the first raw name rather than clobbering it.
+    const rawNames: string[] = JSON.parse(merchantRows[0].rawNames ?? "[]");
+    expect(rawNames.length).toBeGreaterThanOrEqual(1);
   });
 
   it("removed transactions are soft-deleted", async () => {

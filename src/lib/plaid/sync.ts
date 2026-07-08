@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import type { PlaidApi } from "plaid";
 import {
@@ -272,27 +272,33 @@ async function applyToDb(
     }
 
     // --- Upsert merchants ---
+    // Look up all existing merchants for this batch in one query rather than a
+    // SELECT per merchant. Existing rows still need per-row UPDATEs (each merges
+    // a different rawNames set); new rows are bulk-inserted.
     const merchantNameToId = new Map<string, string>();
-    for (const mu of processed.merchantUpserts) {
-      const [existing] = await tx
-        .select({ id: merchants.id, rawNames: merchants.rawNames })
-        .from(merchants)
-        .where(
-          and(
-            eq(merchants.householdId, householdId),
-            eq(merchants.name, mu.normalizedName),
-          ),
-        )
-        .limit(1);
+    const upsertNames = processed.merchantUpserts.map((mu) => mu.normalizedName);
+    const existingMerchants = upsertNames.length
+      ? await tx
+          .select({ id: merchants.id, name: merchants.name, rawNames: merchants.rawNames })
+          .from(merchants)
+          .where(
+            and(
+              eq(merchants.householdId, householdId),
+              inArray(merchants.name, upsertNames),
+            ),
+          )
+      : [];
+    const existingByName = new Map(existingMerchants.map((m) => [m.name, m]));
 
+    const newMerchantRows: (typeof merchants.$inferInsert)[] = [];
+    for (const mu of processed.merchantUpserts) {
+      const existing = existingByName.get(mu.normalizedName);
       if (existing) {
         // Merge raw names
         const existingRaw: string[] = existing.rawNames
           ? JSON.parse(existing.rawNames)
           : [];
-        const merged = Array.from(
-          new Set([...existingRaw, ...mu.rawNames]),
-        );
+        const merged = Array.from(new Set([...existingRaw, ...mu.rawNames]));
         await tx.update(merchants)
           .set({
             rawNames: JSON.stringify(merged),
@@ -303,22 +309,24 @@ async function applyToDb(
         merchantNameToId.set(mu.normalizedName, existing.id);
       } else {
         const merchantId = uuid();
-        await tx.insert(merchants)
-          .values({
-            id: merchantId,
-            householdId,
-            name: mu.normalizedName,
-            rawNames: JSON.stringify(mu.rawNames),
-            logoUrl: mu.logoUrl,
-            createdAt: now,
-            updatedAt: now,
-          });
+        newMerchantRows.push({
+          id: merchantId,
+          householdId,
+          name: mu.normalizedName,
+          rawNames: JSON.stringify(mu.rawNames),
+          logoUrl: mu.logoUrl,
+          createdAt: now,
+          updatedAt: now,
+        });
         merchantNameToId.set(mu.normalizedName, merchantId);
       }
     }
+    if (newMerchantRows.length) {
+      await tx.insert(merchants).values(newMerchantRows);
+    }
 
-    // --- Insert new transactions ---
-    let addedCount = 0;
+    // --- Insert new transactions (one multi-row insert, not one per row) ---
+    const insertRows: (typeof transactions.$inferInsert)[] = [];
     for (const row of processed.inserts) {
       const internalAccountId = plaidToInternal.get(row.plaidAccountId);
       if (!internalAccountId) continue; // skip if account not found
@@ -327,8 +335,80 @@ async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
-      await tx.insert(transactions)
-        .values({
+      insertRows.push({
+        id: uuid(),
+        accountId: internalAccountId,
+        householdId,
+        plaidTransactionId: row.plaidTransactionId,
+        pendingTransactionId: row.pendingTransactionId,
+        merchantId,
+        date: row.date,
+        originalName: row.originalName,
+        name: row.name,
+        amount: row.amount,
+        normalizedAmount: row.normalizedAmount,
+        currency: row.currency,
+        pending: row.pending,
+        pfcPrimary: row.pfcPrimary,
+        pfcDetailed: row.pfcDetailed,
+        isTransfer: row.isTransfer,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    if (insertRows.length) {
+      await tx.insert(transactions).values(insertRows);
+    }
+    const addedCount = insertRows.length;
+
+    // --- Upsert modified transactions ---
+    // Fetch all existing rows for the batch in one query rather than a SELECT
+    // per row. Existing rows get per-row UPDATEs (each carries different values);
+    // rows not yet present are bulk-inserted.
+    const upsertsWithAccount = processed.upserts
+      .map((row) => ({ row, internalAccountId: plaidToInternal.get(row.plaidAccountId) }))
+      .filter((x): x is { row: TransactionRow; internalAccountId: string } => !!x.internalAccountId);
+
+    const upsertPlaidIds = upsertsWithAccount.map(({ row }) => row.plaidTransactionId);
+    const existingUpsertRows = upsertPlaidIds.length
+      ? await tx
+          .select({ id: transactions.id, plaidTransactionId: transactions.plaidTransactionId })
+          .from(transactions)
+          .where(inArray(transactions.plaidTransactionId, upsertPlaidIds))
+      : [];
+    const existingIdByPlaidId = new Map(
+      existingUpsertRows.map((r) => [r.plaidTransactionId, r.id]),
+    );
+
+    const upsertInsertRows: (typeof transactions.$inferInsert)[] = [];
+    for (const { row, internalAccountId } of upsertsWithAccount) {
+      const merchantId = row.merchantName
+        ? merchantNameToId.get(row.merchantName) ?? null
+        : null;
+
+      const existingId = existingIdByPlaidId.get(row.plaidTransactionId);
+      if (existingId) {
+        await tx.update(transactions)
+          .set({
+            accountId: internalAccountId,
+            merchantId,
+            date: row.date,
+            originalName: row.originalName,
+            name: row.name,
+            amount: row.amount,
+            normalizedAmount: row.normalizedAmount,
+            currency: row.currency,
+            pending: row.pending,
+            pendingTransactionId: row.pendingTransactionId,
+            pfcPrimary: row.pfcPrimary,
+            pfcDetailed: row.pfcDetailed,
+            isTransfer: row.isTransfer,
+            updatedAt: now,
+            // Preserve user's manual categorization and reviewed status
+          })
+          .where(eq(transactions.id, existingId));
+      } else {
+        upsertInsertRows.push({
           id: uuid(),
           accountId: internalAccountId,
           householdId,
@@ -348,74 +428,12 @@ async function applyToDb(
           createdAt: now,
           updatedAt: now,
         });
-      addedCount++;
-    }
-
-    // --- Upsert modified transactions ---
-    let modifiedCount = 0;
-    for (const row of processed.upserts) {
-      const internalAccountId = plaidToInternal.get(row.plaidAccountId);
-      if (!internalAccountId) continue;
-
-      const merchantId = row.merchantName
-        ? merchantNameToId.get(row.merchantName) ?? null
-        : null;
-
-      const [existingTxn] = await tx
-        .select({
-          id: transactions.id,
-          categoryId: transactions.categoryId,
-          reviewed: transactions.reviewed,
-        })
-        .from(transactions)
-        .where(eq(transactions.plaidTransactionId, row.plaidTransactionId))
-        .limit(1);
-
-      if (existingTxn) {
-        await tx.update(transactions)
-          .set({
-            accountId: internalAccountId,
-            merchantId,
-            date: row.date,
-            originalName: row.originalName,
-            name: row.name,
-            amount: row.amount,
-            normalizedAmount: row.normalizedAmount,
-            currency: row.currency,
-            pending: row.pending,
-            pendingTransactionId: row.pendingTransactionId,
-            pfcPrimary: row.pfcPrimary,
-            pfcDetailed: row.pfcDetailed,
-            isTransfer: row.isTransfer,
-            updatedAt: now,
-            // Preserve user's manual categorization and reviewed status
-          })
-          .where(eq(transactions.id, existingTxn.id));
-      } else {
-        await tx.insert(transactions)
-          .values({
-            id: uuid(),
-            accountId: internalAccountId,
-            householdId,
-            plaidTransactionId: row.plaidTransactionId,
-            pendingTransactionId: row.pendingTransactionId,
-            merchantId,
-            date: row.date,
-            originalName: row.originalName,
-            name: row.name,
-            amount: row.amount,
-            normalizedAmount: row.normalizedAmount,
-            currency: row.currency,
-            pending: row.pending,
-            pfcPrimary: row.pfcPrimary,
-            pfcDetailed: row.pfcDetailed,
-            isTransfer: row.isTransfer,
-            createdAt: now,
-            updatedAt: now,
-          });
       }
-      modifiedCount++;
     }
+    if (upsertInsertRows.length) {
+      await tx.insert(transactions).values(upsertInsertRows);
+    }
+    const modifiedCount = upsertsWithAccount.length;
 
     // --- Soft-delete pending→posted replacements, inheriting category ---
     for (const pendingPlaidId of processed.pendingToRemove) {
