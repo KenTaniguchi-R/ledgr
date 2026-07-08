@@ -10,3 +10,10 @@ allowBuilds:
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@types/node@26.1.1'
+  - '@ai-sdk/anthropic@4.0.9'
+  - '@ai-sdk/gateway@4.0.13'
+  - '@ai-sdk/google@4.0.9'
+  - '@ai-sdk/mcp@2.0.8'
+  - '@ai-sdk/react@4.0.18'
+  - ai@7.0.17
+  - msw@2.15.0
