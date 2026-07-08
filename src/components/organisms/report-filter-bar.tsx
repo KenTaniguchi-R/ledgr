@@ -1,16 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronsUpDown, X, CalendarDays, Landmark, Tags } from "lucide-react";
-import { DateRangeSelector } from "@/components/molecules/date-range-selector";
-import { Input } from "@/components/ui/input";
+import { ChevronsUpDown, X, Landmark, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DateRangePopover,
+  type DatePresetOption,
+} from "@/components/molecules/date-range-popover";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
-import { rangeToDateBounds } from "@/lib/date-utils";
+import { rangeToDateBounds, formatDateShort } from "@/lib/date-utils";
 import type { CategoryGroup } from "@/queries/categories";
+
+// Reports keeps its own preset ids (mapped to rangeToDateBounds + the server's
+// comparison-period logic). "All time" clears the range; the rest set from/to + preset.
+const REPORT_DATE_OPTIONS: DatePresetOption[] = [
+  { id: "all", label: "All time" },
+  { id: "1M", label: "Last month" },
+  { id: "3M", label: "Last 3 months" },
+  { id: "6M", label: "Last 6 months" },
+  { id: "1Y", label: "Last year" },
+];
 
 interface AccountOption {
   id: string;
@@ -30,13 +42,25 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
   const selectedAccountIds = searchParams.get("accounts")?.split(",").filter(Boolean) ?? [];
   const selectedCategoryIds = searchParams.get("categories")?.split(",").filter(Boolean) ?? [];
 
-  function handlePresetChange(range: string) {
-    const { from, to } = rangeToDateBounds(range);
-    updateFilters({
-      from: from,
-      to: to,
-      preset: range === "all" ? null : range,
-    });
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const presetParam = searchParams.get("preset");
+  // No preset + a manual from/to = custom; otherwise fall back to the 3M default.
+  const hasCustom = !!(fromParam && toParam && !presetParam);
+  const effectivePreset = presetParam ?? (hasCustom ? null : "3M");
+  const dateActive = effectivePreset !== "all";
+  const dateValue = (() => {
+    if (!dateActive) return null;
+    if (effectivePreset) return REPORT_DATE_OPTIONS.find((o) => o.id === effectivePreset)?.label ?? null;
+    if (fromParam && toParam) return `${formatDateShort(fromParam)} - ${formatDateShort(toParam)}`;
+    if (fromParam) return `From ${formatDateShort(fromParam)}`;
+    if (toParam) return `Until ${formatDateShort(toParam)}`;
+    return null;
+  })();
+
+  function handleDatePreset(id: string) {
+    const { from, to } = rangeToDateBounds(id);
+    updateFilters({ from, to, preset: id === "all" ? null : id });
   }
 
   function toggleAccount(id: string) {
@@ -53,25 +77,18 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
     updateFilter("categories", next.length > 0 ? next.join(",") : null);
   }
 
-  const currentPreset = searchParams.get("preset") ?? "3M";
-
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden />
-      <DateRangeSelector value={currentPreset} onChange={handlePresetChange} />
-
-      <Input
-        type="date"
-        value={searchParams.get("from") ?? ""}
-        onChange={(e) => updateFilters({ from: e.target.value || null, preset: null })}
-        className="h-8 w-[130px] text-xs"
-      />
-      <span className="text-xs text-muted-foreground">to</span>
-      <Input
-        type="date"
-        value={searchParams.get("to") ?? ""}
-        onChange={(e) => updateFilters({ to: e.target.value || null, preset: null })}
-        className="h-8 w-[130px] text-xs"
+      <DateRangePopover
+        presets={REPORT_DATE_OPTIONS}
+        selectedId={effectivePreset}
+        active={dateActive}
+        triggerValue={dateValue}
+        from={fromParam ?? ""}
+        to={toParam ?? ""}
+        onSelectPreset={handleDatePreset}
+        onFromChange={(v) => updateFilters({ from: v, preset: null })}
+        onToChange={(v) => updateFilters({ to: v, preset: null })}
       />
 
       {/* Account multi-select */}
