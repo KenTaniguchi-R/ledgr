@@ -20,9 +20,16 @@ export const transactions = pgTable(
       .references(() => households.id, { onDelete: "cascade" }),
     plaidTransactionId: text("plaid_transaction_id"),
     pendingTransactionId: text("pending_transaction_id"),
-    merchantId: text("merchant_id").references(() => merchants.id),
-    categoryId: text("category_id").references(() => categories.id),
-    recurringTransactionId: text("recurring_transaction_id").references(() => recurringTransactions.id),
+    merchantId: text("merchant_id").references(() => merchants.id, {
+      onDelete: "set null",
+    }),
+    categoryId: text("category_id").references(() => categories.id, {
+      onDelete: "set null",
+    }),
+    recurringTransactionId: text("recurring_transaction_id").references(
+      () => recurringTransactions.id,
+      { onDelete: "set null" },
+    ),
     transferPairId: text("transfer_pair_id"),
     date: text("date").notNull(),
     originalName: text("original_name").notNull(),
@@ -68,7 +75,7 @@ export const transactionSplits = pgTable(
       .references(() => transactions.id, { onDelete: "cascade" }),
     categoryId: text("category_id")
       .notNull()
-      .references(() => categories.id),
+      .references(() => categories.id, { onDelete: "cascade" }),
     amount: integer("amount").notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

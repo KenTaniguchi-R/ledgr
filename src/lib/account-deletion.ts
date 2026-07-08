@@ -3,9 +3,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   plaidItems,
   accounts,
-  transactions,
   recurringTransactions,
-  budgets,
   households,
   user,
   userSettings,
@@ -21,6 +19,12 @@ import { getPlaidClient } from "@/lib/plaid/client";
  *
  * These back the user-facing "Danger zone" actions in Settings and give Ledgr a
  * true data-deletion capability (as opposed to soft-delete on Plaid disconnect).
+ *
+ * Deletion order is driven by the schema's `onDelete` rules rather than hardcoded
+ * here: household-scoped tables cascade from `households`, and cross-reference FKs
+ * (accounts→plaid_items, transactions→categories/merchants/recurring, splits and
+ * budget_categories→categories, etc.) carry explicit set-null/cascade rules, so
+ * Postgres resolves the graph in a single statement.
  */
 export type DeletionDeps = {
   db?: LedgrDb;
@@ -30,10 +34,6 @@ export type DeletionDeps = {
    */
   revokePlaidItem?: (encryptedAccessToken: string) => Promise<void>;
 };
-
-// A Drizzle transaction handle. Kept loose so the teardown helper works with both
-// the top-level db and a transaction.
-type Tx = Parameters<Parameters<LedgrDb["transaction"]>[0]>[0];
 
 const defaultRevoke = async (encryptedAccessToken: string): Promise<void> => {
   await getPlaidClient().itemRemove({
@@ -63,27 +63,13 @@ async function revokeAllPlaidItems(
 }
 
 /**
- * Delete the connected-account / transaction subtree for a household, in FK-safe
- * order. These tables carry NO ACTION cross-references (accounts→plaid_items,
- * transactions→recurring, recurring→accounts) so the order matters:
- *
- *   transactions (cascades transaction_splits)
- *   → recurring_transactions
- *   → accounts (cascades investment holdings/history/transactions + balance_history)
- *   → plaid_items (cascades sync logs + institution logos)
- */
-async function deleteFinancialTables(tx: Tx, householdId: string): Promise<void> {
-  await tx.delete(transactions).where(eq(transactions.householdId, householdId));
-  await tx
-    .delete(recurringTransactions)
-    .where(eq(recurringTransactions.householdId, householdId));
-  await tx.delete(accounts).where(eq(accounts.householdId, householdId));
-  await tx.delete(plaidItems).where(eq(plaidItems.householdId, householdId));
-}
-
-/**
  * Erase all financial data for a household while keeping the user's login,
  * custom categories, and budgets.
+ *
+ * Deleting `accounts` cascades their transactions (and splits), investment
+ * holdings/history/transactions, and balance history; deleting `plaid_items`
+ * cascades sync logs and institution logos. Recurring streams are household-scoped
+ * (not account-cascaded) so they are removed explicitly.
  */
 export async function deleteFinancialData(
   householdId: string,
@@ -93,21 +79,24 @@ export async function deleteFinancialData(
   const revoke = deps.revokePlaidItem ?? defaultRevoke;
 
   await revokeAllPlaidItems(db, householdId, revoke);
-  await db.transaction((tx) => deleteFinancialTables(tx, householdId));
+  await db.transaction(async (tx) => {
+    await tx.delete(accounts).where(eq(accounts.householdId, householdId));
+    await tx.delete(plaidItems).where(eq(plaidItems.householdId, householdId));
+    await tx
+      .delete(recurringTransactions)
+      .where(eq(recurringTransactions.householdId, householdId));
+  });
 }
 
 /**
  * Permanently erase everything: the household and all of its data, plus the user
  * and their login artifacts.
  *
- * The transaction subtree and budgets are torn down first so that nothing still
- * references `categories`/`merchants` when the `households` row is deleted — those
- * back-references are NO ACTION and Postgres raises mid-cascade if a referencing
- * row (e.g. a transaction split or budget category) still exists. Once they're
- * gone, deleting `households` cleanly cascades categories, category groups/rules,
- * merchants, saved reports, and household memberships. OAuth grants and user
- * settings hold IDs without FKs, so they are removed explicitly; deleting the
- * `user` row cascades to sessions and auth accounts.
+ * Deleting the `households` row cascades every household-scoped table in one
+ * statement (accounts→transactions/investments/balances, categories, budgets,
+ * merchants, plaid items, recurring, saved reports, memberships). OAuth grants and
+ * user settings store ids without FKs, so they are cleaned up explicitly; deleting
+ * the `user` row cascades to sessions and auth accounts.
  */
 export async function deleteAccount(
   householdId: string,
@@ -120,11 +109,6 @@ export async function deleteAccount(
   await revokeAllPlaidItems(db, householdId, revoke);
 
   await db.transaction(async (tx) => {
-    await deleteFinancialTables(tx, householdId);
-    // Removes budget_categories (which back-reference categories) before the
-    // household cascade reaches categories.
-    await tx.delete(budgets).where(eq(budgets.householdId, householdId));
-
     await tx.delete(households).where(eq(households.id, householdId));
 
     await tx.delete(oauthCodes).where(eq(oauthCodes.userId, userId));
