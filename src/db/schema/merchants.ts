@@ -12,7 +12,9 @@ export const merchants = pgTable(
     name: text("name").notNull(),
     rawNames: text("raw_names"),
     logoUrl: text("logo_url"),
-    categoryId: text("category_id").references(() => categories.id),
+    categoryId: text("category_id").references(() => categories.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

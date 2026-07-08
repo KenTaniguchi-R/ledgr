@@ -39,7 +39,7 @@ export const budgetCategories = pgTable(
       .references(() => budgets.id, { onDelete: "cascade" }),
     categoryId: text("category_id")
       .notNull()
-      .references(() => categories.id),
+      .references(() => categories.id, { onDelete: "cascade" }),
     limitAmount: integer("limit_amount").notNull(),
     rollover: boolean("rollover").default(false),
     isFixed: boolean("is_fixed").default(false),

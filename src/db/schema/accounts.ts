@@ -21,7 +21,9 @@ export const accounts = pgTable(
     householdId: text("household_id")
       .notNull()
       .references(() => households.id, { onDelete: "cascade" }),
-    plaidItemId: text("plaid_item_id").references(() => plaidItems.id),
+    plaidItemId: text("plaid_item_id").references(() => plaidItems.id, {
+      onDelete: "set null",
+    }),
     plaidAccountId: text("plaid_account_id"),
     name: text("name").notNull(),
     officialName: text("official_name"),

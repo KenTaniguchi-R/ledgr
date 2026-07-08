@@ -12,10 +12,16 @@ export const recurringTransactions = pgTable(
       .notNull()
       .references(() => households.id, { onDelete: "cascade" }),
     plaidStreamId: text("plaid_stream_id"),
-    accountId: text("account_id").references(() => accounts.id),
+    accountId: text("account_id").references(() => accounts.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
-    merchantId: text("merchant_id").references(() => merchants.id),
-    categoryId: text("category_id").references(() => categories.id),
+    merchantId: text("merchant_id").references(() => merchants.id, {
+      onDelete: "set null",
+    }),
+    categoryId: text("category_id").references(() => categories.id, {
+      onDelete: "set null",
+    }),
     averageAmount: integer("average_amount"),
     lastAmount: integer("last_amount"),
     frequency: text("frequency", {
