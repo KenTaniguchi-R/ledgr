@@ -87,7 +87,8 @@ export function PasskeysManager() {
         setError("Couldn't remove that passkey. Please try again.");
         return;
       }
-      await refresh();
+      // The removed id is known — update locally instead of re-fetching the list.
+      setPasskeys((prev) => prev.filter((p) => p.id !== id));
     } catch {
       setError("Couldn't remove that passkey. Please try again.");
     } finally {
