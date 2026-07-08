@@ -34,10 +34,39 @@ The following are out of scope:
 ## Security Architecture
 
 - All monetary amounts are stored as integers (cents) to prevent floating-point errors
-- Plaid access tokens and AI API keys are encrypted at rest (AES-256-GCM)
+- **Plaid access tokens** are encrypted at rest at the application layer (AES-256-GCM,
+  authenticated encryption with random per-value IVs). Keys are versioned and rotatable
+  (`ENCRYPTION_KEY`, `ENCRYPTION_KEY_V2`, …; see `pnpm rotate-keys`)
+- **AI provider API keys** are supplied via the `AI_API_KEY` environment variable and are
+  never persisted to the database
+- **Other financial data** (transactions, balances, investment holdings) is stored in
+  PostgreSQL. Encryption at rest for this data is the responsibility of the deployment —
+  use a managed PostgreSQL instance that encrypts at rest, or a host with full-disk/volume
+  encryption
 - Household-based data isolation enforced at the query layer (`scopedQuery`)
 - MCP access is gated behind OAuth with user-granted authorization
 - No secrets are stored in the codebase — all credentials come from environment variables
+- Transport security (TLS) is provided by the operator's reverse proxy; the application is
+  intended to run behind an HTTPS-terminating proxy and never be exposed over plain HTTP
+
+## Vulnerability Management
+
+Ledgr's code, dependencies, and container image are scanned continuously in CI:
+
+- **Static analysis (SAST):** CodeQL (`security-and-quality` queries) on every push/PR and weekly.
+- **Dependency scanning (SCA):** Dependabot for npm, GitHub Actions, and Docker base images, with automated update PRs (weekly).
+- **Secret scanning:** GitGuardian on every push/PR.
+- **Container image scanning:** Trivy scans the release image for known OS and library vulnerabilities **before it is published**. Fixable `CRITICAL` findings block the release; `HIGH`/`CRITICAL` findings are reported to the GitHub Security tab.
+
+### Remediation SLA
+
+Identified, fixable vulnerabilities are remediated on this target timeline:
+
+| Severity | Target |
+|----------|--------|
+| Critical | Patch or mitigate within **7 days** |
+| High | Within **30 days** |
+| Medium / Low | Next regular dependency-update cycle |
 
 ## Supported Versions
 

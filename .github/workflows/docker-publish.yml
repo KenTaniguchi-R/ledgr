@@ -16,6 +16,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      security-events: write # upload Trivy SARIF to the Security tab
 
     steps:
       - uses: actions/checkout@v6
@@ -40,6 +41,44 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
+
+      # Build a single-arch image locally first so it can be scanned before publishing.
+      # Layers are cached and reused by the multi-arch push below.
+      - name: Build image for scanning
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: ledgr:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Report all fixable HIGH/CRITICAL findings to the Security tab.
+      - name: Scan image with Trivy (report)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ledgr:scan
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Upload Trivy results to the Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-image
+
+      # Gate the release: fail if a fixable CRITICAL vulnerability is present.
+      - name: Scan image with Trivy (gate)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ledgr:scan
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
 
       - name: Build and push
         uses: docker/build-push-action@v7
