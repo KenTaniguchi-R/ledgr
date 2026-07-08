@@ -17,11 +17,30 @@ function amountToCents(amtStr: string): number {
   return Math.round(parseFloat(cleaned) * 100);
 }
 
+// The OFX field set is fixed (TRNTYPE, DTPOSTED, TRNAMT, FITID, NAME, MEMO),
+// so compile each field's patterns once and reuse across all blocks/files
+// instead of rebuilding two RegExps on every extractField call.
+const FIELD_PATTERNS = new Map<string, { xml: RegExp; sgml: RegExp }>();
+
+function fieldPatterns(field: string): { xml: RegExp; sgml: RegExp } {
+  let patterns = FIELD_PATTERNS.get(field);
+  if (!patterns) {
+    patterns = {
+      xml: new RegExp(`<${field}>([^<]+)</${field}>`, "i"),
+      sgml: new RegExp(`<${field}>([^\\n<]+)`, "i"),
+    };
+    FIELD_PATTERNS.set(field, patterns);
+  }
+  return patterns;
+}
+
 function extractField(block: string, field: string): string {
-  const xmlMatch = block.match(new RegExp(`<${field}>([^<]+)</${field}>`, "i"));
+  const { xml, sgml } = fieldPatterns(field);
+
+  const xmlMatch = block.match(xml);
   if (xmlMatch) return xmlMatch[1].trim();
 
-  const sgmlMatch = block.match(new RegExp(`<${field}>([^\\n<]+)`, "i"));
+  const sgmlMatch = block.match(sgml);
   if (sgmlMatch) return sgmlMatch[1].trim();
 
   return "";

@@ -33,18 +33,23 @@ export function categorizeTransactions(
   rules: CategoryRule[],
   pfcCategoryMap: Map<string, string> = new Map(),
 ): CategoryAssignment[] {
-  const sorted = [...rules].sort((a, b) => b.priority - a.priority);
+  // Lowercase each rule's pattern once (R work) rather than per transaction.
+  const sorted = [...rules]
+    .sort((a, b) => b.priority - a.priority)
+    .map((rule) => ({ ...rule, patternLower: rule.matchPattern.toLowerCase() }));
   const assignments: CategoryAssignment[] = [];
 
   for (const txn of transactions) {
     let matched = false;
+    // Lowercase each candidate field once per transaction, not once per rule.
+    const nameLower = txn.name?.toLowerCase() ?? null;
+    const merchantLower = txn.merchantName?.toLowerCase() ?? null;
 
     for (const rule of sorted) {
-      const target =
-        rule.matchField === "merchant" ? txn.merchantName : txn.name;
+      const target = rule.matchField === "merchant" ? merchantLower : nameLower;
       if (!target) continue;
 
-      if (target.toLowerCase().includes(rule.matchPattern.toLowerCase())) {
+      if (target.includes(rule.patternLower)) {
         assignments.push({
           transactionId: txn.id,
           categoryId: rule.categoryId,
