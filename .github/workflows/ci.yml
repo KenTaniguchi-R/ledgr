@@ -36,14 +36,14 @@ jobs:
       - run: pnpm test
 
   mutation:
-    name: mutation (incremental)
+    name: mutation (diff)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    # Non-blocking for now. Stryker is verified working against the
-    # testcontainers suite locally (score 67% >= 60 break threshold), but a
-    # full cold-cache run over lib+actions+queries has not been timed in CI.
-    # It runs and reports; it does not gate merges. Flip to blocking (remove
-    # this) once a full run is observed green and acceptably fast in CI.
+    # Diff-scoped: only the source files changed in the PR are mutated, so runs
+    # take minutes instead of a full sweep. Non-blocking (reports only): Stryker
+    # currently runs just the unit suite, so files covered mainly by integration
+    # tests score artificially low — a blocking gate would fail legitimate PRs.
+    # Flip to blocking once the mutation harness also runs the integration suite.
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
@@ -61,13 +61,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Restore the incremental baseline so unchanged files are not re-mutated.
-      - uses: actions/cache@v4
-        with:
-          path: reports/mutation/.stryker-incremental.json
-          key: stryker-${{ github.head_ref }}-${{ github.sha }}
-          restore-keys: |
-            stryker-${{ github.head_ref }}-
-            stryker-
-
-      - run: pnpm test:mutate:incremental
+      - name: Mutation test changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/mutate-diff.sh "$BASE_SHA" "$HEAD_SHA"
