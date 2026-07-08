@@ -321,7 +321,9 @@ export async function getIncomeExpenseByCategory(
       isIncome: rowIsIncome,
       total: row.total,
       monthlyAverage: Math.round(row.total / monthCount),
-      percentOfTotal: denominator > 0 ? (row.total / denominator) * 100 : 0,
+      // A category total and its pool total share the same sign, so the ratio is
+      // a positive share. Guard only against divide-by-zero — an empty (0) pool.
+      percentOfTotal: denominator !== 0 ? (row.total / denominator) * 100 : 0,
     };
   });
 

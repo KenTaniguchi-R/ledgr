@@ -136,11 +136,11 @@ describe("getIncomeExpenseByCategory", () => {
 
     // Only income category -> 100% of income pool.
     expect(salary?.percentOfTotal).toBeCloseTo(100, 5);
-    // Expense categories sum raw signed amounts, so the expense pool total is
-    // negative. The `denominator > 0` guard therefore yields 0 for every
-    // expense row (preserved current behavior).
-    expect(food?.percentOfTotal).toBe(0);
-    expect(rent?.percentOfTotal).toBe(0);
+    // Expense categories sum raw signed amounts, so both a category total and
+    // the expense pool total are negative; their ratio is the correct positive
+    // share of the expense pool (pool total -108000).
+    expect(food?.percentOfTotal).toBeCloseTo((-8000 / -108000) * 100, 5);
+    expect(rent?.percentOfTotal).toBeCloseTo((-100000 / -108000) * 100, 5);
   });
 });
 
