@@ -63,8 +63,8 @@ importers:
         specifier: 16.2.10
         version: 16.2.10(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       node-cron:
-        specifier: ^3.0.3
-        version: 3.0.3
+        specifier: ^4.6.0
+        version: 4.6.0
       papaparse:
         specifier: ^5.5.4
         version: 5.5.4
@@ -4602,9 +4602,9 @@ packages:
     resolution: {integrity: sha512-KdHvFWZjEKDf0cakgFjebl371GPsISX2oZHcuyKqM7DtogIsHrqKeLTo8wBHxaXRAQlY2PsPlZmfo+9ZCxEREQ==}
     engines: {node: '>=10'}
 
-  node-cron@3.0.3:
-    resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
-    engines: {node: '>=6.0.0'}
+  node-cron@4.6.0:
+    resolution: {integrity: sha512-Si/bzYiKRHOB8/a99T2+SDGN582ONDMSTlJr5oCkT6GtnqPjZ2s10eoQRYkW9ZHwjVxONL+W8Fb+qR0AHMQsdg==}
+    engines: {node: '>=20'}
 
   node-exports-info@1.6.0:
     resolution: {integrity: sha512-pyFS63ptit/P5WqUkt+UUfe+4oevH+bFeIiPPdfb0pFeYEu/1ELnJu5l+5EcTKYL5M7zaAa7S8ddywgXypqKCw==}
@@ -5707,11 +5707,6 @@ packages:
 
   uuid@14.0.1:
     resolution: {integrity: sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==}
-    hasBin: true
-
-  uuid@8.3.2:
-    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
-    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   validate-npm-package-name@7.0.2:
@@ -10213,9 +10208,7 @@ snapshots:
       semver: 7.8.0
     optional: true
 
-  node-cron@3.0.3:
-    dependencies:
-      uuid: 8.3.2
+  node-cron@4.6.0: {}
 
   node-exports-info@1.6.0:
     dependencies:
@@ -11564,8 +11557,6 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   uuid@14.0.1: {}
-
-  uuid@8.3.2: {}
 
   validate-npm-package-name@7.0.2: {}
 
