@@ -97,7 +97,7 @@
     "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4.3.2",
     "tsx": "^4.23.0",
-    "typescript": "^5",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }
 }
