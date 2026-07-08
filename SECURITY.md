@@ -34,10 +34,20 @@ The following are out of scope:
 ## Security Architecture
 
 - All monetary amounts are stored as integers (cents) to prevent floating-point errors
-- Plaid access tokens and AI API keys are encrypted at rest (AES-256-GCM)
+- **Plaid access tokens** are encrypted at rest at the application layer (AES-256-GCM,
+  authenticated encryption with random per-value IVs). Keys are versioned and rotatable
+  (`ENCRYPTION_KEY`, `ENCRYPTION_KEY_V2`, …; see `pnpm rotate-keys`)
+- **AI provider API keys** are supplied via the `AI_API_KEY` environment variable and are
+  never persisted to the database
+- **Other financial data** (transactions, balances, investment holdings) is stored in
+  PostgreSQL. Encryption at rest for this data is the responsibility of the deployment —
+  use a managed PostgreSQL instance that encrypts at rest, or a host with full-disk/volume
+  encryption
 - Household-based data isolation enforced at the query layer (`scopedQuery`)
 - MCP access is gated behind OAuth with user-granted authorization
 - No secrets are stored in the codebase — all credentials come from environment variables
+- Transport security (TLS) is provided by the operator's reverse proxy; the application is
+  intended to run behind an HTTPS-terminating proxy and never be exposed over plain HTTP
 
 ## Supported Versions
 
