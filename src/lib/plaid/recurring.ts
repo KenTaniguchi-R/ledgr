@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { getPlaidClient } from "./client";
 import {
   PlaidRecurringResponseSchema,
@@ -121,7 +121,10 @@ export async function syncRecurringTransactions(
           .where(eq(recurringTransactions.plaidStreamId, stream.stream_id))
           .limit(1);
 
+        // Track the recurring row's id from the upsert so we don't re-SELECT it.
+        let recurringId: string;
         if (existing) {
+          recurringId = existing.id;
           await tx.update(recurringTransactions)
             .set({
               name,
@@ -138,9 +141,10 @@ export async function syncRecurringTransactions(
             })
             .where(eq(recurringTransactions.id, existing.id));
         } else {
+          recurringId = uuid();
           await tx.insert(recurringTransactions)
             .values({
-              id: uuid(),
+              id: recurringId,
               householdId,
               plaidStreamId: stream.stream_id,
               accountId: internalAccountId,
@@ -159,28 +163,16 @@ export async function syncRecurringTransactions(
         }
         upserted++;
 
+        // Back-link this stream's transactions in one UPDATE, not one per id.
         if (stream.transaction_ids.length > 0) {
-          const [recurringRow] = await tx
-            .select({ id: recurringTransactions.id })
-            .from(recurringTransactions)
-            .where(eq(recurringTransactions.plaidStreamId, stream.stream_id))
-            .limit(1);
-
-          if (recurringRow) {
-            for (const plaidTxnId of stream.transaction_ids) {
-              await tx.update(transactions)
-                .set({
-                  recurringTransactionId: recurringRow.id,
-                  updatedAt: now,
-                })
-                .where(
-                  and(
-                    eq(transactions.plaidTransactionId, plaidTxnId),
-                    eq(transactions.householdId, householdId),
-                  ),
-                );
-            }
-          }
+          await tx.update(transactions)
+            .set({ recurringTransactionId: recurringId, updatedAt: now })
+            .where(
+              and(
+                inArray(transactions.plaidTransactionId, stream.transaction_ids),
+                eq(transactions.householdId, householdId),
+              ),
+            );
         }
       }
 
