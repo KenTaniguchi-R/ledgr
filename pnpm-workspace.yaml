@@ -8,3 +8,5 @@ allowBuilds:
   simple-git-hooks: false
   ssh2: true
   unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@types/node@26.1.1'
