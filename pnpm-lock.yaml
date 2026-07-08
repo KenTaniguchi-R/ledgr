@@ -72,8 +72,8 @@ importers:
         specifier: ^8.22.0
         version: 8.22.0
       plaid:
-        specifier: ^42.2.0
-        version: 42.2.0
+        specifier: ^43.0.0
+        version: 43.0.0
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -4811,8 +4811,8 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
-  plaid@42.2.0:
-    resolution: {integrity: sha512-5SI9gobmmN1UYCpk80yOGB6Kb391bKvssKa4TuIP4G9z/+nBKH7z+j32gK8TH/rr41RGMVvC3ISauKe7uK2Jyg==}
+  plaid@43.0.0:
+    resolution: {integrity: sha512-dOML4mIYMmmAblujNKQV81yf7S/xk4+Mm8C5Zh06mES4mrakxgem6L+UvfkTXLHmevvZf6VGvdfBaxUTwhIllA==}
     engines: {node: '>=10.0.0'}
 
   playwright-core@1.61.1:
@@ -10425,7 +10425,7 @@ snapshots:
 
   pkce-challenge@5.0.1: {}
 
-  plaid@42.2.0:
+  plaid@43.0.0:
     dependencies:
       axios: 1.16.0
     transitivePeerDependencies:
