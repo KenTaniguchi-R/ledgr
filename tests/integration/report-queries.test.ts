@@ -165,43 +165,39 @@ describe("getCategoryTrends", () => {
 });
 
 describe("getCashFlowSankey", () => {
-  test("income-only flow: negative non-income txns are not expenses, surplus routes to savings", async () => {
-    // beforeEach data: Salary +500000 (income), Food/Rent with NEGATIVE
-    // normalizedAmount. getCashFlowSankey counts an expense only when
-    // normalizedAmount > 0, so Food/Rent contribute nothing here.
+  test("expenses are negative non-income txns summed as ABS, grouped per category", async () => {
+    // beforeEach data: Salary +500000 (income), Food -5000/-3000 and Rent
+    // -100000 (negative normalizedAmount = expenses, matching the codebase's
+    // convention). Food = 8000, Rent = 100000, income = 500000.
     const { getCashFlowSankey } = await import("../../src/queries/reports");
     const { nodes, links } = await getCashFlowSankey(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
 
     expect(nodes.some((n) => n.id === `income-${incomeCatId}` && n.type === "income" && n.name === "Salary")).toBe(true);
-    expect(nodes.some((n) => n.type === "expense")).toBe(false);
-    expect(nodes.some((n) => n.id === "savings" && n.type === "savings")).toBe(true);
-
-    // All income (500000) is surplus, routed 1:1 to savings.
-    expect(links).toHaveLength(1);
-    expect(links[0]).toEqual({ source: `income-${incomeCatId}`, target: "savings", value: 500000 });
-  });
-
-  test("expenses use positive normalizedAmount, grouped per category, links split by income share", async () => {
-    // Positive-normalizedAmount non-income txns are the sankey's "expenses".
-    await insertTransaction(db, householdId, accountId, { date: "2026-03-06", normalizedAmount: 30000, amount: -30000, categoryId: foodCatId, name: "Food exp 1" });
-    await insertTransaction(db, householdId, accountId, { date: "2026-03-07", normalizedAmount: 10000, amount: -10000, categoryId: foodCatId, name: "Food exp 2" });
-    await insertTransaction(db, householdId, accountId, { date: "2026-03-08", normalizedAmount: 60000, amount: -60000, categoryId: rentCatId, name: "Rent exp" });
-
-    const { getCashFlowSankey } = await import("../../src/queries/reports");
-    const { nodes, links } = await getCashFlowSankey(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
-
-    // Food = 30000 + 10000 (negatives excluded), Rent = 60000. Income 500000.
     expect(nodes.some((n) => n.id === `expense-${foodCatId}` && n.type === "expense")).toBe(true);
     expect(nodes.some((n) => n.id === `expense-${rentCatId}` && n.type === "expense")).toBe(true);
+    expect(nodes.some((n) => n.id === "savings" && n.type === "savings")).toBe(true);
 
     const share = 1; // single income category -> 100% share
     const foodLink = links.find((l) => l.target === `expense-${foodCatId}`);
     const rentLink = links.find((l) => l.target === `expense-${rentCatId}`);
     const savingsLink = links.find((l) => l.target === "savings");
-    expect(foodLink?.value).toBe(Math.round(40000 * share));
-    expect(rentLink?.value).toBe(Math.round(60000 * share));
-    // surplus = 500000 - 100000 = 400000
-    expect(savingsLink?.value).toBe(Math.round(400000 * share));
+    expect(foodLink?.value).toBe(Math.round(8000 * share));
+    expect(rentLink?.value).toBe(Math.round(100000 * share));
+    // surplus = 500000 - (8000 + 100000) = 392000
+    expect(savingsLink?.value).toBe(Math.round(392000 * share));
+  });
+
+  test("positive-amount non-income txns (refunds) are not counted as expenses", async () => {
+    // A positive normalizedAmount on an expense category is a refund/credit and
+    // must not inflate (or create) an expense node.
+    await insertTransaction(db, householdId, accountId, { date: "2026-03-06", normalizedAmount: 2000, amount: -2000, categoryId: foodCatId, name: "Food refund" });
+
+    const { getCashFlowSankey } = await import("../../src/queries/reports");
+    const { links } = await getCashFlowSankey(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
+
+    // Food expense stays 8000 (the +2000 refund is ignored).
+    const foodLink = links.find((l) => l.target === `expense-${foodCatId}`);
+    expect(foodLink?.value).toBe(8000);
   });
 
   test("income category sums ABS regardless of sign", async () => {
@@ -211,9 +207,9 @@ describe("getCashFlowSankey", () => {
     const { getCashFlowSankey } = await import("../../src/queries/reports");
     const { links } = await getCashFlowSankey(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
 
-    // Income pool = |500000| + |-100000| = 600000, all surplus -> savings.
+    // Income pool = |500000| + |-100000| = 600000; expenses 108000; surplus 492000.
     const savingsLink = links.find((l) => l.target === "savings");
-    expect(savingsLink?.value).toBe(600000);
+    expect(savingsLink?.value).toBe(492000);
   });
 });
 

@@ -9,7 +9,7 @@ import {
   recurringTransactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, sumAbs, sumCol } from "@/lib/query-helpers";
+import { notDeleted, sumAbs } from "@/lib/query-helpers";
 import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import { resolvedCategoryLabel } from "@/lib/labels";
@@ -434,13 +434,13 @@ export async function getCashFlowSankey(
     }
   }
 
-  // Expense side: non-income categories with a POSITIVE normalizedAmount (matching
-  // the prior `else if (normalizedAmount > 0)` branch), SUM(amount) grouped by
-  // category. Null categories are excluded.
+  // Expense side: non-income categories with a NEGATIVE normalizedAmount, summed
+  // as ABS — matching the codebase's expense convention (getCashFlow, etc.).
+  // Null categories are excluded.
   const expenseConditions = [
     ...conditions,
     isNotNull(transactions.categoryId),
-    sql`${transactions.normalizedAmount} > 0`,
+    sql`${transactions.normalizedAmount} < 0`,
   ];
   if (incomeCatIds.size > 0) {
     expenseConditions.push(notInArray(transactions.categoryId, [...incomeCatIds]));
@@ -449,7 +449,7 @@ export async function getCashFlowSankey(
     .select({
       categoryId: transactions.categoryId,
       categoryName: categories.name,
-      total: sumCol(transactions.normalizedAmount),
+      total: sumAbs(transactions.normalizedAmount),
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
