@@ -9,7 +9,7 @@ import {
   recurringTransactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, sumAbs } from "@/lib/query-helpers";
+import { notDeleted, sumAbs, sumCol } from "@/lib/query-helpers";
 import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import { resolvedCategoryLabel } from "@/lib/labels";
@@ -411,31 +411,51 @@ export async function getCashFlowSankey(
     conditions.push(inArray(transactions.accountId, filters.accountIds));
   }
 
-  const txns = await db
-    .select({
-      categoryId: transactions.categoryId,
-      categoryName: categories.name,
-      normalizedAmount: transactions.normalizedAmount,
-    })
-    .from(transactions)
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(scoped.where(transactions, ...conditions));
-
   const incomeMap = new Map<string, { name: string; total: number }>();
   const expenseMap = new Map<string, { name: string; total: number }>();
 
-  for (const txn of txns) {
-    if (!txn.categoryId) continue;
-    if (incomeCatIds.has(txn.categoryId)) {
-      const existing = incomeMap.get(txn.categoryId);
-      const amount = Math.abs(txn.normalizedAmount);
-      if (existing) existing.total += amount;
-      else incomeMap.set(txn.categoryId, { name: resolvedCategoryLabel(txn.categoryName), total: amount });
-    } else if (txn.normalizedAmount > 0) {
-      const existing = expenseMap.get(txn.categoryId);
-      if (existing) existing.total += txn.normalizedAmount;
-      else expenseMap.set(txn.categoryId, { name: resolvedCategoryLabel(txn.categoryName), total: txn.normalizedAmount });
+  // Income side: income-category txns, SUM(ABS(amount)) grouped by category.
+  if (incomeCatIds.size > 0) {
+    const incomeRows = await db
+      .select({
+        categoryId: transactions.categoryId,
+        categoryName: categories.name,
+        total: sumAbs(transactions.normalizedAmount),
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .where(scoped.where(transactions, ...conditions, inArray(transactions.categoryId, [...incomeCatIds])))
+      .groupBy(transactions.categoryId, categories.name);
+
+    for (const row of incomeRows) {
+      incomeMap.set(row.categoryId!, { name: resolvedCategoryLabel(row.categoryName), total: row.total });
     }
+  }
+
+  // Expense side: non-income categories with a POSITIVE normalizedAmount (matching
+  // the prior `else if (normalizedAmount > 0)` branch), SUM(amount) grouped by
+  // category. Null categories are excluded.
+  const expenseConditions = [
+    ...conditions,
+    isNotNull(transactions.categoryId),
+    sql`${transactions.normalizedAmount} > 0`,
+  ];
+  if (incomeCatIds.size > 0) {
+    expenseConditions.push(notInArray(transactions.categoryId, [...incomeCatIds]));
+  }
+  const expenseRows = await db
+    .select({
+      categoryId: transactions.categoryId,
+      categoryName: categories.name,
+      total: sumCol(transactions.normalizedAmount),
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(scoped.where(transactions, ...expenseConditions))
+    .groupBy(transactions.categoryId, categories.name);
+
+  for (const row of expenseRows) {
+    expenseMap.set(row.categoryId!, { name: resolvedCategoryLabel(row.categoryName), total: row.total });
   }
 
   const totalIncome = [...incomeMap.values()].reduce((s, v) => s + v.total, 0);
