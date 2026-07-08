@@ -62,7 +62,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Restore the incremental baseline so unchanged files are not re-mutated.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: reports/mutation/.stryker-incremental.json
           key: stryker-${{ github.head_ref }}-${{ github.sha }}
