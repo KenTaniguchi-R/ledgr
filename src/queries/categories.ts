@@ -2,7 +2,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { categoryGroups, categories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 
-export interface CategoryOption {
+interface CategoryOption {
   id: string;
   name: string;
   icon: string | null;

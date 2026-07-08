@@ -41,7 +41,7 @@ export type SyncResult =
     }
   | { success: false; error: string };
 
-export interface FetchAllPagesResult {
+interface FetchAllPagesResult {
   added: PlaidTransaction[];
   modified: PlaidTransaction[];
   removed: PlaidRemovedTransaction[];
@@ -75,7 +75,7 @@ interface TransactionRow {
   isTransfer: boolean;
 }
 
-export interface MerchantUpsert {
+interface MerchantUpsert {
   normalizedName: string;
   rawNames: string[];
   logoUrl: string | null;
@@ -85,7 +85,7 @@ export interface MerchantUpsert {
 // 1. fetchAllPages
 // ---------------------------------------------------------------------------
 
-export async function fetchAllPages(
+async function fetchAllPages(
   client: PlaidApi,
   accessToken: string,
   cursor: string | null,
@@ -241,7 +241,7 @@ interface AccountBalanceInfo {
   };
 }
 
-export async function applyToDb(
+async function applyToDb(
   db: LedgrDb,
   processed: ProcessedBatch,
   itemId: string,

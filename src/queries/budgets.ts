@@ -25,7 +25,7 @@ export interface BudgetCategoryRow {
   isFixed: boolean;
 }
 
-export interface BudgetGroup {
+interface BudgetGroup {
   groupId: string;
   groupName: string;
   groupIcon: string | null;
@@ -34,7 +34,7 @@ export interface BudgetGroup {
   totalSpent: number;
 }
 
-export interface UnbudgetedCategory {
+interface UnbudgetedCategory {
   categoryId: string;
   categoryName: string;
   groupName: string;

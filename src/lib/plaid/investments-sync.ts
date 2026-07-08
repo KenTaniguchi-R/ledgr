@@ -23,7 +23,7 @@ const MAX_INV_TXN_PAGES = 50;
 
 // ─── Stage 1: Fetch ─────────────────────────────────────────────────────────
 
-export async function fetchHoldings(
+async function fetchHoldings(
   client: PlaidApi,
   accessToken: string,
 ): Promise<{ holdings: PlaidHolding[]; securities: PlaidSecurity[] }> {
@@ -34,7 +34,7 @@ export async function fetchHoldings(
   return { holdings: parsed.holdings, securities: parsed.securities };
 }
 
-export async function fetchAllInvestmentTransactionPages(
+async function fetchAllInvestmentTransactionPages(
   client: PlaidApi,
   accessToken: string,
   startDate: string,

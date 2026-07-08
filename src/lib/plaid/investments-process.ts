@@ -44,7 +44,7 @@ export interface InvestmentSyncResult {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-export function safeCents(value: number): number {
+function safeCents(value: number): number {
   const cents = Math.round(value * 100);
   return cents === 0 ? 0 : cents;
 }

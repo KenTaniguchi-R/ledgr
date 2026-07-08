@@ -49,8 +49,6 @@ export const PlaidSyncResponseSchema = z.object({
   request_id: z.string().optional(),
 });
 
-export type PlaidSyncResponse = z.infer<typeof PlaidSyncResponseSchema>;
-
 export const WebhookPayloadSchema = z.object({
   webhook_type: z.string(),
   webhook_code: z.string(),
@@ -119,10 +117,6 @@ export const PlaidRecurringResponseSchema = z.object({
   request_id: z.string(),
 });
 
-export type PlaidRecurringResponse = z.infer<
-  typeof PlaidRecurringResponseSchema
->;
-
 // ─── Investment Schemas ─────────────────────────────────────────────────────
 
 export const SECURITY_TYPE_MAP: Record<string, string> = {
@@ -190,13 +184,9 @@ export const PlaidHoldingsResponseSchema = z.object({
   request_id: z.string().optional(),
 });
 
-export type PlaidHoldingsResponse = z.infer<typeof PlaidHoldingsResponseSchema>;
-
 export const PlaidInvestmentTxnsResponseSchema = z.object({
   investment_transactions: z.array(PlaidInvestmentTxnSchema),
   securities: z.array(PlaidSecuritySchema),
   total_investment_transactions: z.number(),
   request_id: z.string().optional(),
 });
-
-export type PlaidInvestmentTxnsResponse = z.infer<typeof PlaidInvestmentTxnsResponseSchema>;

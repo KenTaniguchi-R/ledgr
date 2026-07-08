@@ -7,7 +7,7 @@
 //                      join). Should be rare given the FK; a defensive fallback.
 
 export const UNCATEGORIZED = "Uncategorized";
-export const UNKNOWN_CATEGORY = "Unknown";
+const UNKNOWN_CATEGORY = "Unknown";
 
 /** Label a category name that is null when no category is assigned. */
 export function categoryLabel(name: string | null | undefined): string {
