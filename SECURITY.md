@@ -49,6 +49,25 @@ The following are out of scope:
 - Transport security (TLS) is provided by the operator's reverse proxy; the application is
   intended to run behind an HTTPS-terminating proxy and never be exposed over plain HTTP
 
+## Vulnerability Management
+
+Ledgr's code, dependencies, and container image are scanned continuously in CI:
+
+- **Static analysis (SAST):** CodeQL (`security-and-quality` queries) on every push/PR and weekly.
+- **Dependency scanning (SCA):** Dependabot for npm, GitHub Actions, and Docker base images, with automated update PRs (weekly).
+- **Secret scanning:** GitGuardian on every push/PR.
+- **Container image scanning:** Trivy scans the release image for known OS and library vulnerabilities **before it is published**. Fixable `CRITICAL` findings block the release; `HIGH`/`CRITICAL` findings are reported to the GitHub Security tab.
+
+### Remediation SLA
+
+Identified, fixable vulnerabilities are remediated on this target timeline:
+
+| Severity | Target |
+|----------|--------|
+| Critical | Patch or mitigate within **7 days** |
+| High | Within **30 days** |
+| Medium / Low | Next regular dependency-update cycle |
+
 ## Supported Versions
 
 | Version | Supported |
