@@ -22,6 +22,13 @@
       "when": 1778528814633,
       "tag": "0002_round_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783496021583,
+      "tag": "0003_mysterious_exiles",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth/session";
 import { getMcpSettings } from "@/queries/mcp-settings";
 import { McpSettingsForm } from "@/components/organisms/mcp-settings-form";
 import { DemoModeToggle } from "@/components/molecules/demo-mode-toggle";
+import { PasskeysManager } from "@/components/organisms/passkeys-manager";
 import { isDemoMode } from "@/lib/demo-mode";
 
 export default async function SettingsPage() {
@@ -22,6 +23,7 @@ export default async function SettingsPage() {
         </p>
       </div>
       <DemoModeToggle initialEnabled={demoEnabled} />
+      <PasskeysManager />
       <McpSettingsForm
         mcpEnabled={mcpSettings.mcpEnabled}
         connectedClients={mcpSettings.connectedClients}
