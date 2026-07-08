@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth/session";
 import { getMcpSettings } from "@/queries/mcp-settings";
 import { McpSettingsForm } from "@/components/organisms/mcp-settings-form";
 import { DemoModeToggle } from "@/components/molecules/demo-mode-toggle";
+import { DangerZone } from "@/components/organisms/danger-zone";
 import { isDemoMode } from "@/lib/demo-mode";
 
 export default async function SettingsPage() {
@@ -26,6 +27,7 @@ export default async function SettingsPage() {
         mcpEnabled={mcpSettings.mcpEnabled}
         connectedClients={mcpSettings.connectedClients}
       />
+      <DangerZone />
     </div>
   );
 }
