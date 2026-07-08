@@ -138,49 +138,45 @@ export async function getNetWorthHistory(
   const accountTypeMap = new Map(allAccounts.map((a) => [a.id, a.type]));
   const accountIds = allAccounts.map((a) => a.id);
 
-  type BalanceRow = { accountId: string; date: string; balance: number };
-  let historyRows: BalanceRow[] = [];
+  // Partition accounts by type once, then sum each side in SQL via
+  // SUM(CASE WHEN account_id IN (...)) grouped by date instead of pulling every
+  // balance row into JS.
+  const assetIds = accountIds.filter(
+    (id) => classifyAccountType(accountTypeMap.get(id) ?? "other") === "asset",
+  );
+  const liabilityIds = accountIds.filter(
+    (id) => classifyAccountType(accountTypeMap.get(id) ?? "other") === "liability",
+  );
 
+  let result: NetWorthPoint[] = [];
   if (accountIds.length > 0) {
+    const inAssets = assetIds.length > 0 ? inArray(balanceHistory.accountId, assetIds) : sql`false`;
+    const inLiabilities =
+      liabilityIds.length > 0 ? inArray(balanceHistory.accountId, liabilityIds) : sql`false`;
+
     const conditions = [inArray(balanceHistory.accountId, accountIds)];
     if (dateFrom) {
       conditions.push(gte(balanceHistory.date, dateFrom));
     }
-    historyRows = await db
+
+    const rows = await db
       .select({
-        accountId: balanceHistory.accountId,
         date: balanceHistory.date,
-        balance: balanceHistory.balance,
+        assets: sql<number>`COALESCE(SUM(CASE WHEN ${inAssets} THEN ${balanceHistory.balance} ELSE 0 END), 0)`.mapWith(Number),
+        liabilities: sql<number>`COALESCE(SUM(CASE WHEN ${inLiabilities} THEN ${balanceHistory.balance} ELSE 0 END), 0)`.mapWith(Number),
       })
       .from(balanceHistory)
-      .where(and(...conditions));
-  }
+      .where(and(...conditions))
+      .groupBy(balanceHistory.date)
+      .orderBy(balanceHistory.date);
 
-  // Aggregate by date
-  const byDate = new Map<string, { assets: number; liabilities: number }>();
-  for (const row of historyRows) {
-    const type = accountTypeMap.get(row.accountId) ?? "other";
-    const classification = classifyAccountType(type);
-    if (!byDate.has(row.date)) {
-      byDate.set(row.date, { assets: 0, liabilities: 0 });
-    }
-    const point = byDate.get(row.date)!;
-    if (classification === "asset") {
-      point.assets += row.balance;
-    } else {
-      point.liabilities += row.balance;
-    }
-  }
-
-  // Build sorted historical points
-  const result: NetWorthPoint[] = [...byDate.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, { assets, liabilities }]) => ({
+    result = rows.map(({ date, assets, liabilities }) => ({
       date,
       assets,
       liabilities,
       netWorth: assets - liabilities,
     }));
+  }
 
   // Synthetic today point from live currentBalance. Only emit it when at least
   // one account carries a balance — otherwise there is no net worth to plot and

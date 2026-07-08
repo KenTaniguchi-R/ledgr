@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
 import {
   insertHousehold,
@@ -8,6 +9,7 @@ import {
   insertCategory,
   insertTransactionSplit,
 } from "./helpers";
+import { balanceHistory } from "../../src/db/schema";
 import type { LedgrDb } from "../../src/db";
 
 let db: LedgrDb;
@@ -212,6 +214,79 @@ describe("getCashFlowSankey", () => {
     // Income pool = |500000| + |-100000| = 600000, all surplus -> savings.
     const savingsLink = links.find((l) => l.target === "savings");
     expect(savingsLink?.value).toBe(600000);
+  });
+});
+
+describe("getReportNetWorthHistory", () => {
+  async function insertBalance(accountId: string, date: string, balance: number) {
+    await db.insert(balanceHistory).values({ id: uuid(), accountId, date, balance });
+  }
+
+  test("sums assets and liabilities per date by account type", async () => {
+    // accountId (from beforeEach) is a checking account -> asset.
+    const { accountId: savingsId } = await insertAccount(db, householdId, { name: "Savings", type: "savings" });
+    const { accountId: creditId } = await insertAccount(db, householdId, { name: "Card", type: "credit" });
+
+    await insertBalance(accountId, "2026-04-01", 70000);
+    await insertBalance(savingsId, "2026-04-01", 30000);
+    await insertBalance(creditId, "2026-04-01", 15000);
+    await insertBalance(accountId, "2026-04-15", 80000);
+
+    const { getReportNetWorthHistory } = await import("../../src/queries/reports");
+    const result = await getReportNetWorthHistory(householdId, { dateFrom: "2026-04-01", dateTo: "2026-04-30" }, db);
+
+    expect(result.map((r) => r.date)).toEqual(["2026-04-01", "2026-04-15"]);
+
+    const d1 = result.find((r) => r.date === "2026-04-01")!;
+    expect(d1.assets).toBe(100000); // checking 70000 + savings 30000
+    expect(d1.liabilities).toBe(15000); // credit
+    expect(d1.netWorth).toBe(85000);
+
+    const d2 = result.find((r) => r.date === "2026-04-15")!;
+    expect(d2.assets).toBe(80000);
+    expect(d2.liabilities).toBe(0);
+    expect(d2.netWorth).toBe(80000);
+  });
+
+  test("hidden accounts are excluded", async () => {
+    const { accountId: hiddenId } = await insertAccount(db, householdId, { name: "Hidden", type: "savings", isHidden: true });
+    await insertBalance(accountId, "2026-04-01", 50000);
+    await insertBalance(hiddenId, "2026-04-01", 999999);
+
+    const { getReportNetWorthHistory } = await import("../../src/queries/reports");
+    const result = await getReportNetWorthHistory(householdId, { dateFrom: "2026-04-01", dateTo: "2026-04-30" }, db);
+
+    const d1 = result.find((r) => r.date === "2026-04-01")!;
+    expect(d1.assets).toBe(50000);
+  });
+
+  test("account filter narrows to the given accounts", async () => {
+    const { accountId: savingsId } = await insertAccount(db, householdId, { name: "Savings", type: "savings" });
+    await insertBalance(accountId, "2026-04-01", 70000);
+    await insertBalance(savingsId, "2026-04-01", 30000);
+
+    const { getReportNetWorthHistory } = await import("../../src/queries/reports");
+    const result = await getReportNetWorthHistory(
+      householdId,
+      { dateFrom: "2026-04-01", dateTo: "2026-04-30", accountIds: [accountId] },
+      db,
+    );
+
+    const d1 = result.find((r) => r.date === "2026-04-01")!;
+    expect(d1.assets).toBe(70000);
+  });
+
+  test("returns empty when the account filter matches nothing", async () => {
+    await insertBalance(accountId, "2026-04-01", 70000);
+
+    const { getReportNetWorthHistory } = await import("../../src/queries/reports");
+    const result = await getReportNetWorthHistory(
+      householdId,
+      { dateFrom: "2026-04-01", dateTo: "2026-04-30", accountIds: [uuid()] },
+      db,
+    );
+
+    expect(result).toEqual([]);
   });
 });
 

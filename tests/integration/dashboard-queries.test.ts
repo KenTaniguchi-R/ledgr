@@ -119,6 +119,34 @@ describe("getNetWorthHistory", () => {
     expect(todayPoint!.netWorth).toBe(60000);
   });
 
+  it("sums multiple asset and liability accounts on the same historical date", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId: checkingId } = await insertAccount(db, householdId, { type: "checking", currentBalance: 0 });
+    const { accountId: savingsId } = await insertAccount(db, householdId, { type: "savings", currentBalance: 0 });
+    const { accountId: creditId } = await insertAccount(db, householdId, { type: "credit", currentBalance: 0 });
+    const { accountId: loanId } = await insertAccount(db, householdId, { type: "loan", currentBalance: 0 });
+
+    const histDate = (() => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: histDate, balance: 40000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: savingsId, date: histDate, balance: 60000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: 25000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: loanId, date: histDate, balance: 5000 });
+
+    const result = await getNetWorthHistory(householdId, "3M", db);
+
+    const point = result.find((r) => r.date === histDate)!;
+    expect(point).toBeDefined();
+    expect(point.assets).toBe(100000); // checking + savings
+    expect(point.liabilities).toBe(30000); // credit + loan
+    expect(point.netWorth).toBe(70000);
+  });
+
   it("returns empty array when no account has a balance", async () => {
     // The CSV-import scenario: accounts exist but carry no balance, so there is
     // no net worth to plot. The chart must see an empty series to render its

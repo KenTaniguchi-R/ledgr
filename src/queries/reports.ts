@@ -350,11 +350,26 @@ export async function getReportNetWorthHistory(
 
   if (filteredAccountIds.length === 0) return [];
 
-  const historyRows = await db
+  // Partition the in-scope accounts by type once, then sum each side in SQL via
+  // SUM(CASE WHEN account_id IN (...)) grouped by date. Every filtered id is
+  // classified as exactly one of asset/liability (classifyAccountType defaults
+  // unknown types to asset), so the two lists together cover the whole set.
+  const assetIds = filteredAccountIds.filter(
+    (id) => classifyAccountType(accountTypeMap.get(id) ?? "other") === "asset",
+  );
+  const liabilityIds = filteredAccountIds.filter(
+    (id) => classifyAccountType(accountTypeMap.get(id) ?? "other") === "liability",
+  );
+
+  const inAssets = assetIds.length > 0 ? inArray(balanceHistory.accountId, assetIds) : sql`false`;
+  const inLiabilities =
+    liabilityIds.length > 0 ? inArray(balanceHistory.accountId, liabilityIds) : sql`false`;
+
+  const rows = await db
     .select({
-      accountId: balanceHistory.accountId,
       date: balanceHistory.date,
-      balance: balanceHistory.balance,
+      assets: sql<number>`COALESCE(SUM(CASE WHEN ${inAssets} THEN ${balanceHistory.balance} ELSE 0 END), 0)`.mapWith(Number),
+      liabilities: sql<number>`COALESCE(SUM(CASE WHEN ${inLiabilities} THEN ${balanceHistory.balance} ELSE 0 END), 0)`.mapWith(Number),
     })
     .from(balanceHistory)
     .where(
@@ -363,31 +378,16 @@ export async function getReportNetWorthHistory(
         gte(balanceHistory.date, filters.dateFrom),
         lte(balanceHistory.date, filters.dateTo),
       ),
-    );
+    )
+    .groupBy(balanceHistory.date)
+    .orderBy(balanceHistory.date);
 
-  const byDate = new Map<string, { assets: number; liabilities: number }>();
-  for (const row of historyRows) {
-    const type = accountTypeMap.get(row.accountId) ?? "other";
-    const classification = classifyAccountType(type);
-    if (!byDate.has(row.date)) {
-      byDate.set(row.date, { assets: 0, liabilities: 0 });
-    }
-    const point = byDate.get(row.date)!;
-    if (classification === "asset") {
-      point.assets += row.balance;
-    } else {
-      point.liabilities += row.balance;
-    }
-  }
-
-  return [...byDate.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, { assets, liabilities }]) => ({
-      date,
-      assets,
-      liabilities,
-      netWorth: assets - liabilities,
-    }));
+  return rows.map(({ date, assets, liabilities }) => ({
+    date,
+    assets,
+    liabilities,
+    netWorth: assets - liabilities,
+  }));
 }
 
 export async function getCashFlowSankey(
