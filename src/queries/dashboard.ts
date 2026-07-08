@@ -1,4 +1,4 @@
-import { eq, gte, lte, and, desc, inArray, isNull } from "drizzle-orm";
+import { eq, gte, lte, and, desc, inArray, isNull, sql } from "drizzle-orm";
 export { getInvestmentsSummary } from "./investments";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
@@ -54,13 +54,18 @@ export async function getLatestActivityMonth(
 
 export async function getDashboardSummary(
   householdId: string,
+  month?: string,
   db: LedgrDb = defaultDb
 ): Promise<DashboardSummary> {
   const scoped = scopedQuery(householdId, db);
 
-  // Net worth from live account balances
+  // Net worth from live account balances (only the columns we classify/sum)
   const allAccounts = await db
-    .select()
+    .select({
+      type: accounts.type,
+      currentBalance: accounts.currentBalance,
+      isHidden: accounts.isHidden,
+    })
     .from(accounts)
     .where(scoped.where(accounts, notDeleted(accounts)));
 
@@ -75,13 +80,16 @@ export async function getDashboardSummary(
     }
   }
 
-  const effectiveMonth = (await getLatestActivityMonth(householdId, db)) ?? getCurrentMonth();
+  const effectiveMonth =
+    month ?? (await getLatestActivityMonth(householdId, db)) ?? getCurrentMonth();
   const { from: dateFrom, to: dateTo } = monthBounds(effectiveMonth);
 
-  // Monthly transactions (non-pending, non-deleted)
-  const monthlyTxns = await db
+  // Sum income/expenses in SQL rather than pulling every month row into JS.
+  // Mirrors the prior logic: amount >= 0 → income, amount < 0 → expenses.
+  const [totals] = await db
     .select({
-      normalizedAmount: transactions.normalizedAmount,
+      income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.normalizedAmount} > 0 THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`.mapWith(Number),
+      expenses: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.normalizedAmount} < 0 THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
     })
     .from(transactions)
     .where(
@@ -94,15 +102,8 @@ export async function getDashboardSummary(
       )
     );
 
-  let monthlyIncome = 0;
-  let monthlyExpenses = 0;
-  for (const txn of monthlyTxns) {
-    if (txn.normalizedAmount < 0) {
-      monthlyExpenses += Math.abs(txn.normalizedAmount);
-    } else {
-      monthlyIncome += txn.normalizedAmount;
-    }
-  }
+  const monthlyIncome = totals?.income ?? 0;
+  const monthlyExpenses = totals?.expenses ?? 0;
 
   return {
     netWorth: totalAssets - totalLiabilities,
@@ -266,13 +267,22 @@ export async function getCashFlow(
   d.setDate(1);
   const dateFrom = d.toISOString().slice(0, 10);
 
-  const incomeCatIds = await getIncomeCategoryIds(db);
+  const incomeCatIds = [...(await getIncomeCategoryIds(db))];
 
-  const txns = await db
+  // COALESCE(...,false): a null or non-income category is treated as non-income,
+  // matching the prior `txn.categoryId && incomeCatIds.has(...)` check. When
+  // there are no income categories, the predicate is a constant false.
+  const isIncome =
+    incomeCatIds.length > 0
+      ? sql`COALESCE(${inArray(transactions.categoryId, incomeCatIds)}, false)`
+      : sql`false`;
+  const monthExpr = sql<string>`substring(${transactions.date}, 1, 7)`;
+
+  const rows = await db
     .select({
-      date: transactions.date,
-      normalizedAmount: transactions.normalizedAmount,
-      categoryId: transactions.categoryId,
+      month: monthExpr,
+      income: sql<number>`COALESCE(SUM(CASE WHEN ${isIncome} THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
+      expenses: sql<number>`COALESCE(SUM(CASE WHEN NOT (${isIncome}) AND ${transactions.normalizedAmount} < 0 THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
     })
     .from(transactions)
     .where(
@@ -284,30 +294,16 @@ export async function getCashFlow(
         eq(transactions.isTransfer, false),
         isNull(transactions.transferPairId)
       )
-    );
+    )
+    .groupBy(monthExpr)
+    .orderBy(monthExpr);
 
-  const byMonth = new Map<string, { income: number; expenses: number }>();
-  for (const txn of txns) {
-    const month = txn.date.slice(0, 7);
-    if (!byMonth.has(month)) {
-      byMonth.set(month, { income: 0, expenses: 0 });
-    }
-    const entry = byMonth.get(month)!;
-    if (txn.categoryId && incomeCatIds.has(txn.categoryId)) {
-      entry.income += Math.abs(txn.normalizedAmount);
-    } else if (txn.normalizedAmount < 0) {
-      entry.expenses += Math.abs(txn.normalizedAmount);
-    }
-  }
-
-  return [...byMonth.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, { income, expenses }]) => ({
-      month,
-      income,
-      expenses,
-      net: income - expenses,
-    }));
+  return rows.map(({ month, income, expenses }) => ({
+    month,
+    income,
+    expenses,
+    net: income - expenses,
+  }));
 }
 
 // ─── getRecentTransactions ───────────────────────────────────────────────────

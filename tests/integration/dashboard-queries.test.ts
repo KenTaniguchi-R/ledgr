@@ -68,7 +68,7 @@ describe("getDashboardSummary", () => {
       amount: 5000,
     });
 
-    const result = await getDashboardSummary(householdId, db);
+    const result = await getDashboardSummary(householdId, undefined, db);
 
     expect(result.netWorth).toBe(50000);
     expect(result.monthlyExpenses).toBe(3000);
@@ -173,7 +173,7 @@ describe("getDashboardSummary latest-activity fallback", () => {
       amount: -250000,
     });
 
-    const result = await getDashboardSummary(householdId, db);
+    const result = await getDashboardSummary(householdId, undefined, db);
 
     expect(result.monthlyExpenses).toBe(4000);
     expect(result.monthlyIncome).toBe(250000);
@@ -366,7 +366,7 @@ describe("household isolation", () => {
       amount: 1000,
     });
 
-    const summary = await getDashboardSummary(otherId, db);
+    const summary = await getDashboardSummary(otherId, undefined, db);
     expect(summary.netWorth).toBe(0);
     expect(summary.monthlyExpenses).toBe(0);
     expect(summary.monthlyIncome).toBe(0);

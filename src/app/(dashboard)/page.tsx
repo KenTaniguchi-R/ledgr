@@ -21,25 +21,27 @@ import type { DashboardData } from "@/components/organisms/dashboard-grid";
 export default async function DashboardPage() {
   const [session, householdId] = await Promise.all([getSession(), getHouseholdId()]);
 
-  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, latestActivityMonth, savedLayout] =
+  // Resolve the effective month once — getDashboardSummary and getMonthlySpending
+  // otherwise each re-run this same "latest activity month" lookup. The Spending
+  // widget's initial month must match what getMonthlySpending resolved to, so a
+  // returning user whose latest data is from an earlier month doesn't open on an
+  // empty current month.
+  const latestActivityMonth = await getLatestActivityMonth(householdId);
+  const spendingMonth = latestActivityMonth ?? getCurrentMonth();
+
+  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
     await Promise.all([
-      getDashboardSummary(householdId),
+      getDashboardSummary(householdId, spendingMonth),
       getNetWorthHistory(householdId, "6M"),
-      getMonthlySpending(householdId),
+      getMonthlySpending(householdId, spendingMonth),
       getCashFlow(householdId, 6),
       getRecentTransactions(householdId, 5),
       getAccounts(householdId),
       getBudgetForMonth(householdId, getCurrentMonth()),
       getUpcomingBills(householdId, { limit: 5 }),
       getInvestmentsSummary(householdId),
-      getLatestActivityMonth(householdId),
       session ? getLayoutForUser(session.user.id) : null,
     ]);
-
-  // The Spending widget's initial month must match the data getMonthlySpending
-  // resolved to (latest activity month when the current month is empty), so the
-  // widget doesn't open on an empty current month.
-  const spendingMonth = latestActivityMonth ?? getCurrentMonth();
 
   const accounts = allAccounts
     .filter((a) => !a.isHidden)
