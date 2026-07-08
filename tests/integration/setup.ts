@@ -9,39 +9,36 @@ export async function createTestDb() {
   const connectionString =
     process.env.DATABASE_URL || "postgresql://ledgr:ledgr@localhost:5432/ledgr_test";
 
-  const schemaName = `test_${randomUUID().replace(/-/g, "")}`;
+  const dbName = `test_${randomUUID().replace(/-/g, "")}`;
 
-  // Create the schema with a throwaway connection first, then open the real
-  // pool with search_path pinned at *connection* time. `SET search_path` only
-  // affects a single connection, but a Pool hands out many connections — so
-  // setting it via a query left migrate/queries resolving to `public` on any
-  // fresh connection, which broke the full concurrent suite (relation-not-found).
-  // The `options` startup param applies to every connection the pool opens.
+  // Isolate each test file in its own *database* (not a schema). Migrations
+  // reference tables as `"public"."<table>"`, which only resolves when the
+  // objects live in the public schema — a per-schema/search_path approach breaks
+  // on those qualified references. A throwaway database per file gives every test
+  // its own public schema, keeps the concurrent suite isolated, and is robust to
+  // future migrations regardless of how they qualify identifiers.
   const admin = new Pool({ connectionString });
-  await admin.query(`CREATE SCHEMA "${schemaName}"`);
+  await admin.query(`CREATE DATABASE "${dbName}"`);
   await admin.end();
 
-  const pool = new Pool({
-    connectionString,
-    options: `-c search_path=${schemaName}`,
-  });
+  const url = new URL(connectionString);
+  url.pathname = `/${dbName}`;
 
+  const pool = new Pool({ connectionString: url.toString() });
   const db = drizzle({ client: pool, schema });
-  // Track applied migrations *inside this test schema*, not the shared default
-  // `drizzle` schema. Otherwise the first test file to migrate records the
-  // migrations globally and every later createTestDb() sees them as "already
-  // applied" and creates no tables — the real cause of the full-suite
-  // relation-not-found failures (each file passed only in isolation).
   await migrate(db, {
     migrationsFolder: path.join(process.cwd(), "src/db/migrations"),
-    migrationsSchema: schemaName,
   });
 
   return {
     db,
     async close() {
-      await pool.query(`DROP SCHEMA "${schemaName}" CASCADE`);
       await pool.end();
+      // DROP DATABASE cannot run while connections are open; FORCE terminates any
+      // stragglers (Postgres 13+).
+      const admin2 = new Pool({ connectionString });
+      await admin2.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+      await admin2.end();
     },
   };
 }
