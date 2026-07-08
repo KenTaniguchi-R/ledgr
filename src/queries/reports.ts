@@ -101,39 +101,35 @@ export async function getIncomeVsExpense(
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  const txns = await db
+  const incomeCatIds = [...(await getIncomeCategoryIds(db))];
+
+  // Income sums the raw (signed) amount of income-category txns; expenses sum
+  // the absolute value of everything else (any sign, incl. null category), to
+  // match the prior JS if/else exactly. COALESCE(...,false) makes a null or
+  // non-income category count as non-income.
+  const isIncome =
+    incomeCatIds.length > 0
+      ? sql`COALESCE(${inArray(transactions.categoryId, incomeCatIds)}, false)`
+      : sql`false`;
+  const monthExpr = sql<string>`substring(${transactions.date}, 1, 7)`;
+
+  const rows = await db
     .select({
-      date: transactions.date,
-      normalizedAmount: transactions.normalizedAmount,
-      categoryId: transactions.categoryId,
+      period: monthExpr,
+      income: sql<number>`COALESCE(SUM(CASE WHEN ${isIncome} THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`.mapWith(Number),
+      expenses: sql<number>`COALESCE(SUM(CASE WHEN NOT (${isIncome}) THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
     })
     .from(transactions)
-    .where(scoped.where(transactions, ...conditions));
+    .where(scoped.where(transactions, ...conditions))
+    .groupBy(monthExpr)
+    .orderBy(monthExpr);
 
-  const incomeCatIds = await getIncomeCategoryIds(db);
-
-  const byMonth = new Map<string, { income: number; expenses: number }>();
-  for (const txn of txns) {
-    const month = txn.date.slice(0, 7);
-    if (!byMonth.has(month)) {
-      byMonth.set(month, { income: 0, expenses: 0 });
-    }
-    const entry = byMonth.get(month)!;
-    if (txn.categoryId && incomeCatIds.has(txn.categoryId)) {
-      entry.income += txn.normalizedAmount;
-    } else {
-      entry.expenses += Math.abs(txn.normalizedAmount);
-    }
-  }
-
-  return [...byMonth.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([period, { income, expenses }]) => ({
-      period,
-      income,
-      expenses,
-      net: income - expenses,
-    }));
+  return rows.map(({ period, income, expenses }) => ({
+    period,
+    income,
+    expenses,
+    net: income - expenses,
+  }));
 }
 
 export async function getCategoryTrends(
