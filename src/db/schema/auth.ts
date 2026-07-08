@@ -1,5 +1,12 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  boolean,
+  timestamp,
+  integer,
+  index,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -17,6 +24,31 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+// WebAuthn passkeys (Better Auth `passkey` plugin). Enables phishing-resistant,
+// biometric/security-key sign-in as an alternative to password.
+export const passkey = pgTable(
+  "passkey",
+  {
+    id: text("id").primaryKey(),
+    name: text("name"),
+    publicKey: text("public_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    credentialID: text("credential_id").notNull(),
+    counter: integer("counter").notNull(),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    transports: text("transports"),
+    createdAt: timestamp("created_at", { withTimezone: true }),
+    aaguid: text("aaguid"),
+  },
+  (table) => [
+    index("passkey_userId_idx").on(table.userId),
+    index("passkey_credentialID_idx").on(table.credentialID),
+  ],
+);
 
 export const session = pgTable(
   "session",

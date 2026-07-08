@@ -40,6 +40,7 @@
     "@ai-sdk/openai-compatible": "^3.0.5",
     "@ai-sdk/react": "^4.0.17",
     "@base-ui/react": "^1.6.0",
+    "@better-auth/passkey": "^1.6.23",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^7.0.16",
     "better-auth": "^1.6.23",
