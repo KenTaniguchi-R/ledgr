@@ -35,15 +35,12 @@ function buildCategoryUpdate(categoryId: string | null) {
   };
 }
 
-export async function updateTransactionCategory(
+export async function updateTransactionCategoryScoped(
+  householdId: string,
   transactionId: string,
   categoryId: string | null,
   db: LedgrDb = defaultDb,
 ): Promise<{ success: true } | { error: string }> {
-  const auth = await authorizeAction();
-  if ("error" in auth) return auth;
-  const { householdId } = auth;
-
   const parsedTxnId = transactionIdSchema.safeParse(transactionId);
   const parsedCatId = categoryIdSchema.safeParse(categoryId);
   if (!parsedTxnId.success || !parsedCatId.success) {
@@ -69,6 +66,16 @@ export async function updateTransactionCategory(
 
   revalidatePath("/transactions");
   return { success: true };
+}
+
+export async function updateTransactionCategory(
+  transactionId: string,
+  categoryId: string | null,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  return updateTransactionCategoryScoped(auth.householdId, transactionId, categoryId, db);
 }
 
 export async function toggleReviewed(
