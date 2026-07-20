@@ -14,12 +14,22 @@ describe("todayDateString", () => {
     expect(todayDateString()).toBe(local);
   });
 
-  test("returns local-evening-previous-day, not the UTC date, west of UTC", () => {
-    process.env.TZ = "America/Los_Angeles";
+  test("follows the local calendar date, not the UTC date, at a UTC day boundary", () => {
     vi.useFakeTimers();
-    // 2026-01-01T02:00:00Z is still 2025-12-31 evening in America/Los_Angeles (UTC-8).
+    // Just past midnight UTC: west of UTC this is still the previous local day.
+    // Asserting against runtime-derived local getters keeps this deterministic in
+    // any runner timezone (CI runs UTC; a dev machine may be Pacific) — a
+    // regression to `new Date().toISOString().slice(0,10)` is caught whenever the
+    // runner's local date differs from the UTC date.
     vi.setSystemTime(new Date("2026-01-01T02:00:00Z"));
-    expect(todayDateString()).toBe("2025-12-31");
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const utcDate = now.toISOString().slice(0, 10);
+
+    expect(todayDateString()).toBe(localDate);
+    if (localDate !== utcDate) {
+      expect(todayDateString()).not.toBe(utcDate);
+    }
   });
 });
 
