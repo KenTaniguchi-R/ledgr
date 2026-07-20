@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getClient } from "@/lib/mcp/auth/oauth-server";
+import { getMcpSettings } from "@/queries/mcp-settings";
 import { SCOPE_LABELS } from "@/lib/mcp/constants";
 import { ConsentForm } from "./consent-form";
 
@@ -21,6 +22,15 @@ export default async function ConsentPage({ searchParams }: Props) {
   if (!session?.user) {
     const returnUrl = `/mcp/authorize?${new URLSearchParams(params as Record<string, string>).toString()}`;
     redirect(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+  }
+
+  const mcp = await getMcpSettings(session.user.id);
+  if (!mcp.mcpEnabled) {
+    return (
+      <div className="text-destructive">
+        MCP access is disabled. Enable it in Settings before connecting an app.
+      </div>
+    );
   }
 
   const { client_id, redirect_uri, code_challenge, scope, state } = params;

@@ -62,3 +62,17 @@ describe("MCP OAuth redirect_uri validation", () => {
     expect(typeof code).toBe("string");
   });
 });
+
+describe("MCP per-user opt-in enforcement", () => {
+  let db: LedgrDb;
+  let close: () => Promise<void>;
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
+  });
+  afterAll(() => close());
+
+  it("assertMcpEnabled throws when the user has not opted in", async () => {
+    const { assertMcpEnabled } = await import("@/lib/mcp/auth/guard");
+    await expect(assertMcpEnabled("user-without-settings", db)).rejects.toThrow();
+  });
+});

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getHouseholdId, getSession } from "@/lib/auth/session";
 import { grantConsent, createAuthorizationCode } from "@/lib/mcp/auth/oauth-server";
+import { assertMcpEnabled } from "@/lib/mcp/auth/guard";
 
 interface ApproveInput {
   clientId: string;
@@ -15,6 +16,7 @@ interface ApproveInput {
 export async function approveConsent(input: ApproveInput) {
   const session = await getSession();
   if (!session?.user) throw new Error("Not authenticated");
+  await assertMcpEnabled(session.user.id);
 
   const householdId = await getHouseholdId();
 
