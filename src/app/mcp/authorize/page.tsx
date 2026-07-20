@@ -64,6 +64,18 @@ export default async function ConsentPage({ searchParams }: Props) {
           ))}
         </ul>
       </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        After approval you will be redirected to{" "}
+        <span className="font-mono">
+          {(() => {
+            try {
+              return new URL(redirect_uri).host;
+            } catch {
+              return redirect_uri;
+            }
+          })()}
+        </span>
+      </p>
       <ConsentForm
         clientId={client_id}
         redirectUri={redirect_uri}
