@@ -25,9 +25,35 @@ export function centsToInputDisplay(cents: number): string {
 }
 
 export function parseToCents(input: string): number | null {
-  const cleaned = input.replace(/[$,\s]/g, "");
-  if (cleaned === "") return null;
-  const parsed = Number(cleaned);
+  let s = input.trim();
+  if (s === "") return null;
+  let sign = 1;
+  // Accounting negatives: (123.45)
+  if (/^\(.*\)$/.test(s)) {
+    sign = -1;
+    s = s.slice(1, -1).trim();
+  }
+  // Leading/trailing explicit sign
+  if (s.startsWith("-")) {
+    sign *= -1;
+    s = s.slice(1);
+  } else if (s.startsWith("+")) {
+    s = s.slice(1);
+  }
+  s = s.replace(/[^0-9.,]/g, ""); // drop currency symbols/spaces
+  if (s === "") return null;
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  // The rightmost of . or , is the decimal separator; the other is a grouping sep.
+  let normalized: string;
+  if (lastComma > lastDot) {
+    normalized = s.replace(/\./g, "").replace(",", ".");
+  } else if (lastDot > lastComma) {
+    normalized = s.replace(/,/g, "");
+  } else {
+    normalized = s.replace(/,/g, ""); // no decimal sep, only grouping
+  }
+  const parsed = Number(normalized);
   if (Number.isNaN(parsed)) return null;
-  return Math.round(parsed * 100);
+  return sign * Math.round(parsed * 100);
 }

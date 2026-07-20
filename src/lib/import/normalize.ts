@@ -32,8 +32,14 @@ function parseDateToISO(dateStr: string): string {
   return dateStr;
 }
 
-function parseAmountSafe(value: string): number {
-  return parseToCents(value) ?? 0;
+export interface SkippedRow {
+  row: Record<string, string>;
+  reason: string;
+}
+
+export interface NormalizeResult {
+  rows: NormalizedRow[];
+  skipped: SkippedRow[];
 }
 
 export function normalizeImportedRows(
@@ -42,8 +48,9 @@ export function normalizeImportedRows(
   accountId: string,
   householdId: string,
   convention: AmountConvention,
-): NormalizedRow[] {
+): NormalizeResult {
   const result: NormalizedRow[] = [];
+  const skipped: SkippedRow[] = [];
 
   for (const row of rows) {
     const dateStr = row[mapping.date] ?? "";
@@ -53,13 +60,25 @@ export function normalizeImportedRows(
     let amountCents: number;
 
     if (mapping.amount) {
-      const raw = parseAmountSafe(row[mapping.amount] ?? "0");
-      amountCents = convention === "positive_is_income" ? -raw : raw;
+      const parsed = parseToCents(row[mapping.amount] ?? "0");
+      if (parsed === null) {
+        skipped.push({ row, reason: `Unparseable amount: "${row[mapping.amount] ?? ""}"` });
+        continue;
+      }
+      amountCents = convention === "positive_is_income" ? -parsed : parsed;
     } else {
       const debitStr = row[mapping.debit!] ?? "";
       const creditStr = row[mapping.credit!] ?? "";
-      const debit = debitStr ? parseAmountSafe(debitStr) : 0;
-      const credit = creditStr ? parseAmountSafe(creditStr) : 0;
+      const debit = debitStr ? parseToCents(debitStr) : 0;
+      const credit = creditStr ? parseToCents(creditStr) : 0;
+      if (debit === null) {
+        skipped.push({ row, reason: `Unparseable debit amount: "${debitStr}"` });
+        continue;
+      }
+      if (credit === null) {
+        skipped.push({ row, reason: `Unparseable credit amount: "${creditStr}"` });
+        continue;
+      }
       amountCents = debit > 0 ? debit : -credit;
     }
 
@@ -75,5 +94,5 @@ export function normalizeImportedRows(
     });
   }
 
-  return result;
+  return { rows: result, skipped };
 }

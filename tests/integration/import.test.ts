@@ -47,7 +47,7 @@ describe("import pipeline integration", () => {
     if (!validated.valid) return;
 
     const rows = parseAll(CSV_CONTENT);
-    const normalized = normalizeImportedRows(
+    const { rows: normalized } = normalizeImportedRows(
       rows,
       validated.mapping,
       accountId,
@@ -94,7 +94,7 @@ describe("import pipeline integration", () => {
     const validated = validateMapping(detected);
     if (!validated.valid) return;
 
-    const normalized = normalizeImportedRows(
+    const { rows: normalized } = normalizeImportedRows(
       rows,
       validated.mapping,
       accountId,
