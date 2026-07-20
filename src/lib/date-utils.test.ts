@@ -1,7 +1,27 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi, afterEach } from "vitest";
 import { test as fcTest } from "@fast-check/vitest";
 import { fc } from "@fast-check/vitest";
-import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel } from "./date-utils";
+import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel, todayDateString } from "./date-utils";
+
+describe("todayDateString", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("returns the local calendar date", () => {
+    const now = new Date();
+    const local = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    expect(todayDateString()).toBe(local);
+  });
+
+  test("returns local-evening-previous-day, not the UTC date, west of UTC", () => {
+    process.env.TZ = "America/Los_Angeles";
+    vi.useFakeTimers();
+    // 2026-01-01T02:00:00Z is still 2025-12-31 evening in America/Los_Angeles (UTC-8).
+    vi.setSystemTime(new Date("2026-01-01T02:00:00Z"));
+    expect(todayDateString()).toBe("2025-12-31");
+  });
+});
 
 describe("rangeToDateBounds", () => {
   test("returns date strings for all presets", () => {

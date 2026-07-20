@@ -1,5 +1,5 @@
 export function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocalDate(new Date());
 }
 
 export function nowISO(): string {
