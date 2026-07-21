@@ -43,6 +43,13 @@ interface InvestmentPageLayoutProps {
   accounts: { id: string; name: string }[];
 }
 
+const ALLOCATION_TYPE_ACRONYMS = new Set(["etf", "reit"]);
+
+function formatAllocationTypeLabel(type: string): string {
+  if (ALLOCATION_TYPE_ACRONYMS.has(type)) return type.toUpperCase();
+  return type.charAt(0).toUpperCase() + type.slice(1).replace("_", " ");
+}
+
 export function InvestmentPageLayout({ summary, history, allocation, holdings, transactions, activeTab, view, filters, accounts }: InvestmentPageLayoutProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,7 +72,7 @@ export function InvestmentPageLayout({ summary, history, allocation, holdings, t
 
   const allocationChartData: SpendingChartItem[] = allocation.map((a) => ({
     id: null,
-    name: a.type.charAt(0).toUpperCase() + a.type.slice(1).replace("_", " "),
+    name: formatAllocationTypeLabel(a.type),
     value: a.value,
   }));
 

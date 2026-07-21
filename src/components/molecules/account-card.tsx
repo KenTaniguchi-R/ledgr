@@ -13,21 +13,12 @@ interface AccountCardProps {
 }
 
 export function AccountCard({ account, onEdit }: AccountCardProps) {
-  const mask = account.plaidAccountId
-    ? `···${account.plaidAccountId.slice(-4)}`
-    : null;
-
   return (
     <div className="group/card flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
         <AccountTypeIcon type={account.type as AccountType} />
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">{account.name}</span>
-            {mask && (
-              <span className="text-xs text-muted-foreground">{mask}</span>
-            )}
-          </div>
+          <span className="text-sm font-medium truncate block">{account.name}</span>
           {account.officialName && account.officialName !== account.name && (
             <p className="text-xs text-muted-foreground truncate">
               {account.officialName}

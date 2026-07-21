@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -101,22 +102,37 @@ export function ImportWizard({ accounts }: Props) {
     setStep("done");
   }
 
+  const cardTitle =
+    step === "map"
+      ? "Map Columns"
+      : step === "preview"
+        ? "Preview"
+        : step === "importing"
+          ? "Importing..."
+          : step === "done"
+            ? "Import Complete"
+            : null;
+
   return (
-    <Card className="max-w-3xl">
-      <CardHeader>
-        <CardTitle>
-          {step === "upload" && "Import Transactions"}
-          {step === "map" && "Map Columns"}
-          {step === "preview" && "Preview"}
-          {step === "importing" && "Importing..."}
-          {step === "done" && "Import Complete"}
-        </CardTitle>
-      </CardHeader>
+    <Card className="w-full">
+      {cardTitle && (
+        <CardHeader>
+          <CardTitle>{cardTitle}</CardTitle>
+        </CardHeader>
+      )}
       <CardContent className="space-y-4">
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         {step === "upload" && (
-          <FileDropzone onFile={handleFile} />
+          <>
+            <FileDropzone onFile={handleFile} />
+            <p className="text-sm text-muted-foreground text-center">
+              Prefer automatic sync?{" "}
+              <Link href="/accounts" className="text-primary hover:underline">
+                Connect a bank instead
+              </Link>
+            </p>
+          </>
         )}
 
         {step === "map" && (

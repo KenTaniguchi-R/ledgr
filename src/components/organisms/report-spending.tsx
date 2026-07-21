@@ -40,7 +40,7 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
   const totalSpent = data.reduce((s, r) => s + r.total, 0);
   const topCategory = data.length > 0 ? data[0] : null;
   const summaryItems: SummaryItem[] = [
-    { label: "Total Spent", value: totalSpent, color: "expense", icon: Wallet },
+    { label: "Total Spent", value: totalSpent, color: "default", icon: Wallet },
     { label: "Categories", value: data.length, format: "number", icon: Layers },
     ...(topCategory
       ? [{ label: `Top: ${topCategory.categoryName}`, value: topCategory.total, icon: Crown } as SummaryItem]

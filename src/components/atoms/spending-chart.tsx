@@ -16,6 +16,16 @@ interface SpendingChartProps {
   onItemClick?: (item: { id: string | null; name: string }) => void;
 }
 
+// The aggregated "Other" row (built below from categories past the top 8) is
+// not a real category — give it a fixed neutral color instead of cycling back
+// into CHART_COLORS, which would collide with an earlier slice's color.
+// Real uncategorized spend can also carry a null id under a different name,
+// so key off both id and name to avoid recoloring legitimate rows.
+function colorAt(item: SpendingChartItem, i: number): string {
+  if (item.id === null && item.name === "Other") return "var(--chart-neutral)";
+  return CHART_COLORS[i % CHART_COLORS.length];
+}
+
 export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProps) {
   if (data.length === 0) {
     return (
@@ -56,8 +66,8 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
                 onClick={(_, index) => handleClick(index)}
                 className={onItemClick ? "cursor-pointer" : ""}
               >
-                {chartData.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                {chartData.map((item, i) => (
+                  <Cell key={i} fill={colorAt(item, i)} />
                 ))}
               </Pie>
               <Tooltip formatter={(v) => centsToDisplay(Number(v))} />
@@ -71,7 +81,7 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
               name={row.name}
               amount={row.value}
               percentage={total > 0 ? (row.value / total) * 100 : 0}
-              color={CHART_COLORS[i % CHART_COLORS.length]}
+              color={colorAt(row, i)}
               onClick={onItemClick ? () => handleClick(i) : undefined}
             />
           ))}
@@ -95,8 +105,8 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
           onClick={(_, index) => handleClick(index)}
           className={onItemClick ? "cursor-pointer" : ""}
         >
-          {chartData.map((_, i) => (
-            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+          {chartData.map((item, i) => (
+            <Cell key={i} fill={colorAt(item, i)} />
           ))}
         </Bar>
       </BarChart>

@@ -1,4 +1,4 @@
-import { BillRow } from "@/components/molecules/bill-row";
+import { BillRow, BILL_ROW_GRID } from "@/components/molecules/bill-row";
 import type { BillRow as BillRowType } from "@/queries/recurring";
 
 interface BillListProps {
@@ -8,7 +8,9 @@ interface BillListProps {
 export function BillList({ bills }: BillListProps) {
   return (
     <div>
-      <div className="grid grid-cols-[1fr_140px_100px_100px_120px] items-center h-8 px-3 text-xs font-medium text-muted-foreground border-b">
+      <div
+        className={`${BILL_ROW_GRID} h-8 px-3 text-xs font-medium text-muted-foreground border-b`}
+      >
         <span>Name</span>
         <span>Category</span>
         <span className="text-right">Amount</span>
