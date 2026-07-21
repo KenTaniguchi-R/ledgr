@@ -78,7 +78,7 @@ export function BudgetTable({ data }: BudgetTableProps) {
           <div className="flex items-center justify-between px-3 py-2 text-sm font-medium bg-muted/20 rounded-t-lg">
             <span className="text-muted-foreground">Everything Else</span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              <AmountDisplay amount={data.unbudgeted.spent} className="text-xs" />
+              <AmountDisplay amount={data.unbudgeted.spent} absolute className="text-xs" />
             </span>
           </div>
           <Table>
@@ -92,7 +92,7 @@ export function BudgetTable({ data }: BudgetTableProps) {
                     )}
                   </TableCell>
                   <TableCell className="py-2 px-3 text-right">
-                    <AmountDisplay amount={cat.spent} className="text-xs" />
+                    <AmountDisplay amount={cat.spent} absolute className="text-xs" />
                   </TableCell>
                 </TableRow>
               ))}
