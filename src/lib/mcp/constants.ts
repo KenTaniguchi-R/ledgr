@@ -2,6 +2,12 @@ export function getLedgrUrl(): string {
   return process.env.LEDGR_URL ?? "http://localhost:4200";
 }
 
+// Canonical resource identifier (RFC 8707): PRM `resource`, token `aud`, and
+// `resource` parameter validation must all agree on this exact URL.
+export function getMcpResourceUrl(): string {
+  return `${getLedgrUrl()}/api/mcp`;
+}
+
 export const MCP_SCOPES = ["ledgr:read", "ledgr:write", "ledgr:sync"] as const;
 export const DEFAULT_SCOPE = "ledgr:read ledgr:write ledgr:sync";
 

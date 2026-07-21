@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getClient } from "@/lib/mcp/auth/oauth-server";
-import { DEFAULT_SCOPE } from "@/lib/mcp/constants";
+import { DEFAULT_SCOPE, getMcpResourceUrl } from "@/lib/mcp/constants";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -10,12 +10,16 @@ export async function GET(request: Request) {
   const codeChallengeMethod = url.searchParams.get("code_challenge_method");
   const scope = url.searchParams.get("scope") ?? DEFAULT_SCOPE;
   const state = url.searchParams.get("state");
+  const resource = url.searchParams.get("resource");
 
   if (!clientId || !redirectUri || !codeChallenge) {
     return NextResponse.json({ error: "invalid_request", error_description: "Missing required parameters" }, { status: 400 });
   }
   if (codeChallengeMethod !== "S256") {
     return NextResponse.json({ error: "invalid_request", error_description: "Only S256 code_challenge_method supported" }, { status: 400 });
+  }
+  if (resource !== null && resource !== getMcpResourceUrl()) {
+    return NextResponse.json({ error: "invalid_target", error_description: `Unknown resource: ${resource}` }, { status: 400 });
   }
   const client = await getClient(clientId);
   if (!client) {
