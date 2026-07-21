@@ -17,6 +17,7 @@ import {
   getRecentTransactions,
   getLatestActivityMonth,
 } from "../../src/queries/dashboard";
+import { todayDateString } from "../../src/lib/date-utils";
 
 // Month strings derived relative to "now" so tests stay deterministic as the
 // calendar moves (see repo convention: never hardcode "recent" dates).
@@ -111,7 +112,7 @@ describe("getNetWorthHistory", () => {
     expect(historicalPoint!.liabilities).toBe(15000);
     expect(historicalPoint!.netWorth).toBe(55000);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateString();
     const todayPoint = result.find((r) => r.date === today);
     expect(todayPoint).toBeDefined();
     expect(todayPoint!.assets).toBe(80000);
@@ -400,7 +401,7 @@ describe("household isolation", () => {
     expect(summary.monthlyIncome).toBe(0);
 
     const history = await getNetWorthHistory(otherId, "1M", db);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateString();
     const nonTodayPoints = history.filter((p) => p.date !== today);
     expect(nonTodayPoints.length).toBe(0);
 

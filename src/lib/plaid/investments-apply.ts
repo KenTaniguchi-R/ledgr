@@ -35,58 +35,40 @@ export async function applyInvestmentsToDb(
         .where(inArray(investmentHoldings.accountId, itemAccountIds));
     }
 
-    for (const row of holdingRows) {
-      await tx.insert(investmentHoldings)
-        .values({
-          id: row.id,
-          accountId: row.accountId,
-          plaidSecurityId: row.plaidSecurityId,
-          securityName: row.securityName,
-          ticker: row.ticker,
-          quantity: row.quantity,
-          costBasis: row.costBasis,
-          currentValue: row.currentValue,
+    if (holdingRows.length > 0) {
+      await tx.insert(investmentHoldings).values(
+        holdingRows.map((row) => ({
+          id: row.id, accountId: row.accountId, plaidSecurityId: row.plaidSecurityId,
+          securityName: row.securityName, ticker: row.ticker, quantity: row.quantity,
+          costBasis: row.costBasis, currentValue: row.currentValue,
           type: row.type as "stock" | "etf" | "mutual_fund" | "bond" | "crypto" | "cash" | "other",
-          sector: row.sector,
-          currency: row.currency,
-          asOfDate: row.asOfDate,
-        });
-      holdingsUpserted++;
+          sector: row.sector, currency: row.currency, asOfDate: row.asOfDate,
+        })),
+      );
+      holdingsUpserted = holdingRows.length;
     }
 
-    for (const row of txnRows) {
-      const result = await tx
-        .insert(investmentTransactions)
-        .values({
-          id: row.id,
-          accountId: row.accountId,
+    if (txnRows.length > 0) {
+      const result = await tx.insert(investmentTransactions).values(
+        txnRows.map((row) => ({
+          id: row.id, accountId: row.accountId,
           plaidInvestmentTransactionId: row.plaidInvestmentTransactionId,
-          securityName: row.securityName,
-          ticker: row.ticker,
+          securityName: row.securityName, ticker: row.ticker,
           type: row.type as "buy" | "sell" | "dividend" | "transfer" | "fee" | "other",
-          quantity: row.quantity,
-          price: row.price,
-          amount: row.amount,
-          fees: row.fees,
-          date: row.date,
-        })
-        .onConflictDoNothing();
-      if ((result.rowCount ?? 0) > 0) txnsInserted++;
+          quantity: row.quantity, price: row.price, amount: row.amount, fees: row.fees, date: row.date,
+        })),
+      ).onConflictDoNothing();
+      txnsInserted = result.rowCount ?? 0;
     }
 
-    for (const row of holdingRows) {
-      await tx.insert(holdingsHistory)
-        .values({
-          id: uuid(),
-          accountId: row.accountId,
-          plaidSecurityId: row.plaidSecurityId,
-          securityName: row.securityName,
-          ticker: row.ticker,
-          quantity: row.quantity,
-          value: row.currentValue,
-          date: today,
-        })
-        .onConflictDoNothing();
+    if (holdingRows.length > 0) {
+      await tx.insert(holdingsHistory).values(
+        holdingRows.map((row) => ({
+          id: uuid(), accountId: row.accountId, plaidSecurityId: row.plaidSecurityId,
+          securityName: row.securityName, ticker: row.ticker, quantity: row.quantity,
+          value: row.currentValue, date: today,
+        })),
+      ).onConflictDoNothing();
     }
   });
 
@@ -111,19 +93,21 @@ export async function snapshotHoldings(dbInstance: LedgrDb = defaultDb): Promise
     .innerJoin(accounts, eq(investmentHoldings.accountId, accounts.id))
     .where(ne(accounts.householdId, DEMO_HOUSEHOLD_ID));
 
-  for (const h of allHoldings) {
+  if (allHoldings.length > 0) {
     await dbInstance
       .insert(holdingsHistory)
-      .values({
-        id: uuid(),
-        accountId: h.accountId,
-        plaidSecurityId: h.plaidSecurityId,
-        securityName: h.securityName,
-        ticker: h.ticker,
-        quantity: h.quantity,
-        value: h.currentValue,
-        date: today,
-      })
+      .values(
+        allHoldings.map((h) => ({
+          id: uuid(),
+          accountId: h.accountId,
+          plaidSecurityId: h.plaidSecurityId,
+          securityName: h.securityName,
+          ticker: h.ticker,
+          quantity: h.quantity,
+          value: h.currentValue,
+          date: today,
+        })),
+      )
       .onConflictDoNothing();
   }
 }

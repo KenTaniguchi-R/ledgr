@@ -263,7 +263,7 @@ export async function getCashFlow(
   d.setDate(1);
   const dateFrom = d.toISOString().slice(0, 10);
 
-  const incomeCatIds = [...(await getIncomeCategoryIds(db))];
+  const incomeCatIds = [...(await getIncomeCategoryIds(householdId, db))];
 
   // COALESCE(...,false): a null or non-income category is treated as non-income,
   // matching the prior `txn.categoryId && incomeCatIds.has(...)` check. When

@@ -276,6 +276,81 @@ describe("transaction sync integration", () => {
     expect(txn?.deletedAt).not.toBeNull();
   });
 
+  it("batches multiple removed transactions into one soft-delete update", async () => {
+    await setup();
+    await seedTestData(db);
+
+    const now = new Date();
+    await db.insert(transactions).values([
+      {
+        id: uuid(),
+        accountId: "acc-internal-checking",
+        householdId: HOUSEHOLD_ID,
+        plaidTransactionId: TEST_TXN_IDS.removed1,
+        date: "2026-05-01",
+        originalName: "OLD TRANSACTION 1",
+        name: "Old Transaction 1",
+        amount: 1000,
+        normalizedAmount: -1000,
+        currency: "USD",
+        pending: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: uuid(),
+        accountId: "acc-internal-checking",
+        householdId: HOUSEHOLD_ID,
+        plaidTransactionId: TEST_TXN_IDS.removed2,
+        date: "2026-05-02",
+        originalName: "OLD TRANSACTION 2",
+        name: "Old Transaction 2",
+        amount: 2000,
+        normalizedAmount: -2000,
+        currency: "USD",
+        pending: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    server.use(
+      http.post("https://sandbox.plaid.com/transactions/sync", () =>
+        HttpResponse.json({
+          added: [],
+          modified: [],
+          removed: [
+            { transaction_id: TEST_TXN_IDS.removed1 },
+            { transaction_id: TEST_TXN_IDS.removed2 },
+          ],
+          has_more: false,
+          next_cursor: "cursor_removed_batch",
+          request_id: "req-sync-removed-batch",
+        }),
+      ),
+    );
+
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.removedCount).toBe(2);
+
+    const removedTxns = await db
+      .select()
+      .from(transactions)
+      .where(
+        eq(transactions.plaidTransactionId, TEST_TXN_IDS.removed1),
+      );
+    expect(removedTxns[0]?.deletedAt).not.toBeNull();
+
+    const [txn2] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.removed2));
+    expect(txn2?.deletedAt).not.toBeNull();
+  });
+
   it("modified transactions upsert without duplicates", async () => {
     await setup();
     await seedTestData(db);

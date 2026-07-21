@@ -5,6 +5,7 @@ import { insertHousehold, insertAccount } from "./helpers";
 import { balanceHistory } from "../../src/db/schema";
 import { getNetWorthHistory } from "../../src/queries/dashboard";
 import { formatNetWorthHistory } from "../../src/lib/mcp/tools/dashboard";
+import { todayDateString } from "../../src/lib/date-utils";
 import type { LedgrDb } from "../../src/db";
 
 // End-to-end coverage for the get_net_worth_history MCP tool's data path:
@@ -60,7 +61,7 @@ describe("get_net_worth_history tool data path", () => {
       netWorthDisplay: "$550.00",
     });
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateString();
     const todayPoint = wire.find((p) => p.date === today);
     expect(todayPoint).toEqual({
       date: today,

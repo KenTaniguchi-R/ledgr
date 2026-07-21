@@ -487,12 +487,12 @@ async function applyToDb(
 
     // --- Soft-delete removed transactions ---
     let removedCount = 0;
-    for (const removedPlaidId of processed.removedIds) {
+    if (processed.removedIds.length > 0) {
       const result = await tx
         .update(transactions)
         .set({ deletedAt: now, updatedAt: now })
-        .where(eq(transactions.plaidTransactionId, removedPlaidId));
-      if (result.rowCount && result.rowCount > 0) removedCount++;
+        .where(inArray(transactions.plaidTransactionId, processed.removedIds));
+      removedCount = result.rowCount ?? 0;
     }
 
     // --- Update account balances ---

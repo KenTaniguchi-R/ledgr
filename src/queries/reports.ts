@@ -101,7 +101,7 @@ export async function getIncomeVsExpense(
     conditions.push(inArray(transactions.categoryId, filters.categoryIds));
   }
 
-  const incomeCatIds = [...(await getIncomeCategoryIds(db))];
+  const incomeCatIds = [...(await getIncomeCategoryIds(householdId, db))];
 
   // Income sums the raw (signed) amount of income-category txns; expenses sum
   // the absolute value of everything else. An uncategorized row (no
@@ -150,7 +150,7 @@ export async function getCategoryTrends(
     isNull(transactions.transferPairId),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
-    await notIncome(db),
+    await notIncome(householdId, db),
   ];
   if (filters.accountIds?.length) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
@@ -258,7 +258,7 @@ export async function getIncomeExpenseByCategory(
   db: LedgrDb = defaultDb,
 ): Promise<IncomeExpenseCategoryRow[]> {
   const scoped = scopedQuery(householdId, db);
-  const incomeCatIds = await getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(householdId, db);
 
   const conditions = [
     notDeleted(transactions),
@@ -402,7 +402,7 @@ export async function getCashFlowSankey(
   db: LedgrDb = defaultDb,
 ): Promise<{ nodes: SankeyNode[]; links: SankeyLink[] }> {
   const scoped = scopedQuery(householdId, db);
-  const incomeCatIds = await getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(householdId, db);
 
   const conditions = [
     notDeleted(transactions),
@@ -520,7 +520,7 @@ export async function getSafeToSpend(
   db: LedgrDb = defaultDb,
 ): Promise<SafeToSpendResult> {
   const scoped = scopedQuery(householdId, db);
-  const incomeCatIds = await getIncomeCategoryIds(db);
+  const incomeCatIds = await getIncomeCategoryIds(householdId, db);
   const { from: dateFrom, to: dateTo } = monthBounds(getCurrentMonth());
 
   // Monthly income (including pending — so paycheck shows immediately)
@@ -595,7 +595,7 @@ export async function getSafeToSpend(
   }
 
   // Discretionary spending: non-recurring expenses this month
-  const notIncomeCondition = await notIncome(db);
+  const notIncomeCondition = await notIncome(householdId, db);
   const discretionaryTxns = await db
     .select({ normalizedAmount: transactions.normalizedAmount })
     .from(transactions)
