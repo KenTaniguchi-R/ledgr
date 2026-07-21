@@ -10,9 +10,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { centsToDisplay } from "@/lib/money";
+import { centsToDisplay, centsToCompact } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
-import { INCOME_COLOR, EXPENSE_COLOR, PRIMARY_COLOR } from "@/lib/chart-colors";
+import { INCOME_COLOR, EXPENSE_COLOR, POSITIVE_COLOR } from "@/lib/chart-colors";
 import type { NetWorthPoint } from "@/queries/dashboard";
 
 type ChartDataPoint = Record<string, string | number>;
@@ -30,13 +30,15 @@ interface TooltipEntry {
   color: string;
 }
 
+const AXIS_TICK = { fontSize: 11, fill: "var(--muted-foreground)" };
+
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
       <p className="font-medium">{formatDateShort(label ?? "")}</p>
       {payload.map((entry: TooltipEntry) => (
-        <p key={entry.name} style={{ color: entry.color }}>
+        <p key={entry.name} className="tabular-nums" style={{ color: entry.color }}>
           {entry.name}: {centsToDisplay(entry.value)}
         </p>
       ))}
@@ -59,16 +61,20 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
         <ComposedChart data={data as ChartDataPoint[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
           <defs>
             <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              <stop offset="0%" stopColor={POSITIVE_COLOR} stopOpacity={0.25} />
+              <stop offset="100%" stopColor={POSITIVE_COLOR} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} />
+          <CartesianGrid vertical={false} stroke="var(--border)" />
+          <XAxis dataKey="date" tickFormatter={formatDateShort} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={48} />
           <YAxis
-            tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
-            tick={{ fontSize: 11 }}
-            width={60}
+            tickFormatter={centsToCompact}
+            tick={AXIS_TICK}
+            width={52}
+            axisLine={false}
+            tickLine={false}
+            tickCount={4}
+            domain={["auto", "auto"]}
           />
           <Tooltip content={<CustomTooltip />} />
           <Area
@@ -76,7 +82,7 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
             dataKey="value"
             name={seriesName}
             fill="url(#portfolioGradient)"
-            stroke={PRIMARY_COLOR}
+            stroke={POSITIVE_COLOR}
             strokeWidth={2}
           />
         </ComposedChart>
@@ -87,23 +93,33 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
   return (
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data as ChartDataPoint[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} />
+        <defs>
+          <linearGradient id="netWorthGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={POSITIVE_COLOR} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={POSITIVE_COLOR} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} stroke="var(--border)" />
+        <XAxis dataKey="date" tickFormatter={formatDateShort} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={48} />
         <YAxis
-          tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
-          tick={{ fontSize: 11 }}
-          width={60}
+          tickFormatter={centsToCompact}
+          tick={AXIS_TICK}
+          width={52}
+          axisLine={false}
+          tickLine={false}
+          tickCount={4}
+          domain={["auto", "auto"]}
         />
         <Tooltip content={<CustomTooltip />} />
         <Area
           type="monotone"
           dataKey="netWorth"
           name="Net Worth"
-          fill="hsl(var(--primary) / 0.1)"
-          stroke={PRIMARY_COLOR}
+          fill="url(#netWorthGradient)"
+          stroke={POSITIVE_COLOR}
           strokeWidth={2}
         />
-        <Line type="monotone" dataKey="assets" name="Assets" stroke={INCOME_COLOR} strokeWidth={1.5} dot={false} />
+        <Line type="monotone" dataKey="assets" name="Assets" stroke={INCOME_COLOR} strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
         <Line type="monotone" dataKey="liabilities" name="Liabilities" stroke={EXPENSE_COLOR} strokeWidth={1.5} dot={false} />
       </ComposedChart>
     </ResponsiveContainer>

@@ -19,9 +19,9 @@ export function FilterSummaryBar({
       <span className="text-border">|</span>
       <span>Expenses: <span className="tabular-nums">{centsToDisplay(totalExpense)}</span></span>
       <span className="text-border">|</span>
-      <span className="text-emerald-600">Credits: <span className="tabular-nums">+{centsToDisplay(totalIncome)}</span></span>
+      <span className="text-positive">Credits: <span className="tabular-nums">+{centsToDisplay(totalIncome)}</span></span>
       <span className="text-border">|</span>
-      <span className={net >= 0 ? "text-emerald-600" : ""}>
+      <span className={net >= 0 ? "text-positive" : ""}>
         Net: <span className="tabular-nums">{net >= 0 ? "+" : ""}{centsToDisplay(Math.abs(net))}</span>
       </span>
     </div>

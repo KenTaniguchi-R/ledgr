@@ -19,9 +19,7 @@ export interface WidgetConfig {
 }
 
 export const DASHBOARD_WIDGETS: WidgetConfig[] = [
-  { id: "net-worth", title: "Net Worth", defaultHeight: 2 },
   { id: "accounts", title: "Account Balances", defaultHeight: 2 },
-  { id: "summary", title: "Summary", defaultHeight: 2 },
   { id: "spending", title: "Spending", defaultHeight: 2 },
   { id: "cash-flow", title: "Cash Flow", defaultHeight: 2 },
   { id: "recent-txns", title: "Recent Transactions", defaultHeight: 2 },
@@ -30,17 +28,21 @@ export const DASHBOARD_WIDGETS: WidgetConfig[] = [
   { id: "investments", title: "Investments", defaultHeight: 1 },
 ];
 
+// Widgets that used to live in the grid but now render as fixed page sections
+// (net-worth → hero, summary → stat row). Saved user layouts may still
+// reference them; the grid drops these ids on load.
+export const RETIRED_WIDGET_IDS = new Set(["net-worth", "summary"]);
+
 export const WIDGET_TITLE_MAP = new Map(
   DASHBOARD_WIDGETS.map((w) => [w.id, w.title]),
 );
 
 const DESKTOP_ORDER: { id: string; col: 0 | 1 }[] = [
-  { id: "net-worth", col: 0 },
-  { id: "accounts", col: 1 },
+  { id: "spending", col: 0 },
   { id: "cash-flow", col: 1 },
-  { id: "summary", col: 0 },
-  { id: "spending", col: 1 },
-  { id: "recent-txns", col: 0 },
+  { id: "budgets", col: 0 },
+  { id: "recent-txns", col: 1 },
+  { id: "accounts", col: 0 },
   { id: "bills", col: 1 },
   { id: "investments", col: 0 },
 ];

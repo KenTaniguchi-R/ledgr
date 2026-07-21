@@ -1,14 +1,21 @@
+// Categorical palette for charts. The underlying values live in globals.css
+// (--chart-1..8) so they re-step for dark mode; slot order is colorblind-safe.
+// Note: theme tokens are oklch/hex values — never wrap them in hsl().
 export const CHART_COLORS = [
-  "hsl(142 76% 36%)",
-  "hsl(221 83% 53%)",
-  "hsl(262 83% 58%)",
-  "hsl(25 95% 53%)",
-  "hsl(346 77% 50%)",
-  "hsl(47 96% 53%)",
-  "hsl(173 80% 36%)",
-  "hsl(322 65% 55%)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-6)",
+  "var(--chart-7)",
+  "var(--chart-8)",
 ];
 
-export const INCOME_COLOR = "hsl(142 76% 36%)";
-export const EXPENSE_COLOR = "hsl(var(--destructive))";
-export const PRIMARY_COLOR = "hsl(var(--primary))";
+export const INCOME_COLOR = "var(--positive)";
+export const EXPENSE_COLOR = "var(--destructive)";
+// Spending bars next to income use a neutral, not alarm-red — spending is
+// normal, overspending is not.
+export const SPENDING_COLOR = "var(--chart-neutral)";
+export const PRIMARY_COLOR = "var(--primary)";
+export const POSITIVE_COLOR = "var(--positive)";

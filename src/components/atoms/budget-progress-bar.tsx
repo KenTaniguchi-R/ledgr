@@ -20,7 +20,7 @@ export function BudgetProgressBar({ label, spent, limit, className }: BudgetProg
       ? "[&>div]:bg-destructive"
       : percent >= 80
         ? "[&>div]:bg-yellow-500"
-        : "[&>div]:bg-emerald-500";
+        : "[&>div]:bg-positive";
 
   return (
     <div className={cn("space-y-1", className)}>

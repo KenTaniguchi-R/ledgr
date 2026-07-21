@@ -21,6 +21,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -33,16 +34,40 @@ interface SidebarNavProps {
   userEmail: string;
 }
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/accounts", label: "Accounts", icon: Building2 },
-  { href: "/investments", label: "Investments", icon: TrendingUp },
-  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { href: "/budgets", label: "Budgets", icon: Wallet },
-  { href: "/bills", label: "Bills", icon: Receipt },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/import", label: "Import", icon: Upload },
-  { href: "/settings", label: "Settings", icon: Settings },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+}
+
+const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
+  {
+    label: null,
+    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "Money",
+    items: [
+      { href: "/accounts", label: "Accounts", icon: Building2 },
+      { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { href: "/investments", label: "Investments", icon: TrendingUp },
+    ],
+  },
+  {
+    label: "Planning",
+    items: [
+      { href: "/budgets", label: "Budgets", icon: Wallet },
+      { href: "/bills", label: "Bills", icon: Receipt },
+      { href: "/reports", label: "Reports", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { href: "/import", label: "Import", icon: Upload },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
@@ -59,39 +84,46 @@ export function SidebarNav({ userName, userEmail }: SidebarNavProps) {
   return (
     <Sidebar variant="inset" collapsible="offcanvas">
       <SidebarHeader className="px-4 py-4">
-        <Link href="/" className="text-lg font-bold tracking-tight">
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <span className="flex size-5 items-center justify-center rounded-md bg-positive text-[11px] font-extrabold text-background">
+            L
+          </span>
           Ledgr
         </Link>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
-              return (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    render={
-                      <Link
-                        href={item.href}
-                        onClick={closeMobile}
-                      />
-                    }
-                    isActive={isActive}
-                    tooltip={item.label}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
-        </SidebarGroup>
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label ?? "root"} className="py-0.5">
+            {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+            <SidebarMenu>
+              {group.items.map((item) => {
+                const isActive =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      render={
+                        <Link
+                          href={item.href}
+                          onClick={closeMobile}
+                        />
+                      }
+                      isActive={isActive}
+                      tooltip={item.label}
+                      className="data-active:bg-positive/10 data-active:text-positive"
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="pb-[env(safe-area-inset-bottom)]">

@@ -9,6 +9,20 @@ export function displayToCents(display: number): number {
   return Math.round(display * 100);
 }
 
+// Compact axis-label form: $128.3K, $1.2M, $840. Sign is preserved.
+export function centsToCompact(cents: number): string {
+  const dollars = cents / 100;
+  const abs = Math.abs(dollars);
+  const sign = dollars < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}$${trimZero((abs / 1_000_000).toFixed(1))}M`;
+  if (abs >= 1_000) return `${sign}$${trimZero((abs / 1_000).toFixed(1))}K`;
+  return `${sign}$${Math.round(abs)}`;
+}
+
+function trimZero(s: string): string {
+  return s.endsWith(".0") ? s.slice(0, -2) : s;
+}
+
 // Plaid convention: positive = money out, negative = money in (all account types).
 // We flip universally so: negative = expense, positive = income.
 export function normalizeAmount(amountCents: number, _accountType: string): number {

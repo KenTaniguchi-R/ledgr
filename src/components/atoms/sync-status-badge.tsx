@@ -35,8 +35,8 @@ export function SyncStatusBadge({
       )}
       {status === "success" && (
         <>
-          <Check className="size-3.5 text-emerald-500" />
-          <span className="text-emerald-500">Synced</span>
+          <Check className="size-3.5 text-positive" />
+          <span className="text-positive">Synced</span>
         </>
       )}
       {status === "error" && (

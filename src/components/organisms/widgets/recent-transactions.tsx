@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AmountDisplay } from "@/components/atoms/amount-display";
+import { WidgetPlaceholder } from "@/components/molecules/widget-placeholder";
 import type { TransactionRow } from "@/queries/transactions";
 
 interface RecentTransactionsWidgetProps {
@@ -15,9 +16,14 @@ function formatDate(date: string) {
 export function RecentTransactionsWidget({ data }: RecentTransactionsWidgetProps) {
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No transactions yet.
-      </div>
+      <WidgetPlaceholder
+        title="No transactions yet"
+        description="Connect a bank or import a CSV and activity will show up here."
+        actions={[
+          { label: "Connect a bank", href: "/accounts", primary: true },
+          { label: "Import CSV", href: "/import" },
+        ]}
+      />
     );
   }
 
