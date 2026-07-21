@@ -84,6 +84,23 @@ describe("getIncomeVsExpense", () => {
     expect(march!.expenses).toBe(110000);
     expect(march!.net).toBe(500000 - 110000);
   });
+
+  test("counts an uncategorized positive amount as income, not expense", async () => {
+    // An uncategorized paycheck (positive normalizedAmount) must not be
+    // bucketed into expenses via ABS() just because categoryId is null.
+    await insertTransaction(db, householdId, accountId, { date: "2026-03-20", normalizedAmount: 300000, amount: -300000, categoryId: null, name: "Mystery Deposit" });
+
+    const { getIncomeVsExpense } = await import("../../src/queries/reports");
+    const result = await getIncomeVsExpense(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
+
+    const march = result.find((r) => r.period === "2026-03");
+    expect(march).toBeDefined();
+    // Categorized salary (500000) + uncategorized positive deposit (300000).
+    expect(march!.income).toBe(800000);
+    // Only the categorized non-income transactions (food + rent).
+    expect(march!.expenses).toBe(108000);
+    expect(march!.net).toBe(800000 - 108000);
+  });
 });
 
 describe("getIncomeExpenseByCategory", () => {

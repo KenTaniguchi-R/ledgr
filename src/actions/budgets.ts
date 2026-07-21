@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { budgets, budgetCategories } from "@/db/schema";
+import { budgets, budgetCategories, categories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 
@@ -67,7 +67,8 @@ export async function createBudget(
   return { success: true, budgetId: id };
 }
 
-export async function setBudgetCategory(
+export async function setBudgetCategoryScoped(
+  householdId: string,
   budgetId: string,
   categoryId: string,
   limitAmount: number,
@@ -80,13 +81,19 @@ export async function setBudgetCategory(
     return { error: "Invalid input" };
   }
 
-  const auth = await authorizeAction();
-  if ("error" in auth) return auth;
-  const { householdId } = auth;
-
   const owned = await verifyBudgetOwnership(budgetId, householdId, db);
   if (!owned) {
     return { error: "Budget not found" };
+  }
+
+  const scoped = scopedQuery(householdId, db);
+  const [cat] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(scoped.where(categories, eq(categories.id, categoryId)))
+    .limit(1);
+  if (!cat) {
+    return { error: "Category not found" };
   }
 
   // Upsert: check if row exists
@@ -117,6 +124,17 @@ export async function setBudgetCategory(
 
   revalidatePath("/budgets");
   return { success: true };
+}
+
+export async function setBudgetCategory(
+  budgetId: string,
+  categoryId: string,
+  limitAmount: number,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  return setBudgetCategoryScoped(auth.householdId, budgetId, categoryId, limitAmount, db);
 }
 
 export async function removeBudgetCategory(

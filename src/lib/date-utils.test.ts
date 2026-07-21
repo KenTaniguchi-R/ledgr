@@ -1,7 +1,37 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi, afterEach } from "vitest";
 import { test as fcTest } from "@fast-check/vitest";
 import { fc } from "@fast-check/vitest";
-import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel } from "./date-utils";
+import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel, todayDateString } from "./date-utils";
+
+describe("todayDateString", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("returns the local calendar date", () => {
+    const now = new Date();
+    const local = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    expect(todayDateString()).toBe(local);
+  });
+
+  test("follows the local calendar date, not the UTC date, at a UTC day boundary", () => {
+    vi.useFakeTimers();
+    // Just past midnight UTC: west of UTC this is still the previous local day.
+    // Asserting against runtime-derived local getters keeps this deterministic in
+    // any runner timezone (CI runs UTC; a dev machine may be Pacific) — a
+    // regression to `new Date().toISOString().slice(0,10)` is caught whenever the
+    // runner's local date differs from the UTC date.
+    vi.setSystemTime(new Date("2026-01-01T02:00:00Z"));
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const utcDate = now.toISOString().slice(0, 10);
+
+    expect(todayDateString()).toBe(localDate);
+    if (localDate !== utcDate) {
+      expect(todayDateString()).not.toBe(utcDate);
+    }
+  });
+});
 
 describe("rangeToDateBounds", () => {
   test("returns date strings for all presets", () => {

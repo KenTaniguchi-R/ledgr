@@ -327,9 +327,12 @@ async function applyToDb(
 
     // --- Insert new transactions (one multi-row insert, not one per row) ---
     const insertRows: (typeof transactions.$inferInsert)[] = [];
+    const insertedPendingIds = new Set<string>();
     for (const row of processed.inserts) {
       const internalAccountId = plaidToInternal.get(row.plaidAccountId);
       if (!internalAccountId) continue; // skip if account not found
+
+      if (row.pendingTransactionId) insertedPendingIds.add(row.pendingTransactionId);
 
       const merchantId = row.merchantName
         ? merchantNameToId.get(row.merchantName) ?? null
@@ -437,6 +440,11 @@ async function applyToDb(
 
     // --- Soft-delete pending→posted replacements, inheriting category ---
     for (const pendingPlaidId of processed.pendingToRemove) {
+      // Only remove the pending row if its posted replacement was actually
+      // inserted this batch — otherwise (e.g. unmapped account) the
+      // transaction would silently vanish.
+      if (!insertedPendingIds.has(pendingPlaidId)) continue;
+
       const [pendingRow] = await tx
         .select({
           categoryId: transactions.categoryId,

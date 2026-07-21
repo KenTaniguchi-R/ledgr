@@ -32,7 +32,9 @@ export async function triggerSync(
   const result = await syncInstitution(plaidItemId, householdId, db);
 
   // Fire-and-forget investment sync — skips silently if item has no investment accounts
-  syncInvestments(plaidItemId, householdId, db).catch(() => {});
+  syncInvestments(plaidItemId, householdId, db).catch((err) => {
+    console.error("[sync] investment sync failed", err);
+  });
 
   revalidatePath("/");
   revalidatePath("/accounts");

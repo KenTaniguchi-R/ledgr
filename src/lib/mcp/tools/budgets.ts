@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getBudgetForMonth } from "@/queries/budgets";
-import { setBudgetCategory } from "@/actions/budgets";
+import { setBudgetCategoryScoped } from "@/actions/budgets";
 import { getCurrentMonth } from "@/lib/date-utils";
 import { centsToDisplay } from "@/lib/money";
 import { READ_ANNOTATIONS, WRITE_ANNOTATIONS } from "../constants";
@@ -60,7 +60,7 @@ export function registerBudgetReadTools(server: McpServer, householdId: string) 
   );
 }
 
-export function registerBudgetWriteTools(server: McpServer, _householdId: string) {
+export function registerBudgetWriteTools(server: McpServer, householdId: string) {
   server.registerTool(
     "set_budget_category",
     {
@@ -79,7 +79,7 @@ export function registerBudgetWriteTools(server: McpServer, _householdId: string
       annotations: WRITE_ANNOTATIONS,
     },
     async (args) => {
-      const result = await setBudgetCategory(args.budgetId, args.categoryId, args.limitAmountCents);
+      const result = await setBudgetCategoryScoped(householdId, args.budgetId, args.categoryId, args.limitAmountCents);
       return jsonResult(result);
     },
   );

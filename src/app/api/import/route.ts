@@ -103,6 +103,7 @@ export async function POST(request: Request) {
     }
 
     let normalized: NormalizedRow[];
+    let unparseableCount = 0;
 
     if (isOfx) {
       const ofxTransactions = parseOfx(content);
@@ -139,13 +140,15 @@ export async function POST(request: Request) {
       }
 
       const rows = parseAll(content);
-      normalized = normalizeImportedRows(
+      const { rows: normalizedRows, skipped } = normalizeImportedRows(
         rows,
         validated.mapping,
         accountId,
         householdId,
         convention
       );
+      normalized = normalizedRows;
+      unparseableCount = skipped.length;
     }
 
     const { unique, duplicates } = await findDuplicates(normalized, accountId, db);
@@ -156,13 +159,14 @@ export async function POST(request: Request) {
         duplicateCount: duplicates.length,
         uniqueCount: unique.length,
         totalCount: normalized.length,
+        unparseableCount,
       });
     }
 
     const toInsert = skipDuplicates ? unique : normalized;
 
     if (toInsert.length === 0) {
-      return NextResponse.json({ imported: 0, skipped: normalized.length });
+      return NextResponse.json({ imported: 0, skipped: normalized.length, unparseableCount });
     }
 
     await db.transaction(async (tx) => {
@@ -185,6 +189,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       imported: toInsert.length,
       skipped: duplicates.length,
+      unparseableCount,
     });
   }
 

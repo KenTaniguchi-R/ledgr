@@ -1,7 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export function GET(request: NextRequest) {
-  const receivedRedirectUri = request.url;
+export function GET() {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -10,7 +9,7 @@ export function GET(request: NextRequest) {
         <script>
           if (window.opener) {
             window.opener.postMessage(
-              { type: "plaid-oauth-redirect", receivedRedirectUri: ${JSON.stringify(receivedRedirectUri)} },
+              { type: "plaid-oauth-redirect", receivedRedirectUri: window.location.href },
               window.location.origin
             );
             window.close();

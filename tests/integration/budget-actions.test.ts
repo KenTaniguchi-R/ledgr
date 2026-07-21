@@ -11,6 +11,7 @@ import {
 import {
   createBudget,
   setBudgetCategory,
+  setBudgetCategoryScoped,
   removeBudgetCategory,
   copyBudgetFromMonth,
 } from "../../src/actions/budgets";
@@ -33,6 +34,7 @@ describe("budget actions", () => {
   let categoryId1: string;
   let categoryId2: string;
   let otherHouseholdId: string;
+  let otherCategoryId: string;
 
   beforeAll(async () => {
     ({ db, close } = await createTestDb());
@@ -46,7 +48,7 @@ describe("budget actions", () => {
     const hh2 = await insertHousehold(db, "Other Household");
     otherHouseholdId = hh2.householdId;
     const { groupId: groupId2 } = await insertCategoryGroup(db, otherHouseholdId, { name: "Other Group" });
-    await insertCategory(db, otherHouseholdId, groupId2, { name: "Other Cat" });
+    ({ categoryId: otherCategoryId } = await insertCategory(db, otherHouseholdId, groupId2, { name: "Other Cat" }));
   });
 
   afterAll(async () => {
@@ -132,6 +134,35 @@ describe("budget actions", () => {
         .from(budgetCategories)
         .where(and(eq(budgetCategories.budgetId, tgtId), eq(budgetCategories.categoryId, categoryId2)));
       expect(cat2Row!.limitAmount).toBe(20000);
+    });
+  });
+
+  describe("setBudgetCategoryScoped", () => {
+    it("rejects a categoryId from another household (IDOR)", async () => {
+      const { budgetId } = await insertBudget(db, mockHouseholdId, { month: "2026-11" });
+
+      const res = await setBudgetCategoryScoped(mockHouseholdId, budgetId, otherCategoryId, 5000, db);
+      expect(res).toEqual({ error: "Category not found" });
+
+      const rows = await db
+        .select()
+        .from(budgetCategories)
+        .where(and(eq(budgetCategories.budgetId, budgetId), eq(budgetCategories.categoryId, otherCategoryId)));
+      expect(rows).toHaveLength(0);
+    });
+
+    it("accepts a categoryId owned by the caller's household", async () => {
+      const { budgetId } = await insertBudget(db, mockHouseholdId, { month: "2026-12" });
+
+      const res = await setBudgetCategoryScoped(mockHouseholdId, budgetId, categoryId1, 5000, db);
+      expect(res).toEqual({ success: true });
+
+      const rows = await db
+        .select()
+        .from(budgetCategories)
+        .where(and(eq(budgetCategories.budgetId, budgetId), eq(budgetCategories.categoryId, categoryId1)));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].limitAmount).toBe(5000);
     });
   });
 

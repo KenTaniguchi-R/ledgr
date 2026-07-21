@@ -117,6 +117,21 @@ describe("parseToCents", () => {
   it("handles whitespace", () => {
     expect(parseToCents("  125.50  ")).toBe(12550);
   });
+  it("parses European comma-decimal (no thousands separator)", () => {
+    expect(parseToCents("1234,56")).toBe(123456);
+  });
+  it("parses European dot-thousands, comma-decimal", () => {
+    expect(parseToCents("1.234,56")).toBe(123456);
+  });
+  it("parses accounting negatives in parentheses", () => {
+    expect(parseToCents("(123.45)")).toBe(-12345);
+  });
+  it("parses a leading minus sign", () => {
+    expect(parseToCents("-123.45")).toBe(-12345);
+  });
+  it("parses a leading plus sign", () => {
+    expect(parseToCents("+123.45")).toBe(12345);
+  });
 });
 
 describe("money property-based tests", () => {

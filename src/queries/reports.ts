@@ -104,13 +104,17 @@ export async function getIncomeVsExpense(
   const incomeCatIds = [...(await getIncomeCategoryIds(db))];
 
   // Income sums the raw (signed) amount of income-category txns; expenses sum
-  // the absolute value of everything else (any sign, incl. null category), to
-  // match the prior JS if/else exactly. COALESCE(...,false) makes a null or
-  // non-income category count as non-income.
-  const isIncome =
+  // the absolute value of everything else. An uncategorized row (no
+  // categoryId) falls back to its sign: a positive normalizedAmount (credit)
+  // counts as income rather than defaulting to expense.
+  const inIncomeCat =
     incomeCatIds.length > 0
-      ? sql`COALESCE(${inArray(transactions.categoryId, incomeCatIds)}, false)`
+      ? inArray(transactions.categoryId, incomeCatIds)
       : sql`false`;
+  const isIncome = sql`(
+    COALESCE(${inIncomeCat}, false)
+    OR (${transactions.categoryId} IS NULL AND ${transactions.normalizedAmount} > 0)
+  )`;
   const monthExpr = sql<string>`substring(${transactions.date}, 1, 7)`;
 
   const rows = await db

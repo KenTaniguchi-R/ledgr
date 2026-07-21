@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getCategories } from "@/queries/categories";
-import { updateTransactionCategory } from "@/actions/transactions";
+import { updateTransactionCategoryScoped } from "@/actions/transactions";
 import { READ_ANNOTATIONS, WRITE_ANNOTATIONS } from "../constants";
 import { jsonResult } from "../tool-result";
 
@@ -21,7 +21,7 @@ export function registerCategoryReadTools(server: McpServer, householdId: string
   );
 }
 
-export function registerCategoryWriteTools(server: McpServer, _householdId: string) {
+export function registerCategoryWriteTools(server: McpServer, householdId: string) {
   server.registerTool(
     "update_transaction_category",
     {
@@ -38,7 +38,7 @@ export function registerCategoryWriteTools(server: McpServer, _householdId: stri
       annotations: WRITE_ANNOTATIONS,
     },
     async (args) => {
-      const result = await updateTransactionCategory(args.transactionId, args.categoryId);
+      const result = await updateTransactionCategoryScoped(householdId, args.transactionId, args.categoryId);
       return jsonResult(result);
     },
   );

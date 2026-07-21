@@ -21,8 +21,30 @@ export interface RegisterClientInput {
   redirect_uris?: string[];
 }
 
+function assertValidRedirectUris(uris: string[]): void {
+  if (uris.length === 0) {
+    throw new OAuthError("invalid_client_metadata", "At least one redirect_uri is required");
+  }
+  for (const uri of uris) {
+    let parsed: URL;
+    try {
+      parsed = new URL(uri);
+    } catch {
+      throw new OAuthError("invalid_client_metadata", `Invalid redirect_uri: ${uri}`);
+    }
+    const isHttps = parsed.protocol === "https:";
+    const isLoopback =
+      parsed.protocol === "http:" &&
+      (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost" || parsed.hostname === "[::1]");
+    if (!isHttps && !isLoopback) {
+      throw new OAuthError("invalid_client_metadata", `redirect_uri must be https or loopback: ${uri}`);
+    }
+  }
+}
+
 export async function registerClient(input: RegisterClientInput, db: LedgrDb = defaultDb) {
   const redirectUris = input.redirect_uris ?? [];
+  assertValidRedirectUris(redirectUris);
   const id = generateId();
   const clientId = generateId();
 
@@ -61,7 +83,7 @@ export async function createAuthorizationCode(input: CreateCodeInput, db: LedgrD
   if (!client) throw new OAuthError("invalid_client", "Unknown client_id");
 
   const uris: string[] = JSON.parse(client.redirectUris);
-  if (uris.length > 0 && !uris.includes(input.redirectUri)) {
+  if (!uris.includes(input.redirectUri)) {
     throw new OAuthError("invalid_request", "redirect_uri not registered");
   }
 

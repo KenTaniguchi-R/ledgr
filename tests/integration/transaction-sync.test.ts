@@ -376,6 +376,69 @@ describe("transaction sync integration", () => {
     expect(postedTxn?.pending).toBe(false);
   });
 
+  it("keeps the pending row when its posted replacement is skipped (unmapped account)", async () => {
+    await setup();
+    await seedTestData(db);
+
+    const now = new Date();
+    await db.insert(transactions).values({
+      id: uuid(),
+      accountId: "acc-internal-checking",
+      householdId: HOUSEHOLD_ID,
+      plaidTransactionId: TEST_TXN_IDS.pending1,
+      date: "2026-05-03",
+      originalName: "UBER *TRIP",
+      name: "Uber",
+      amount: 3599,
+      normalizedAmount: -3599,
+      currency: "USD",
+      pending: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // The posted replacement references the pending row via
+    // pending_transaction_id, but posts to an account that isn't in the
+    // internal accounts map — so it gets skipped during insert.
+    server.use(
+      http.post("https://sandbox.plaid.com/transactions/sync", () =>
+        HttpResponse.json({
+          added: [
+            {
+              transaction_id: TEST_TXN_IDS.posted1,
+              account_id: "plaid-acc-nonexistent",
+              amount: 35.99,
+              iso_currency_code: "USD",
+              date: "2026-05-03",
+              name: "UBER *TRIP",
+              merchant_name: "Uber",
+              logo_url: null,
+              pending: false,
+              pending_transaction_id: TEST_TXN_IDS.pending1,
+              personal_finance_category: { primary: "TRANSPORTATION", detailed: "TRANSPORTATION_TAXIS_AND_RIDE_SHARES" },
+            },
+          ],
+          modified: [],
+          removed: [],
+          has_more: false,
+          next_cursor: "cursor_unmapped_posted",
+          request_id: "req-sync-unmapped-posted",
+        })
+      )
+    );
+
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
+    expect(result.success).toBe(true);
+
+    const [pendingTxn] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.pending1));
+    // The replacement never got inserted, so the pending row must survive —
+    // otherwise the transaction silently vanishes.
+    expect(pendingTxn?.deletedAt).toBeNull();
+  });
+
   it("empty sync advances cursor and writes sync_log", async () => {
     await setup();
     await seedTestData(db);
