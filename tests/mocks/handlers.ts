@@ -128,6 +128,7 @@ export const TEST_TXN_IDS = {
   posted1: "txn-posted-1",
   modified1: "txn-modified-1",
   removed1: "txn-removed-1",
+  removed2: "txn-removed-2",
 } as const;
 
 export const syncPageOneHandler = http.post(
