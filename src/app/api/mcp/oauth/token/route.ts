@@ -11,6 +11,7 @@ export async function POST(request: Request) {
       const result = await exchangeCode({
         code: params.code, clientId: params.client_id,
         codeVerifier: params.code_verifier, redirectUri: params.redirect_uri,
+        resource: params.resource,
       });
       return NextResponse.json(result);
     }
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
     if (grantType === "refresh_token") {
       const result = await refreshAccessToken({
         refreshToken: params.refresh_token, clientId: params.client_id,
+        resource: params.resource,
       });
       return NextResponse.json(result);
     }

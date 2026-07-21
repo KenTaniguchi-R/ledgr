@@ -5,7 +5,7 @@ export function GET() {
   const ledgrUrl = getLedgrUrl();
 
   return NextResponse.json({
-    issuer: "ledgr",
+    issuer: ledgrUrl,
     authorization_endpoint: `${ledgrUrl}/api/mcp/oauth/authorize`,
     token_endpoint: `${ledgrUrl}/api/mcp/oauth/token`,
     registration_endpoint: `${ledgrUrl}/api/mcp/oauth/register`,

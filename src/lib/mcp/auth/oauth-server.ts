@@ -6,6 +6,15 @@ import { randomBytes, createHash } from "crypto";
 import { nowISO } from "@/lib/date-utils";
 import { signAccessToken, generateRefreshToken, verifyAccessToken } from "./token";
 import type { AccessTokenClaims } from "./token";
+import { getMcpResourceUrl } from "@/lib/mcp/constants";
+
+// RFC 8707: the resource parameter is optional, but when present it must name
+// this server's MCP endpoint — we only ever issue tokens for our own resource.
+export function assertValidResource(resource: string | undefined): void {
+  if (resource !== undefined && resource !== getMcpResourceUrl()) {
+    throw new OAuthError("invalid_target", `Unknown resource: ${resource}`);
+  }
+}
 
 function generateId(): string {
   return randomBytes(16).toString("base64url");
@@ -114,9 +123,11 @@ export interface ExchangeCodeInput {
   clientId: string;
   codeVerifier: string;
   redirectUri: string;
+  resource?: string;
 }
 
 export async function exchangeCode(input: ExchangeCodeInput, db: LedgrDb = defaultDb) {
+  assertValidResource(input.resource);
   const [row] = await db.select().from(oauthCodes).where(eq(oauthCodes.code, input.code)).limit(1);
   if (!row) throw new OAuthError("invalid_grant", "Unknown code");
   if (row.used) throw new OAuthError("invalid_grant", "Code already used");
@@ -165,9 +176,11 @@ export async function exchangeCode(input: ExchangeCodeInput, db: LedgrDb = defau
 export interface RefreshInput {
   refreshToken: string;
   clientId: string;
+  resource?: string;
 }
 
 export async function refreshAccessToken(input: RefreshInput, db: LedgrDb = defaultDb) {
+  assertValidResource(input.resource);
   const [row] = await db
     .select()
     .from(oauthRefreshTokens)
