@@ -1,4 +1,5 @@
-import { BalanceDisplay } from "@/components/atoms/balance-display";
+import { centsToDisplay } from "@/lib/money";
+import { StatStrip } from "@/components/molecules/stat-strip";
 
 interface BudgetSummaryBarProps {
   totalBudgeted: number;
@@ -24,21 +25,22 @@ export function BudgetSummaryBar({
   totalRemaining,
   lastSyncedAt,
 }: BudgetSummaryBarProps) {
-  const labels = ["Total Budgeted", "Total Spent", "Remaining"];
-  const values = [totalBudgeted, totalSpent, totalRemaining];
-
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-card p-4 gap-3 sm:gap-0">
-      <div className="flex gap-4 sm:gap-8 overflow-x-auto">
-        {labels.map((label, i) => (
-          <div key={label}>
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <BalanceDisplay amount={values[i]} size="lg" />
-          </div>
-        ))}
-      </div>
+    <div>
+      <StatStrip
+        ariaLabel="Budget summary"
+        items={[
+          { label: "Total Budgeted", value: centsToDisplay(totalBudgeted) },
+          { label: "Total Spent", value: centsToDisplay(totalSpent) },
+          {
+            label: "Remaining",
+            value: centsToDisplay(totalRemaining),
+            valueClassName: totalRemaining < 0 ? "text-destructive" : undefined,
+          },
+        ]}
+      />
       {lastSyncedAt && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground text-right mt-1.5">
           Last synced {timeAgo(lastSyncedAt)}
         </p>
       )}

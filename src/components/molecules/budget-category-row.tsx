@@ -128,7 +128,7 @@ export function BudgetCategoryRow({
         </div>
       </TableCell>
       <TableCell className="py-2 px-3">
-        <AmountDisplay amount={spent} className="text-xs" />
+        <AmountDisplay amount={spent} absolute className="text-xs" />
       </TableCell>
       <TableCell className="py-2 px-3">
         {error ? (
