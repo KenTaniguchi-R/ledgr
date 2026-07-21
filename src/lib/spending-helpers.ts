@@ -22,7 +22,7 @@ export interface SpendingChartItem {
 }
 
 
-async function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
+async function spendingBaseConditions(householdId: string, filters: ReportFilters, db: LedgrDb) {
   const conditions = [
     notDeleted(transactions),
     lt(transactions.normalizedAmount, 0),
@@ -31,7 +31,7 @@ async function spendingBaseConditions(filters: ReportFilters, db: LedgrDb) {
     isNull(transactions.transferPairId),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
-    await notIncome(db),
+    await notIncome(householdId, db),
   ];
   if (filters.accountIds?.length) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
@@ -61,7 +61,7 @@ export async function aggregateSpending(
   db: LedgrDb = defaultDb,
 ): Promise<Map<string, number>> {
   const scoped = scopedQuery(householdId, db);
-  const conditions = await spendingBaseConditions(filters, db);
+  const conditions = await spendingBaseConditions(householdId, filters, db);
 
   const splitParentIds = await findSplitParentIds(scoped, conditions, db);
 
