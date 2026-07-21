@@ -1,9 +1,9 @@
 "use client";
 
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { centsToDisplay } from "@/lib/money";
+import { centsToDisplay, centsToCompact } from "@/lib/money";
 import { formatMonthShort } from "@/lib/date-utils";
-import { INCOME_COLOR, EXPENSE_COLOR, PRIMARY_COLOR } from "@/lib/chart-colors";
+import { INCOME_COLOR, SPENDING_COLOR, PRIMARY_COLOR } from "@/lib/chart-colors";
 import type { CashFlowRow } from "@/queries/dashboard";
 
 interface CashFlowBarChartProps {
@@ -23,20 +23,30 @@ export function CashFlowBarChart({ data, showTrendline = false }: CashFlowBarCha
   return (
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="month" tickFormatter={formatMonthShort} tick={{ fontSize: 11 }} />
+        <CartesianGrid vertical={false} stroke="var(--border)" />
+        <XAxis
+          dataKey="month"
+          tickFormatter={formatMonthShort}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          axisLine={false}
+          tickLine={false}
+        />
         <YAxis
-          tickFormatter={(v) => centsToDisplay(v).replace(/\.00$/, "")}
-          tick={{ fontSize: 11 }}
-          width={60}
+          tickFormatter={centsToCompact}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          width={44}
+          axisLine={false}
+          tickLine={false}
+          tickCount={4}
         />
         <Tooltip
           formatter={(v) => centsToDisplay(Number(v))}
           labelFormatter={(label) => formatMonthShort(String(label))}
+          cursor={{ fill: "var(--muted)", opacity: 0.4 }}
         />
-        <Legend />
-        <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[2, 2, 0, 0]} />
-        <Bar dataKey="expenses" name="Expenses" fill={EXPENSE_COLOR} radius={[2, 2, 0, 0]} />
+        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+        <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[4, 4, 0, 0]} maxBarSize={24} />
+        <Bar dataKey="expenses" name="Spending" fill={SPENDING_COLOR} radius={[4, 4, 0, 0]} maxBarSize={24} />
         {showTrendline && (
           <Line
             type="monotone"

@@ -46,7 +46,7 @@ export function SplitEditor({
           ))}
           <div className={cn(
             "flex justify-between text-xs pt-1 border-t border-border/50 mt-1",
-            remaining === 0 ? "text-emerald-600" : "text-destructive",
+            remaining === 0 ? "text-positive" : "text-destructive",
           )}>
             <span>Remaining</span>
             <span className="tabular-nums">{centsToDisplay(remaining)}</span>

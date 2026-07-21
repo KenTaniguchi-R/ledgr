@@ -1,0 +1,93 @@
+import { centsToDisplay } from "@/lib/money";
+import { pctChange, savingsRatePct } from "@/lib/stat-delta";
+import { formatMonthShort } from "@/lib/date-utils";
+import { cn } from "@/lib/utils";
+import type { DashboardSummary } from "@/queries/dashboard";
+
+interface DashboardStatRowProps {
+  summary: DashboardSummary;
+  prevSummary: DashboardSummary;
+  month: string;
+  prevMonth: string;
+}
+
+interface StatChange {
+  text: string;
+  /** Whether the change moves the user's finances the right way. */
+  good: boolean;
+}
+
+function Stat({ label, value, change }: { label: string; value: string; change?: StatChange }) {
+  return (
+    <div className="px-5 py-3.5 first:pl-0.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xl font-semibold tracking-tight tabular-nums mt-0.5">{value}</p>
+      {change && (
+        <p className={cn("text-xs font-semibold mt-0.5", change.good ? "text-positive" : "text-destructive")}>
+          {change.text}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function pctChangeText(current: number, previous: number, vsLabel: string, upIsGood: boolean): StatChange | undefined {
+  const pct = pctChange(current, previous);
+  if (pct === null) return undefined;
+  const up = pct >= 0;
+  return {
+    text: `${up ? "↑" : "↓"} ${Math.abs(pct).toFixed(1)}% ${vsLabel}`,
+    good: up === upIsGood,
+  };
+}
+
+export function DashboardStatRow({ summary, prevSummary, month, prevMonth }: DashboardStatRowProps) {
+  const monthLabel = formatMonthShort(month);
+  const vsLabel = `vs ${formatMonthShort(prevMonth)}`;
+
+  const rate = savingsRatePct(summary);
+  const prevRate = savingsRatePct(prevSummary);
+  const rateChange: StatChange | undefined =
+    rate !== null && prevRate !== null
+      ? {
+          text: `${rate >= prevRate ? "↑" : "↓"} ${Math.abs(rate - prevRate).toFixed(1)} pt ${vsLabel}`,
+          good: rate >= prevRate,
+        }
+      : undefined;
+
+  const netChange: StatChange | undefined =
+    prevSummary.monthlyNet !== summary.monthlyNet
+      ? {
+          text: `${summary.monthlyNet >= prevSummary.monthlyNet ? "↑" : "↓"} ${centsToDisplay(Math.abs(summary.monthlyNet - prevSummary.monthlyNet))} ${vsLabel}`,
+          good: summary.monthlyNet >= prevSummary.monthlyNet,
+        }
+      : undefined;
+
+  return (
+    <section
+      aria-label="Monthly summary"
+      className="grid grid-cols-2 md:grid-cols-4 border-y divide-x divide-border mb-6"
+    >
+      <Stat
+        label={`Income · ${monthLabel}`}
+        value={centsToDisplay(summary.monthlyIncome)}
+        change={pctChangeText(summary.monthlyIncome, prevSummary.monthlyIncome, vsLabel, true)}
+      />
+      <Stat
+        label={`Spending · ${monthLabel}`}
+        value={centsToDisplay(summary.monthlyExpenses)}
+        change={pctChangeText(summary.monthlyExpenses, prevSummary.monthlyExpenses, vsLabel, false)}
+      />
+      <Stat
+        label={`Net saved · ${monthLabel}`}
+        value={centsToDisplay(summary.monthlyNet)}
+        change={netChange}
+      />
+      <Stat
+        label="Savings rate"
+        value={rate !== null ? `${rate.toFixed(1)}%` : "n/a"}
+        change={rateChange}
+      />
+    </section>
+  );
+}

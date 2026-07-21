@@ -11,11 +11,13 @@ import {
 import { getAccounts } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { getUpcomingBills } from "@/queries/recurring";
-import { getCurrentMonth } from "@/lib/date-utils";
+import { getCurrentMonth, shiftMonth } from "@/lib/date-utils";
 import { getLayoutForUser } from "@/queries/dashboard-layout";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
 import { getSession } from "@/lib/auth/session";
 import { DashboardGridLoader } from "@/components/organisms/dashboard-grid-loader";
+import { NetWorthHero } from "@/components/organisms/net-worth-hero";
+import { DashboardStatRow } from "@/components/molecules/dashboard-stat-row";
 import type { DashboardData } from "@/components/organisms/dashboard-grid";
 
 export default async function DashboardPage() {
@@ -28,10 +30,12 @@ export default async function DashboardPage() {
   // empty current month.
   const latestActivityMonth = await getLatestActivityMonth(householdId);
   const spendingMonth = latestActivityMonth ?? getCurrentMonth();
+  const prevMonth = shiftMonth(spendingMonth, -1);
 
-  const [summary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
+  const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
     await Promise.all([
       getDashboardSummary(householdId, spendingMonth),
+      getDashboardSummary(householdId, prevMonth),
       getNetWorthHistory(householdId, "6M"),
       getMonthlySpending(householdId, spendingMonth),
       getCashFlow(householdId, 6),
@@ -50,8 +54,6 @@ export default async function DashboardPage() {
   const layout = savedLayout ?? getDefaultLayout();
 
   const data: DashboardData = {
-    summary,
-    netWorthHistory,
     monthlySpending,
     spendingMonth,
     cashFlow,
@@ -64,7 +66,14 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight mb-4">Dashboard</h1>
+      <h1 className="sr-only">Dashboard</h1>
+      <NetWorthHero netWorth={summary.netWorth} initialHistory={netWorthHistory} />
+      <DashboardStatRow
+        summary={summary}
+        prevSummary={prevSummary}
+        month={spendingMonth}
+        prevMonth={prevMonth}
+      />
       <DashboardGridLoader layout={layout} data={data} />
     </div>
   );

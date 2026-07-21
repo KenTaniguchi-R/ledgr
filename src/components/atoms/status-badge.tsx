@@ -6,7 +6,7 @@ interface StatusBadgeProps {
 }
 
 const config = {
-  active: { label: "Connected", dotClass: "bg-emerald-500" },
+  active: { label: "Connected", dotClass: "bg-positive" },
   error: { label: "Error", dotClass: "bg-amber-500" },
   reauth_required: { label: "Reconnect needed", dotClass: "bg-destructive" },
   revoked: { label: "Access revoked", dotClass: "bg-destructive" },

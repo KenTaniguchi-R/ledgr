@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { test, fc } from "@fast-check/vitest";
 import {
   centsToDisplay,
+  centsToCompact,
   displayToCents,
   plaidAmountToCents,
   normalizeAmount,
@@ -9,6 +10,22 @@ import {
 } from "./money";
 
 describe("money utilities", () => {
+  describe("centsToCompact", () => {
+    it("abbreviates thousands and millions", () => {
+      expect(centsToCompact(12830412)).toBe("$128.3K");
+      expect(centsToCompact(123456789)).toBe("$1.2M");
+    });
+    it("drops the decimal when it is zero", () => {
+      expect(centsToCompact(12000000)).toBe("$120K");
+    });
+    it("rounds sub-thousand amounts to whole dollars", () => {
+      expect(centsToCompact(84012)).toBe("$840");
+    });
+    it("preserves the sign", () => {
+      expect(centsToCompact(-12830412)).toBe("-$128.3K");
+    });
+  });
+
   describe("centsToDisplay", () => {
     it("formats positive cents as USD", () => {
       expect(centsToDisplay(1250)).toBe("$12.50");

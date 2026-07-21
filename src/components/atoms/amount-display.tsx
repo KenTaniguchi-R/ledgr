@@ -24,7 +24,7 @@ export function AmountDisplay({
     <span
       className={cn(
         "tabular-nums text-sm font-medium",
-        isIncome && !absolute && "text-emerald-600",
+        isIncome && !absolute && "text-positive",
         pending && "opacity-60",
         className,
       )}

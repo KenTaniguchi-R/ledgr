@@ -7,18 +7,16 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { GripVertical } from "lucide-react";
 
 import { BudgetProgressWidget } from "./widgets/budget-progress";
-import { NetWorthChart } from "./widgets/net-worth-chart";
 import { SpendingByCategory } from "./widgets/spending-by-category";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { RecentTransactionsWidget } from "./widgets/recent-transactions";
 import { AccountBalancesWidget } from "./widgets/account-balances";
-import { DashboardSummaryCards } from "./widgets/dashboard-summary-cards";
 import { UpcomingBillsWidget } from "./widgets/upcoming-bills";
 import { InvestmentsWidget } from "./widgets/investments-widget";
 import { WidgetPlaceholder } from "@/components/molecules/widget-placeholder";
-import { WIDGET_TITLE_MAP, type GridItem, type DashboardLayout } from "./widgets/registry";
+import { WIDGET_TITLE_MAP, RETIRED_WIDGET_IDS, type GridItem, type DashboardLayout } from "./widgets/registry";
 import { saveLayout } from "@/actions/dashboard";
-import type { DashboardSummary, NetWorthPoint, MonthlySpendingRow, CashFlowRow } from "@/queries/dashboard";
+import type { MonthlySpendingRow, CashFlowRow } from "@/queries/dashboard";
 import type { TransactionRow } from "@/queries/transactions";
 import type { AccountType } from "@/db/schema/accounts";
 import type { BudgetMonth } from "@/queries/budgets";
@@ -26,8 +24,6 @@ import type { BillRow } from "@/queries/recurring";
 import type { getInvestmentsSummary } from "@/queries/dashboard";
 
 export interface DashboardData {
-  summary: DashboardSummary;
-  netWorthHistory: NetWorthPoint[];
   monthlySpending: MonthlySpendingRow[];
   spendingMonth: string;
   cashFlow: CashFlowRow[];
@@ -45,14 +41,14 @@ interface DashboardGridProps {
 
 export function DashboardGrid({ layout, data }: DashboardGridProps) {
   const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 1200 });
+  // Saved layouts may still reference widgets that moved out of the grid
+  // (net worth and summary now render as the page hero and stat row).
+  const filterRetired = (items: GridItem[]) => items.filter((i) => !RETIRED_WIDGET_IDS.has(i.i));
   const [layouts, setLayouts] = useState({
-    lg: layout.desktop,
-    md: layout.tablet,
-    sm: layout.mobile,
+    lg: filterRetired(layout.desktop),
+    md: filterRetired(layout.tablet),
+    sm: filterRetired(layout.mobile),
   });
-  const [nwRange, setNwRange] = useState("6M");
-  const [nwData, setNwData] = useState(data.netWorthHistory);
-  const [nwLoading, startNwTransition] = useTransition();
   const [spendMonth, setSpendMonth] = useState(data.spendingMonth);
   const [spendData, setSpendData] = useState(data.monthlySpending);
   const [spendLoading, startSpendTransition] = useTransition();
@@ -72,22 +68,6 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
 
   function renderWidget(id: string) {
     switch (id) {
-      case "net-worth":
-        return (
-          <NetWorthChart
-            data={nwData}
-            currentRange={nwRange}
-            onRangeChange={(range) => {
-              setNwRange(range);
-              startNwTransition(async () => {
-                const res = await fetch(`/api/dashboard/net-worth?range=${range}`);
-                const newData = await res.json();
-                setNwData(newData);
-              });
-            }}
-            isLoading={nwLoading}
-          />
-        );
       case "spending":
         return (
           <SpendingByCategory
@@ -110,13 +90,15 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
         return <RecentTransactionsWidget data={data.recentTransactions} />;
       case "accounts":
         return <AccountBalancesWidget data={data.accounts} />;
-      case "summary":
-        return <DashboardSummaryCards data={data.summary} />;
       case "budgets":
         return data.budgetData ? (
           <BudgetProgressWidget data={data.budgetData} />
         ) : (
-          <WidgetPlaceholder title="Budget Progress" description="No budget data" />
+          <WidgetPlaceholder
+            title="No budgets yet"
+            description="Set monthly limits per category and track progress here."
+            actions={[{ label: "Create a budget", href: "/budgets", primary: true }]}
+          />
         );
       case "bills":
         return <UpcomingBillsWidget data={data.upcomingBills} />;
@@ -127,7 +109,14 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
             dayChange={data.investmentsData.dayChange}
           />
         ) : (
-          <WidgetPlaceholder title="Investments" description="No investment accounts linked" />
+          <WidgetPlaceholder
+            title="No investment accounts linked"
+            description="Connect a brokerage to track holdings and performance here."
+            actions={[
+              { label: "Connect accounts", href: "/accounts", primary: true },
+              { label: "Import CSV", href: "/import" },
+            ]}
+          />
         );
       default:
         return null;
@@ -150,12 +139,12 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
         >
           {layouts.lg.map((item) => (
             <div key={item.i}>
-              <Card className="h-full flex flex-col">
+              <Card className="group h-full flex flex-col">
                 <div className="flex items-center justify-between pb-2 pt-3 px-4">
                   <CardTitle className="text-sm font-medium">
                     {WIDGET_TITLE_MAP.get(item.i) ?? item.i}
                   </CardTitle>
-                  <GripVertical className="size-4 text-muted-foreground cursor-grab drag-handle" />
+                  <GripVertical className="size-4 text-muted-foreground cursor-grab drag-handle opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity" />
                 </div>
                 <CardContent className="flex-1 min-h-0 pb-3 px-4">
                   {renderWidget(item.i)}
