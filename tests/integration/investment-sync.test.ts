@@ -12,6 +12,7 @@ import type { HoldingRow, InvestmentTxnRow } from "@/lib/plaid/investments";
 import { investmentHoldings, holdingsHistory, investmentTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
+import { todayDateString } from "@/lib/date-utils";
 
 function makeHolding(accountId: string, overrides: Partial<HoldingRow> = {}): HoldingRow {
   return {
@@ -130,6 +131,42 @@ describe("applyInvestmentsToDb", () => {
 
     const snapshots = await db.select().from(holdingsHistory);
     expect(snapshots).toHaveLength(1);
+  });
+
+  it("batches multi-row inserts: 3 holdings, 3 txns (1 pre-existing dup), idempotent history", async () => {
+    // Pre-insert one investment transaction so one of the 3 in this call collides.
+    const dupTxn = makeTxn(accountId, { plaidInvestmentTransactionId: "dup-batch-txn" });
+    await applyInvestmentsToDb(db, [], [dupTxn], plaidItemId);
+
+    const holdings = [
+      makeHolding(accountId, { id: crypto.randomUUID(), plaidSecurityId: "sec-a" }),
+      makeHolding(accountId, { id: crypto.randomUUID(), plaidSecurityId: "sec-b" }),
+      makeHolding(accountId, { id: crypto.randomUUID(), plaidSecurityId: "sec-c" }),
+    ];
+    const txns = [
+      makeTxn(accountId, { plaidInvestmentTransactionId: "dup-batch-txn" }), // conflicts with pre-inserted row
+      makeTxn(accountId, { plaidInvestmentTransactionId: "new-batch-txn-1" }),
+      makeTxn(accountId, { plaidInvestmentTransactionId: "new-batch-txn-2" }),
+    ];
+
+    const result = await applyInvestmentsToDb(db, holdings, txns, plaidItemId);
+
+    expect(result.holdingsUpserted).toBe(3);
+    expect(result.txnsInserted).toBe(2); // the dup is skipped via onConflictDoNothing
+
+    const dbHoldings = await db.select().from(investmentHoldings);
+    expect(dbHoldings).toHaveLength(3);
+
+    const today = todayDateString();
+    const history = await db.select().from(holdingsHistory);
+    expect(history).toHaveLength(3);
+    expect(history.every((h) => h.date === today)).toBe(true);
+
+    // Calling again with the same holdings must not duplicate history rows
+    // (onConflictDoNothing on accountId+plaidSecurityId+date).
+    await applyInvestmentsToDb(db, holdings, [], plaidItemId);
+    const historyAfterRepeat = await db.select().from(holdingsHistory);
+    expect(historyAfterRepeat).toHaveLength(3);
   });
 
   it("isolates holdings across households", async () => {
