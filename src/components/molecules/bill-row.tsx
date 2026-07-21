@@ -1,13 +1,15 @@
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { BillStatusIndicator } from "@/components/atoms/bill-status-indicator";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { categoryLabel } from "@/lib/labels";
 import type { BillRow as BillRowType } from "@/queries/recurring";
 
 interface BillRowProps {
   bill: BillRowType;
 }
+
+export const BILL_ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_140px_110px_100px_150px] items-center gap-x-4";
 
 const FREQUENCY_LABELS: Record<string, string> = {
   weekly: "Weekly",
@@ -19,19 +21,14 @@ const FREQUENCY_LABELS: Record<string, string> = {
 
 export function BillRow({ bill }: BillRowProps) {
   return (
-    <div
-      className={cn(
-        "grid grid-cols-[1fr_140px_100px_100px_120px] items-center h-10 px-3 text-sm border-b border-border/50",
-        bill.status === "overdue" && "border-l-2 border-l-destructive",
-      )}
-    >
+    <div className={`${BILL_ROW_GRID} h-10 px-3 text-sm border-b border-border/50`}>
       <span className="font-medium truncate">{bill.name}</span>
       <span className="text-muted-foreground truncate text-xs">
         {categoryLabel(bill.categoryName)}
       </span>
       <span className="text-right">
         {bill.averageAmount !== null && (
-          <AmountDisplay amount={bill.averageAmount} />
+          <AmountDisplay amount={bill.averageAmount} absolute />
         )}
       </span>
       <span>
@@ -41,13 +38,8 @@ export function BillRow({ bill }: BillRowProps) {
           </Badge>
         )}
       </span>
-      <span className="flex flex-col items-end gap-0.5">
-        <BillStatusIndicator status={bill.status} />
-        {bill.relativeDateLabel && (
-          <span className="text-[11px] text-muted-foreground">
-            {bill.relativeDateLabel}
-          </span>
-        )}
+      <span className="flex justify-end">
+        <BillStatusIndicator status={bill.status} relativeDateLabel={bill.relativeDateLabel} />
       </span>
     </div>
   );

@@ -7,8 +7,8 @@ export default async function ImportPage() {
   const userAccounts = await getAccountsForImport(householdId);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Import Transactions</h1>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Import Transactions</h1>
       <ImportWizard accounts={userAccounts} />
     </div>
   );

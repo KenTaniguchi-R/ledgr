@@ -1,6 +1,7 @@
 import { getHouseholdId } from "@/lib/auth/session";
 import { getAccountsByInstitution, getAccountSummary } from "@/queries/accounts";
-import { SummaryCard } from "@/components/molecules/summary-card";
+import { centsToDisplay } from "@/lib/money";
+import { StatStrip } from "@/components/molecules/stat-strip";
 import { AccountList } from "@/components/organisms/account-list";
 import { AccountsActions } from "@/components/organisms/accounts-actions";
 import { EmptyStateCTA } from "@/components/organisms/empty-state-cta";
@@ -26,11 +27,17 @@ export default async function AccountsPage() {
         <AccountsActions />
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        <SummaryCard label="Net Worth" amount={summary.netWorth} />
-        <SummaryCard label="Assets" amount={summary.totalAssets} />
-        <SummaryCard label="Debts" amount={summary.totalLiabilities} />
-      </div>
+      <StatStrip
+        items={[
+          { label: "Net Worth", value: centsToDisplay(summary.netWorth) },
+          { label: "Assets", value: centsToDisplay(summary.totalAssets) },
+          {
+            label: "Debts",
+            value: centsToDisplay(Math.abs(summary.totalLiabilities)),
+            valueClassName: summary.totalLiabilities !== 0 ? "text-destructive" : undefined,
+          },
+        ]}
+      />
 
       <AccountList groups={groups} />
     </div>
