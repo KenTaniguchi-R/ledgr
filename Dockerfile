@@ -44,6 +44,11 @@ COPY --from=builder /app/src/db/migrations ./migrations
 COPY --from=builder /app/scripts/migrate.mjs ./migrations/migrate.mjs
 COPY --from=migrate-deps /deps/node_modules ./migrations/node_modules
 COPY --from=builder --chmod=755 /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=builder --chmod=755 /app/scripts/ensure-secrets.sh ./ensure-secrets.sh
+
+# App data volume mount point (auto-generated secrets). Owned by the runtime
+# user so Docker named volumes initialize with writable permissions.
+RUN mkdir /data && chown nextjs:nodejs /data
 
 USER nextjs
 EXPOSE 3000

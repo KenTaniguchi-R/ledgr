@@ -34,11 +34,14 @@ services:
         condition: service_healthy
     ports:
       - "${PORT:-4200}:3000"
+    volumes:
+      - appdata:/data
     env_file:
       - path: .env
         required: false
     environment:
       PORT: 3000
+      LEDGR_DATA_DIR: /data
       DATABASE_URL: postgresql://ledgr:${POSTGRES_PASSWORD:-ledgr}@db:5432/ledgr
       BETTER_AUTH_URL: http://localhost:${PORT:-4200}
       NEXT_PUBLIC_APP_URL: http://localhost:${PORT:-4200}
@@ -57,3 +60,4 @@ services:
 
 volumes:
   pgdata:
+  appdata:

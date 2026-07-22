@@ -54,30 +54,19 @@ Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](http
 ```bash
 mkdir ledgr && cd ledgr
 curl -O https://raw.githubusercontent.com/KenTaniguchi-R/ledgr/main/docker-compose.yml
-curl -o .env https://raw.githubusercontent.com/KenTaniguchi-R/ledgr/main/.env.example
-```
-
-Generate your encryption key and add it to `.env`:
-
-```bash
-openssl rand -hex 32
-# Paste the output as ENCRYPTION_KEY= in .env
-```
-
-Start the app:
-
-```bash
 docker compose up -d
 ```
 
 Visit `http://localhost:4200`, create an account, and start exploring.
+
+On first boot, Ledgr generates an encryption key and session secret and stores them in the app data volume. **Back up that volume (or the `/data/encryption-key` file) along with your database** — losing the key means losing access to encrypted data like Plaid tokens. Prefer to manage the key yourself? Set `ENCRYPTION_KEY` in a `.env` file (see [Configuration](#configuration)) and it takes precedence.
 
 > Add your Plaid keys to `.env` to enable bank sync — see [Connect Your Bank](#connect-your-bank) below. The app works without Plaid via CSV import.
 
 ## Connect Your Bank
 
 1. Sign up at [dashboard.plaid.com](https://dashboard.plaid.com/signup) and get your `client_id` and secret from [Developers > Keys](https://dashboard.plaid.com/developers/keys)
-2. Add them to your `.env`:
+2. Add them to a `.env` file next to your `docker-compose.yml` (start from [`.env.example`](.env.example) if you don't have one):
    ```env
    PLAID_CLIENT_ID=your_client_id
    PLAID_SECRET=your_secret
@@ -203,8 +192,8 @@ Migrations run automatically on container startup.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ENCRYPTION_KEY` | Yes | -- | Encrypts Plaid tokens & API keys. `openssl rand -hex 32` |
-| `BETTER_AUTH_SECRET` | Recommended | auto-generated | Session secret. `openssl rand -base64 32` |
+| `ENCRYPTION_KEY` | No | auto-generated | Encrypts Plaid tokens & API keys. Generated on first boot and persisted in the app data volume; set your own with `openssl rand -hex 32` |
+| `BETTER_AUTH_SECRET` | No | auto-generated | Session secret, persisted in the app data volume. Set your own with `openssl rand -base64 32` |
 | `PORT` | No | `4200` | Host port for the app |
 | `POSTGRES_PASSWORD` | No | `ledgr` | Database password (change in production) |
 | `PLAID_CLIENT_ID` | No | -- | Plaid client ID |
