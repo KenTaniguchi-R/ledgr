@@ -5,7 +5,6 @@ import {
   insertAccount,
   insertPlaidItem,
   insertInvestmentHolding,
-  insertHoldingsSnapshot,
 } from "./helpers";
 import { applyInvestmentsToDb, snapshotHoldings } from "@/lib/plaid/investments";
 import type { HoldingRow, InvestmentTxnRow } from "@/lib/plaid/investments";

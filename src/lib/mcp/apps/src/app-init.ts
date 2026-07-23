@@ -1,5 +1,6 @@
 export function initApp(onData: (data: unknown) => void) {
   window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
     if (event.data?.type === "tool-input") {
       onData(event.data.data);
     }

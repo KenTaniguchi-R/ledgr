@@ -6,11 +6,9 @@ import {
   createAuthorizationCode,
   exchangeCode,
   refreshAccessToken,
-  revokeToken,
   grantConsent,
   hasConsent,
   revokeConsent,
-  OAuthError,
 } from "@/lib/mcp/auth/oauth-server";
 import { verifyAccessToken } from "@/lib/mcp/auth/token";
 import { createHash } from "crypto";
