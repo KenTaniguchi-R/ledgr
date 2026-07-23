@@ -52,10 +52,21 @@ Claude: Based on your transactions, you spent $342.18 on dining out in April...
 Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/KenTaniguchi-R/ledgr/main/scripts/install.sh | sh
+```
+
+This creates a `ledgr/` directory, downloads `docker-compose.yml`, and starts the app.
+
+<details>
+<summary>Prefer to see the steps first?</summary>
+
+```bash
 mkdir ledgr && cd ledgr
 curl -O https://raw.githubusercontent.com/KenTaniguchi-R/ledgr/main/docker-compose.yml
 docker compose up -d
 ```
+
+</details>
 
 Visit `http://localhost:4200`, create an account, and start exploring.
 
