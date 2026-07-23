@@ -35,8 +35,9 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
-          paths-ignore: |
-            src/lib/mcp/apps/widgets/**
+          config: |
+            paths-ignore:
+              - src/lib/mcp/apps/widgets/**
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
