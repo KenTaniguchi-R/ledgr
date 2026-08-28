@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from "vitest";
+import { http, HttpResponse } from "msw";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
@@ -87,6 +88,50 @@ describe("syncConnection", () => {
       .from(institutionLogos)
       .where(eq(institutionLogos.connectionId, connectionId));
     expect(logo.logo).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it("backfills the icon for the right institution when one Access URL spans several (shared SimpleFIN Bridge credential)", async () => {
+    ({ db, close } = await createTestDb());
+    const { householdId } = await insertHousehold(db);
+
+    // Two institutions claimed under the same SimpleFIN Bridge session share
+    // one credential — /accounts on it returns both orgs' accounts together,
+    // regardless of which connectionId is syncing.
+    server.use(
+      http.get("https://bridge.simplefin.test/simplefin/accounts", () =>
+        HttpResponse.json({
+          errlist: [],
+          connections: [
+            { conn_id: "CON-A", org_name: "Org A", org_url: "https://org-a.example.com" },
+            { conn_id: "CON-B", org_name: "Org B", org_url: "https://org-b.example.com" },
+          ],
+          accounts: [
+            { id: "acc-a", name: "A Checking", conn_id: "CON-A", currency: "USD", balance: "10.00", "balance-date": 0, transactions: [] },
+            { id: "acc-b", name: "B Checking", conn_id: "CON-B", currency: "USD", balance: "20.00", "balance-date": 0, transactions: [] },
+          ],
+        })
+      ),
+      http.get("https://icons.duckduckgo.com/ip3/org-a.example.com.ico", () =>
+        new HttpResponse(new Uint8Array([1, 1, 1, 1]), { headers: { "content-type": "image/png" } })
+      ),
+      http.get("https://icons.duckduckgo.com/ip3/org-b.example.com.ico", () =>
+        new HttpResponse(new Uint8Array([2, 2, 2, 2]), { headers: { "content-type": "image/png" } })
+      ),
+    );
+
+    const { connectionId: connectionA } = await insertSimplefinConnection(db, householdId);
+    await insertAccount(db, householdId, { bankConnectionId: connectionA, externalAccountId: "acc-a", type: "checking" });
+
+    const { connectionId: connectionB } = await insertSimplefinConnection(db, householdId);
+    await insertAccount(db, householdId, { bankConnectionId: connectionB, externalAccountId: "acc-b", type: "checking" });
+
+    await syncConnection(connectionB, householdId, db);
+
+    const [logoB] = await db.select().from(institutionLogos).where(eq(institutionLogos.connectionId, connectionB));
+    expect(logoB.logo).toBe(`data:image/png;base64,${Buffer.from([2, 2, 2, 2]).toString("base64")}`);
+
+    const logosForA = await db.select().from(institutionLogos).where(eq(institutionLogos.connectionId, connectionA));
+    expect(logosForA).toHaveLength(0);
   });
 
   it("does not re-fetch an institution icon that's already cached", async () => {

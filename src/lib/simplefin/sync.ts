@@ -371,10 +371,24 @@ async function backfillInstitutionLogo(
     .limit(1);
   if (existing) return;
 
-  // Every account synced through one connectionId belongs to the same
-  // SimpleFIN institution (each institution gets its own bank_connections
-  // row — see actions/simplefin.ts), so any account's domain will do.
-  const { domain } = resolveInstitution(syncedAccounts[0], connections);
+  // One SimpleFIN Access URL can span multiple institutions (a single
+  // SimpleFIN Bridge session linking several banks under one shared
+  // credential) — /accounts on that credential returns every account across
+  // all of them, not just this connection's. applyToDb() already filters by
+  // matching externalAccountId to what's registered under this
+  // connectionId; do the same here rather than assuming syncedAccounts[0]
+  // belongs to this institution, or the wrong org's domain (and icon) gets
+  // cached for it.
+  const registered = await db
+    .select({ externalAccountId: accounts.externalAccountId })
+    .from(accounts)
+    .where(and(eq(accounts.bankConnectionId, connectionId), isNull(accounts.deletedAt)));
+  const registeredIds = new Set(registered.map((r) => r.externalAccountId));
+
+  const account = syncedAccounts.find((a) => registeredIds.has(a.id));
+  if (!account) return;
+
+  const { domain } = resolveInstitution(account, connections);
   if (!domain) return;
 
   const logo = await fetchInstitutionLogoDataUri(domain);
