@@ -666,6 +666,11 @@ export const simplefinHandlers = [
   http.get("https://bridge.simplefin.test/simplefin/accounts", () =>
     HttpResponse.json(SIMPLEFIN_TEST_ACCOUNTS_RESPONSE)
   ),
+
+  // Institution icon lookup, keyed off connections[].org_url in the response above.
+  http.get("https://icons.duckduckgo.com/ip3/testcu.example.com.ico", () =>
+    new HttpResponse(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } })
+  ),
 ];
 
 /** Layer this on top of `simplefinHandlers` via `server.use(...)` to simulate a revoked Access URL. */

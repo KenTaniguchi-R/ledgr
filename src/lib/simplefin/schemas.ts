@@ -94,23 +94,45 @@ export const SimplefinAccountsResponseSchema = z.object({
 
 export type SimplefinAccountsResponse = z.infer<typeof SimplefinAccountsResponseSchema>;
 
+/**
+ * Extracts a bare hostname (no protocol, path, or `www.` prefix) from a
+ * SimpleFIN org/connection URL field, which may already be a bare domain
+ * (v1's `org.domain`) or a full URL (v2's `org_url`). Used to fetch a
+ * favicon-based institution icon — SimpleFIN, unlike Plaid, never sends logo
+ * bytes. Parsing via `URL` also doubles as a hostname validator: anything
+ * that isn't a clean host (spaces, stray paths, garbage) throws and falls
+ * back to null rather than reaching the network with a malformed value.
+ */
+function extractDomain(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`;
+    const hostname = new URL(withProtocol).hostname.toLowerCase().replace(/^www\./, "");
+    return hostname || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolves an account's institution identity across v1 (`org`) and v2 (`conn_id`/`connections`). */
 export function resolveInstitution(
   account: SimplefinAccount,
   connections: SimplefinConnection[] | null | undefined,
-): { externalOrgId: string; institutionName: string | null } {
+): { externalOrgId: string; institutionName: string | null; domain: string | null } {
   if (account.conn_id) {
     const conn = connections?.find((c) => c.conn_id === account.conn_id);
     return {
       externalOrgId: account.conn_id,
       institutionName: conn?.org_name ?? conn?.name ?? account.conn_name ?? null,
+      domain: extractDomain(conn?.org_url) ?? extractDomain(conn?.sfin_url),
     };
   }
   if (account.org) {
     return {
       externalOrgId: account.org.domain ?? account.org.id ?? account.org["sfin-url"] ?? "unknown",
       institutionName: account.org.name ?? account.org.domain ?? null,
+      domain: extractDomain(account.org.domain) ?? extractDomain(account.org.url),
     };
   }
-  return { externalOrgId: "unknown", institutionName: null };
+  return { externalOrgId: "unknown", institutionName: null, domain: null };
 }

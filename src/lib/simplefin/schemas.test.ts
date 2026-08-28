@@ -75,6 +75,7 @@ describe("resolveInstitution", () => {
     expect(resolveInstitution(account, null)).toEqual({
       externalOrgId: "mybank.com",
       institutionName: "My Bank",
+      domain: "mybank.com",
     });
   });
 
@@ -88,12 +89,13 @@ describe("resolveInstitution", () => {
       conn_id: "CON-1",
     } as unknown as SimplefinAccount;
     const connections: SimplefinConnection[] = [
-      { conn_id: "CON-1", org_name: "My Bank", sfin_url: "https://sfin.mybank.com" },
+      { conn_id: "CON-1", org_name: "My Bank", org_url: "https://www.mybank.com/", sfin_url: "https://sfin.mybank.com" },
     ];
 
     expect(resolveInstitution(account, connections)).toEqual({
       externalOrgId: "CON-1",
       institutionName: "My Bank",
+      domain: "mybank.com",
     });
   });
 
@@ -109,6 +111,36 @@ describe("resolveInstitution", () => {
     expect(resolveInstitution(account, null)).toEqual({
       externalOrgId: "unknown",
       institutionName: null,
+      domain: null,
     });
+  });
+
+  it("falls back to the sfin_url host for a v2 connection with no org_url", () => {
+    const account = {
+      id: "acc-1",
+      name: "Checking",
+      currency: "USD",
+      balance: "0",
+      "balance-date": 0,
+      conn_id: "CON-1",
+    } as unknown as SimplefinAccount;
+    const connections: SimplefinConnection[] = [
+      { conn_id: "CON-1", org_name: "My Bank", sfin_url: "https://sfin.mybank.com/simplefin" },
+    ];
+
+    expect(resolveInstitution(account, connections).domain).toBe("sfin.mybank.com");
+  });
+
+  it("returns null domain when the org domain field isn't a valid hostname", () => {
+    const account = {
+      id: "acc-1",
+      name: "Checking",
+      currency: "USD",
+      balance: "0",
+      "balance-date": 0,
+      org: { domain: "not a domain", name: "My Bank" },
+    } as unknown as SimplefinAccount;
+
+    expect(resolveInstitution(account, null).domain).toBeNull();
   });
 });

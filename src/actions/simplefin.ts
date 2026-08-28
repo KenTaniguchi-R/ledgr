@@ -6,13 +6,14 @@ import { revalidatePath } from "next/cache";
 import { claimSetupToken, simplefinRequest, SimplefinHttpError } from "@/lib/simplefin/client";
 import { SimplefinAccountsResponseSchema, resolveInstitution } from "@/lib/simplefin/schemas";
 import { syncConnection } from "@/lib/simplefin/sync";
+import { fetchInstitutionLogoDataUri } from "@/lib/simplefin/logo";
 import { encrypt } from "@/lib/encryption";
 import { simplefinAmountToCents } from "@/lib/money";
 import { todayDateString } from "@/lib/date-utils";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { bankConnections, accounts, balanceHistory } from "@/db/schema";
+import { bankConnections, accounts, balanceHistory, institutionLogos } from "@/db/schema";
 import type { AccountType } from "@/db/schema/accounts";
 
 // ---------------------------------------------------------------------------
@@ -66,22 +67,35 @@ export async function claimAndDiscoverAccountsDirect(
     // Group discovered accounts by institution — each institution becomes
     // its own bank_connections row sharing this same encrypted credential,
     // so per-institution grouping/disconnect/reauth works exactly like Plaid.
-    const groups = new Map<string, { institutionName: string | null; accounts: typeof parsed.accounts }>();
+    const groups = new Map<string, { institutionName: string | null; domain: string | null; accounts: typeof parsed.accounts }>();
     for (const account of parsed.accounts) {
-      const { externalOrgId, institutionName } = resolveInstitution(account, parsed.connections);
+      const { externalOrgId, institutionName, domain } = resolveInstitution(account, parsed.connections);
       const group = groups.get(externalOrgId);
       if (group) {
         group.accounts.push(account);
       } else {
-        groups.set(externalOrgId, { institutionName, accounts: [account] });
+        groups.set(externalOrgId, { institutionName, domain, accounts: [account] });
       }
     }
+
+    // Best-effort — SimpleFIN never sends logo bytes the way Plaid does, so
+    // this is fetched from the institution's domain up front (outside the
+    // transaction, like Plaid's institutionsGetById lookup) and simply
+    // omitted below on failure, leaving the initials-avatar fallback.
+    const logoDataUriByOrgId = new Map<string, string | null>();
+    await Promise.all(
+      [...groups.entries()].map(async ([externalOrgId, group]) => {
+        if (group.domain) {
+          logoDataUriByOrgId.set(externalOrgId, await fetchInstitutionLogoDataUri(group.domain));
+        }
+      }),
+    );
 
     const encryptedCredential = encrypt(accessUrl);
     const connections: DiscoveredConnection[] = [];
 
     await db.transaction(async (tx) => {
-      for (const { institutionName, accounts: groupAccounts } of groups.values()) {
+      for (const [externalOrgId, { institutionName, accounts: groupAccounts }] of groups.entries()) {
         const externalIds = groupAccounts.map((a) => a.id);
 
         // Regenerating a Setup Token and reconnecting must not create a
@@ -154,6 +168,13 @@ export async function claimAndDiscoverAccountsDirect(
             institutionName,
             status: "pending_classification",
           });
+        }
+
+        const logo = logoDataUriByOrgId.get(externalOrgId);
+        if (logo) {
+          await tx.insert(institutionLogos)
+            .values({ id: uuid(), connectionId, logo })
+            .onConflictDoUpdate({ target: institutionLogos.connectionId, set: { logo } });
         }
 
         connections.push({

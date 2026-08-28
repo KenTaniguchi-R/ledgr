@@ -7,7 +7,7 @@ import {
   SIMPLEFIN_TEST_SETUP_TOKEN,
   SIMPLEFIN_TEST_USED_SETUP_TOKEN,
 } from "../mocks/handlers";
-import { bankConnections, accounts, balanceHistory, transactions } from "@/db/schema";
+import { bankConnections, accounts, balanceHistory, transactions, institutionLogos } from "@/db/schema";
 import {
   claimAndDiscoverAccountsDirect,
   confirmSimplefinAccountsDirect,
@@ -65,6 +65,20 @@ describe("SimpleFIN connect flow", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].provider).toBe("simplefin");
     expect(rows[0].status).toBe("pending_classification");
+  });
+
+  it("caches an institution icon fetched from the connection's domain, as a data URI", async () => {
+    await setup();
+    const { householdId: hh } = await insertHousehold(db);
+
+    const result = await claimAndDiscoverAccountsDirect(SIMPLEFIN_TEST_SETUP_TOKEN, hh, db);
+    if (!result.success) throw new Error("expected success");
+
+    const [logo] = await db
+      .select()
+      .from(institutionLogos)
+      .where(eq(institutionLogos.connectionId, result.connections[0].connectionId));
+    expect(logo.logo).toMatch(/^data:image\/png;base64,/);
   });
 
   it("rejects a Setup Token that has already been claimed", async () => {

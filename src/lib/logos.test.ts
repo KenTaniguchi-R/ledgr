@@ -24,6 +24,17 @@ describe("resolveEntityLogo", () => {
     });
   });
 
+  it("passes a data: URI through as-is when logoBase64 is already one (SimpleFIN favicon cache)", () => {
+    const result = resolveEntityLogo({
+      logoBase64: "data:image/x-icon;base64,AAABAAEAEA==",
+      name: "Robinhood",
+    });
+    expect(result).toEqual({
+      type: "image",
+      src: "data:image/x-icon;base64,AAABAAEAEA==",
+    });
+  });
+
   it("returns category icon URL when pfcPrimary provided", () => {
     const result = resolveEntityLogo({
       pfcPrimary: "FOOD_AND_DRINK",

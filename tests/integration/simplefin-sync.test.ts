@@ -3,9 +3,16 @@ import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
 import { simplefinAccountsRevokedHandler } from "../mocks/handlers";
-import { bankConnections, accounts, transactions } from "@/db/schema";
+import { bankConnections, accounts, transactions, institutionLogos } from "@/db/schema";
 import { syncConnection } from "@/lib/simplefin/sync";
-import { insertHousehold, insertSimplefinConnection, insertAccount, insertCategoryGroup, insertCategory } from "./helpers";
+import {
+  insertHousehold,
+  insertSimplefinConnection,
+  insertAccount,
+  insertCategoryGroup,
+  insertCategory,
+  insertCategoryRule,
+} from "./helpers";
 import type { LedgrDb } from "@/db";
 
 // MSW mocks fetch, not DNS — the SSRF guard in lib/simplefin/client.ts does a
@@ -69,6 +76,32 @@ describe("syncConnection", () => {
     expect(pending.pending).toBe(true);
   });
 
+  it("backfills a missing institution icon on sync (pre-existing connections from before icon caching)", async () => {
+    const { householdId, connectionId } = await setupWithAccount();
+
+    const result = await syncConnection(connectionId, householdId, db);
+    expect(result.success).toBe(true);
+
+    const [logo] = await db
+      .select()
+      .from(institutionLogos)
+      .where(eq(institutionLogos.connectionId, connectionId));
+    expect(logo.logo).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it("does not re-fetch an institution icon that's already cached", async () => {
+    const { householdId, connectionId } = await setupWithAccount();
+    await db.insert(institutionLogos).values({ id: "existing-logo", connectionId, logo: "data:image/png;base64,already-cached" });
+
+    await syncConnection(connectionId, householdId, db);
+
+    const [logo] = await db
+      .select()
+      .from(institutionLogos)
+      .where(eq(institutionLogos.connectionId, connectionId));
+    expect(logo.logo).toBe("data:image/png;base64,already-cached");
+  });
+
   it("updates account balances from the poll response", async () => {
     const { householdId, connectionId, accountId } = await setupWithAccount();
 
@@ -111,6 +144,19 @@ describe("syncConnection", () => {
     expect(updated.categoryId).toBe(categoryId);
     expect(updated.categorySource).toBe("manual");
     expect(updated.reviewed).toBe(true);
+  });
+
+  it("auto-categorizes newly synced transactions against household rules", async () => {
+    const { householdId, connectionId } = await setupWithAccount();
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Food" });
+    const { categoryId } = await insertCategory(db, householdId, groupId, { name: "Coffee" });
+    await insertCategoryRule(db, householdId, categoryId, { matchField: "name", matchPattern: "coffee" });
+
+    await syncConnection(connectionId, householdId, db);
+
+    const [txn] = await db.select().from(transactions).where(eq(transactions.externalId, "sf-txn-1"));
+    expect(txn.categoryId).toBe(categoryId);
+    expect(txn.categorySource).toBe("rule");
   });
 
   it("sets status to revoked (not just error) on a 403 from /accounts", async () => {

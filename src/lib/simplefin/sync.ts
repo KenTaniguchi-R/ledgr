@@ -1,14 +1,16 @@
 import { v4 as uuid } from "uuid";
 import { eq, and, isNull, inArray, desc } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
-import { bankConnections, syncLog, transactions, accounts, investmentHoldings, holdingsHistory } from "@/db/schema";
+import { bankConnections, syncLog, transactions, accounts, investmentHoldings, holdingsHistory, institutionLogos } from "@/db/schema";
 import { decrypt } from "@/lib/encryption";
 import { simplefinAmountToCents } from "@/lib/money";
 import { cleanTransactionName } from "@/lib/import/clean-name";
 import { todayDateString } from "@/lib/date-utils";
 import { simplefinRequest } from "./client";
-import { SimplefinAccountsResponseSchema, type SimplefinAccount, type SimplefinHolding } from "./schemas";
+import { SimplefinAccountsResponseSchema, resolveInstitution, type SimplefinAccount, type SimplefinConnection, type SimplefinHolding } from "./schemas";
 import { classifyPollError } from "./utils";
+import { fetchInstitutionLogoDataUri } from "./logo";
+import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 
 // SimpleFIN brokerages don't send a security type the way Plaid does — this
 // is just enough to distinguish crypto (relevant for allocation charts) from
@@ -354,6 +356,35 @@ export async function syncConnection(
   }
 }
 
+async function backfillInstitutionLogo(
+  db: LedgrDb,
+  connectionId: string,
+  syncedAccounts: SimplefinAccount[],
+  connections: SimplefinConnection[] | null | undefined,
+): Promise<void> {
+  if (syncedAccounts.length === 0) return;
+
+  const [existing] = await db
+    .select({ connectionId: institutionLogos.connectionId })
+    .from(institutionLogos)
+    .where(eq(institutionLogos.connectionId, connectionId))
+    .limit(1);
+  if (existing) return;
+
+  // Every account synced through one connectionId belongs to the same
+  // SimpleFIN institution (each institution gets its own bank_connections
+  // row — see actions/simplefin.ts), so any account's domain will do.
+  const { domain } = resolveInstitution(syncedAccounts[0], connections);
+  if (!domain) return;
+
+  const logo = await fetchInstitutionLogoDataUri(domain);
+  if (!logo) return;
+
+  await db.insert(institutionLogos)
+    .values({ id: uuid(), connectionId, logo })
+    .onConflictDoNothing();
+}
+
 async function doSync(
   connectionId: string,
   householdId: string,
@@ -399,6 +430,31 @@ async function doSync(
     const balances = balancesFromAccounts(parsed.accounts);
     const holdings = processHoldings(parsed.accounts);
     const counts = await applyToDb(db, processed, balances, holdings, connectionId, householdId);
+
+    // Backfill (non-fatal): connections created before icon caching existed,
+    // or whose initial favicon fetch failed, pick up an icon lazily here —
+    // reusing the institution data this sync already fetched rather than
+    // requiring a reconnect.
+    try {
+      await backfillInstitutionLogo(db, connectionId, parsed.accounts, parsed.connections);
+    } catch (logoError) {
+      console.error("Institution logo backfill failed for connection", JSON.stringify(connectionId), logoError);
+    }
+
+    // Auto-categorize newly synced transactions (non-fatal) — mirrors plaid/sync.ts.
+    try {
+      await categorizeSyncedTransactions(connectionId, householdId, db);
+    } catch (catError) {
+      console.error("Categorization failed for connection", JSON.stringify(connectionId), catError);
+    }
+
+    // AI categorization (async, non-fatal, separate from sync engine)
+    try {
+      const { categorizeWithAi } = await import("@/lib/ai/categorize");
+      await categorizeWithAi(householdId, db);
+    } catch (aiError) {
+      console.error("AI categorization failed for connection", JSON.stringify(connectionId), aiError);
+    }
 
     return {
       success: true,
