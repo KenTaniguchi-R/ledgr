@@ -34,14 +34,6 @@ export function TransactionList({
   const isMobile = useIsMobile();
   const [rows, setRows] = useState(initialRows);
   const [cursor, setCursor] = useState(nextCursor);
-  const [prevInitialRows, setPrevInitialRows] = useState(initialRows);
-
-  if (initialRows !== prevInitialRows) {
-    setPrevInitialRows(initialRows);
-    setRows(initialRows);
-    setCursor(nextCursor);
-  }
-
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadingMore, setLoadingMore] = useState(false);
   const { selectedId, select, clear } = useSelectedTransaction();

@@ -50,7 +50,7 @@ export function TransactionDetailPanel({
   } = useTransactionDetail(transactionId, initialData, onClose, onTransactionUpdated);
 
   useEffect(() => {
-    headingRef.current?.focus();
+    headingRef.current?.focus({ preventScroll: true });
   }, [transactionId]);
 
   useEffect(() => {

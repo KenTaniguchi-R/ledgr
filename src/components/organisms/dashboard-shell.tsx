@@ -19,7 +19,7 @@ export function DashboardShell({ userName, userEmail, defaultOpen = true, childr
           <SidebarTrigger className="h-11 w-11" />
           <span className="text-sm font-semibold">Ledgr</span>
         </header>
-        <main className="flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6 lg:px-8">
+        <main className="flex-1 px-4 py-4 md:px-6 md:py-6 lg:px-8">
           {children}
         </main>
       </SidebarInset>
