@@ -50,6 +50,13 @@
       "when": 1787944665537,
       "tag": "0006_wakeful_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787954913401,
+      "tag": "0007_cloudy_silverclaw",
+      "breakpoints": true
     }
   ]
 }

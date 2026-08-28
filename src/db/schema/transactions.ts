@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, pgPolicy, text, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { accounts } from "./accounts";
 import { households } from "./households";
@@ -67,8 +67,20 @@ export const transactions = pgTable(
     index("idx_txn_household_reviewed_date").on(table.householdId, table.reviewed, table.date),
     index("idx_txn_household_transfer_date").on(table.householdId, table.isTransfer, table.date),
     index("idx_txn_household_date_id").on(table.householdId, table.date, table.id),
+    // RLS PILOT — not yet load-bearing. This policy only has effect for a
+    // non-superuser, non-BYPASSRLS connection; the app currently connects as
+    // the POSTGRES_USER role, which the official postgres image grants
+    // superuser, so this is inert until deployment adds a restricted app
+    // role (see docs/rls-pilot.md). Also requires every call site touching
+    // `transactions` to run inside withHousehold() (src/lib/household-context.ts)
+    // so `app.household_id` is actually set — most call sites don't yet.
+    pgPolicy("household_isolation", {
+      for: "all",
+      using: sql`household_id = current_setting('app.household_id', true)`,
+      withCheck: sql`household_id = current_setting('app.household_id', true)`,
+    }),
   ]
-);
+).enableRLS();
 
 export const transactionSplits = pgTable(
   "transaction_splits",

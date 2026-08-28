@@ -1,0 +1,2 @@
+ALTER TABLE "transactions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "household_isolation" ON "transactions" AS PERMISSIVE FOR ALL TO public USING (household_id = current_setting('app.household_id', true)) WITH CHECK (household_id = current_setting('app.household_id', true));
