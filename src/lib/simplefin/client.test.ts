@@ -39,6 +39,7 @@ describe("claimSetupToken", () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       status: 200,
+      type: "basic",
       text: async () => accessUrl,
     });
 
@@ -46,7 +47,7 @@ describe("claimSetupToken", () => {
     expect(result).toBe(accessUrl);
     expect(global.fetch).toHaveBeenCalledWith(
       claimUrl,
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({ method: "POST", redirect: "manual" }),
     );
   });
 
@@ -55,6 +56,7 @@ describe("claimSetupToken", () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 403,
+      type: "basic",
       text: async () => "",
     });
 
@@ -65,6 +67,18 @@ describe("claimSetupToken", () => {
   it("rejects a Setup Token that doesn't decode to an https:// URL", async () => {
     const setupToken = Buffer.from("not-a-url").toString("base64");
     await expect(claimSetupToken(setupToken)).rejects.toThrow("HTTPS URL");
+  });
+
+  it("does not follow a redirect from the claim URL", async () => {
+    const setupToken = Buffer.from("https://bridge.simplefin.org/simplefin/claim/demo").toString("base64");
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 0,
+      type: "opaqueredirect",
+      text: async () => "",
+    });
+
+    await expect(claimSetupToken(setupToken)).rejects.toMatchObject({ status: 502 });
   });
 
   it("refuses to claim a token whose URL resolves to a private/internal address (SSRF guard)", async () => {
@@ -99,6 +113,7 @@ describe("simplefinRequest", () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       status: 200,
+      type: "basic",
       json: async () => ({ accounts: [] }),
     });
 
@@ -110,6 +125,7 @@ describe("simplefinRequest", () => {
     expect(result).toEqual({ accounts: [] });
     const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(url).toBe("https://bridge.simplefin.org/simplefin/accounts?pending=1&version=2");
+    expect((init as RequestInit).redirect).toBe("manual");
     expect((init as RequestInit).headers).toMatchObject({
       Authorization: `Basic ${Buffer.from("user:pass").toString("base64")}`,
     });
@@ -119,12 +135,26 @@ describe("simplefinRequest", () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 403,
+      type: "basic",
       json: async () => ({}),
     });
 
     await expect(
       simplefinRequest("https://user:pass@bridge.simplefin.org/simplefin", "/accounts"),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("does not follow a redirect from the Access URL", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 0,
+      type: "opaqueredirect",
+      json: async () => ({}),
+    });
+
+    await expect(
+      simplefinRequest("https://user:pass@bridge.simplefin.org/simplefin", "/accounts"),
+    ).rejects.toMatchObject({ status: 502 });
   });
 
   it("refuses to request an Access URL that resolves to a private address (SSRF guard)", async () => {
