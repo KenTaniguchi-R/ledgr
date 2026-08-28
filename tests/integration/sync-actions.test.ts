@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { createTestDb } from "./setup";
-import { insertHousehold, insertPlaidItem } from "./helpers";
+import { insertHousehold, insertPlaidItem, insertSimplefinConnection } from "./helpers";
 import type { LedgrDb } from "../../src/db";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -21,6 +21,12 @@ vi.mock("../../src/lib/plaid/sync", () => ({
 
 vi.mock("../../src/lib/plaid/investments", () => ({
   syncInvestments: vi.fn(() => Promise.reject(new Error("investments API down"))),
+}));
+
+vi.mock("../../src/lib/simplefin/sync", () => ({
+  syncConnection: vi.fn(() =>
+    Promise.resolve({ success: true, addedCount: 0, modifiedCount: 0, syncedAt: new Date().toISOString() })
+  ),
 }));
 
 describe("triggerSync", () => {
@@ -60,5 +66,22 @@ describe("triggerSync", () => {
       call.some((arg) => arg instanceof Error && arg.message === "investments API down")
     );
     expect(loggedError).toBeDefined();
+  });
+
+  it("dispatches to SimpleFIN's syncConnection and skips investment sync for a simplefin connection", async () => {
+    vi.clearAllMocks();
+    const { connectionId } = await insertSimplefinConnection(db, mockHouseholdId);
+
+    const { syncConnection } = await import("../../src/lib/simplefin/sync");
+    const { syncInvestments } = await import("../../src/lib/plaid/investments");
+    const { syncInstitution } = await import("../../src/lib/plaid/sync");
+
+    const { triggerSync } = await import("../../src/actions/sync");
+    const result = await triggerSync(connectionId, db);
+
+    expect(result.success).toBe(true);
+    expect(syncConnection).toHaveBeenCalledWith(connectionId, mockHouseholdId, db);
+    expect(syncInstitution).not.toHaveBeenCalled();
+    expect(syncInvestments).not.toHaveBeenCalled();
   });
 });

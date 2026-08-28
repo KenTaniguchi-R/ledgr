@@ -5,7 +5,7 @@ import {
   budgetCategories,
   categories,
   categoryGroups,
-  plaidItems,
+  bankConnections,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { monthBounds } from "@/lib/date-utils";
@@ -70,10 +70,10 @@ export async function getBudgetForMonth(
 
   // Last synced at
   const [syncRow] = await db
-    .select({ updatedAt: plaidItems.updatedAt })
-    .from(plaidItems)
-    .where(scoped.where(plaidItems, eq(plaidItems.status, "active")))
-    .orderBy(desc(plaidItems.updatedAt))
+    .select({ updatedAt: bankConnections.updatedAt })
+    .from(bankConnections)
+    .where(scoped.where(bankConnections, eq(bankConnections.status, "active")))
+    .orderBy(desc(bankConnections.updatedAt))
     .limit(1);
 
   const lastSyncedAt = syncRow?.updatedAt ?? null;

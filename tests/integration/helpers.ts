@@ -11,7 +11,7 @@ import {
   categoryRules,
   budgets,
   budgetCategories,
-  plaidItems,
+  bankConnections,
   recurringTransactions,
   investmentHoldings,
   holdingsHistory,
@@ -190,14 +190,15 @@ export async function insertTransactionSplit(
 export async function insertPlaidItem(
   db: LedgrDb,
   householdId: string,
-  overrides: Partial<typeof plaidItems.$inferInsert> = {},
+  overrides: Partial<typeof bankConnections.$inferInsert> = {},
 ) {
   const id = uuid();
   const now = new Date();
-  await db.insert(plaidItems).values({
+  await db.insert(bankConnections).values({
     id,
     householdId,
-    accessToken: encrypt("access-sandbox-test-token"),
+    provider: "plaid",
+    credential: encrypt("access-sandbox-test-token"),
     plaidInstitutionId: "ins_1",
     plaidItemId: `plaid-item-${id.slice(0, 8)}`,
     institutionName: "Test Bank",
@@ -207,6 +208,27 @@ export async function insertPlaidItem(
     ...overrides,
   });
   return { plaidItemId: id };
+}
+
+export async function insertSimplefinConnection(
+  db: LedgrDb,
+  householdId: string,
+  overrides: Partial<typeof bankConnections.$inferInsert> = {},
+) {
+  const id = uuid();
+  const now = new Date();
+  await db.insert(bankConnections).values({
+    id,
+    householdId,
+    provider: "simplefin",
+    credential: encrypt("https://demo:demo@bridge.simplefin.test/simplefin"),
+    institutionName: "Test Credit Union",
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  });
+  return { connectionId: id };
 }
 
 export async function insertRecurringTransaction(

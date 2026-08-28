@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
-import type { PlaidItemStatus } from "@/db/schema/plaid";
+import type { ConnectionStatus } from "@/db/schema/bank-connections";
 
 interface StatusBadgeProps {
-  status: PlaidItemStatus;
+  status: ConnectionStatus;
 }
 
 const config = {
@@ -10,6 +10,7 @@ const config = {
   error: { label: "Error", dotClass: "bg-amber-500" },
   reauth_required: { label: "Reconnect needed", dotClass: "bg-destructive" },
   revoked: { label: "Access revoked", dotClass: "bg-destructive" },
+  pending_classification: { label: "Setting up", dotClass: "bg-amber-500" },
 } as const;
 
 export function StatusBadge({ status }: StatusBadgeProps) {

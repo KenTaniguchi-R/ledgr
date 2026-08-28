@@ -33,7 +33,7 @@ export function registerAccountTools(server: McpServer, householdId: string) {
             ? centsToDisplay(a.availableBalance, a.currency ?? "USD")
             : null,
           currency: a.currency,
-          plaidItemId: a.plaidItemId,
+          bankConnectionId: a.bankConnectionId,
         })),
       );
     },

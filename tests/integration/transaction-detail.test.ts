@@ -91,7 +91,7 @@ describe("getTransactionDetail", () => {
     expect(detail!.name).toBe("Whole Foods");
     expect(detail!.categorySource).toBe("manual");
     expect(detail!.isTransfer).toBe(false);
-    expect(detail!.plaidTransactionId).toBeNull();
+    expect(detail!.externalId).toBeNull();
     expect(detail!.splits).toHaveLength(2);
     const sortedSplits = [...detail!.splits].sort((a, b) =>
       a.categoryName!.localeCompare(b.categoryName!),
@@ -150,7 +150,8 @@ describe("updateTransactionFields", () => {
       name: "Plaid Txn",
       amount: 1200,
       normalizedAmount: -1200,
-      plaidTransactionId: "plaid-abc-123",
+      externalId: "plaid-abc-123",
+      provider: "plaid",
     });
   });
 

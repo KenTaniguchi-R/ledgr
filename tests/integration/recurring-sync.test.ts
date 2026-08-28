@@ -49,8 +49,8 @@ async function seedForSync(db: LedgrDb) {
   const { householdId } = await insertHousehold(db);
   const { plaidItemId } = await insertPlaidItem(db, householdId);
   const { accountId } = await insertAccount(db, householdId, {
-    plaidItemId,
-    plaidAccountId: "plaid-acc-checking",
+    bankConnectionId: plaidItemId,
+    externalAccountId: "plaid-acc-checking",
   });
   return { householdId, plaidItemId, accountId };
 }
@@ -207,7 +207,8 @@ describe("syncRecurringTransactions", () => {
     const { householdId, plaidItemId, accountId } = await seedForSync(db);
 
     await insertTransaction(db, householdId, accountId, {
-      plaidTransactionId: TEST_TXN_IDS.added2,
+      externalId: TEST_TXN_IDS.added2,
+      provider: "plaid",
     });
 
     server.use(recurringGetHandler);
@@ -225,7 +226,7 @@ describe("syncRecurringTransactions", () => {
     const [txn] = await db
       .select()
       .from(transactions)
-      .where(eq(transactions.plaidTransactionId, TEST_TXN_IDS.added2));
+      .where(eq(transactions.externalId, TEST_TXN_IDS.added2));
 
     expect(txn!.recurringTransactionId).not.toBeNull();
 

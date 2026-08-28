@@ -72,7 +72,7 @@ export function TransactionDetailPanel({
     );
   }
 
-  const isPlaidSynced = Boolean(txn.plaidTransactionId);
+  const isPlaidSynced = Boolean(txn.externalId);
 
   return (
     <div
@@ -172,7 +172,7 @@ export function TransactionDetailPanel({
           <TransactionMetadata
             originalName={txn.originalName}
             categorySource={txn.categorySource ?? null}
-            plaidTransactionId={txn.plaidTransactionId ?? null}
+            externalId={txn.externalId ?? null}
             transferPairId={txn.transferPairId ?? null}
             onSelectTransferPair={onSelectTransaction}
           />

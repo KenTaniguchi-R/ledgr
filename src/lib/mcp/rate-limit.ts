@@ -12,7 +12,7 @@ export async function checkSyncRateLimit(
   const [lastSync] = await db
     .select({ syncedAt: syncLog.syncedAt })
     .from(syncLog)
-    .where(eq(syncLog.plaidItemId, plaidItemId))
+    .where(eq(syncLog.connectionId, plaidItemId))
     .orderBy(desc(syncLog.syncedAt))
     .limit(1);
 

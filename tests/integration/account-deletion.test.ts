@@ -11,7 +11,7 @@ import {
   userSettings,
   categoryGroups,
   categories,
-  plaidItems,
+  bankConnections,
   syncLog,
   institutionLogos,
   accounts,
@@ -75,22 +75,23 @@ async function seedHousehold(db: LedgrDb, s: string) {
     name: "Cat",
   });
 
-  await db.insert(plaidItems).values({
+  await db.insert(bankConnections).values({
     id: `pi-${s}`,
     householdId: hh,
-    accessToken: `enc-token-${s}`,
+    provider: "plaid",
+    credential: `enc-token-${s}`,
   });
-  await db.insert(syncLog).values({ id: `sl-${s}`, plaidItemId: `pi-${s}` });
+  await db.insert(syncLog).values({ id: `sl-${s}`, connectionId: `pi-${s}` });
   await db.insert(institutionLogos).values({
     id: `il-${s}`,
-    plaidItemId: `pi-${s}`,
+    connectionId: `pi-${s}`,
     logo: "logo-data",
   });
 
   await db.insert(accounts).values({
     id: `ac-${s}`,
     householdId: hh,
-    plaidItemId: `pi-${s}`,
+    bankConnectionId: `pi-${s}`,
     name: "Checking",
     type: "checking",
     currentBalance: 1000,
@@ -210,7 +211,7 @@ describe("account deletion (integration)", () => {
       expect(await count(db, holdingsHistory, eq(holdingsHistory.accountId, "ac-fin"))).toBe(0);
       expect(await count(db, investmentTransactions, eq(investmentTransactions.accountId, "ac-fin"))).toBe(0);
       expect(await count(db, balanceHistory, eq(balanceHistory.accountId, "ac-fin"))).toBe(0);
-      expect(await count(db, plaidItems, eq(plaidItems.householdId, hh))).toBe(0);
+      expect(await count(db, bankConnections, eq(bankConnections.householdId, hh))).toBe(0);
       expect(await count(db, syncLog, eq(syncLog.id, "sl-fin"))).toBe(0);
       expect(await count(db, institutionLogos, eq(institutionLogos.id, "il-fin"))).toBe(0);
       expect(await count(db, recurringTransactions, eq(recurringTransactions.householdId, hh))).toBe(0);
@@ -232,7 +233,7 @@ describe("account deletion (integration)", () => {
       expect(await count(db, accounts, eq(accounts.householdId, a.hh))).toBe(0);
       expect(await count(db, accounts, eq(accounts.householdId, b.hh))).toBe(1);
       expect(await count(db, transactions, eq(transactions.householdId, b.hh))).toBe(1);
-      expect(await count(db, plaidItems, eq(plaidItems.householdId, b.hh))).toBe(1);
+      expect(await count(db, bankConnections, eq(bankConnections.householdId, b.hh))).toBe(1);
     });
   });
 
@@ -256,7 +257,7 @@ describe("account deletion (integration)", () => {
       expect(await count(db, transactions, eq(transactions.householdId, hh))).toBe(0);
       expect(await count(db, categories, eq(categories.householdId, hh))).toBe(0);
       expect(await count(db, budgets, eq(budgets.householdId, hh))).toBe(0);
-      expect(await count(db, plaidItems, eq(plaidItems.householdId, hh))).toBe(0);
+      expect(await count(db, bankConnections, eq(bankConnections.householdId, hh))).toBe(0);
 
       // User + login artifacts.
       expect(await count(db, user, eq(user.id, uid))).toBe(0);

@@ -1,4 +1,5 @@
 import { index, integer, pgTable, text, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { accounts } from "./accounts";
 import { households } from "./households";
 import { merchants } from "./merchants";
@@ -18,7 +19,6 @@ export const transactions = pgTable(
     householdId: text("household_id")
       .notNull()
       .references(() => households.id, { onDelete: "cascade" }),
-    plaidTransactionId: text("plaid_transaction_id"),
     pendingTransactionId: text("pending_transaction_id"),
     merchantId: text("merchant_id").references(() => merchants.id, {
       onDelete: "set null",
@@ -46,6 +46,7 @@ export const transactions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     externalId: text("external_id"),
+    provider: text("provider", { enum: ["plaid", "simplefin", "csv", "manual"] }),
     aiCategorizationAttemptedAt: timestamp("ai_categorization_attempted_at", { withTimezone: true }),
     pfcPrimary: text("pfc_primary"),
     pfcDetailed: text("pfc_detailed"),
@@ -56,10 +57,11 @@ export const transactions = pgTable(
     index("idx_txn_category_date").on(table.categoryId, table.date),
     index("idx_txn_household_date").on(table.householdId, table.date),
     index("idx_txn_date").on(table.date),
-    uniqueIndex("idx_txn_plaid_id_unique").on(table.plaidTransactionId),
     index("idx_txn_merchant").on(table.merchantId),
     index("idx_txn_transfer").on(table.transferPairId),
-    index("idx_txn_external_id").on(table.accountId, table.externalId),
+    uniqueIndex("idx_txn_external_id")
+      .on(table.accountId, table.externalId)
+      .where(sql`external_id IS NOT NULL`),
     index("idx_txn_household_reviewed_date").on(table.householdId, table.reviewed, table.date),
     index("idx_txn_household_transfer_date").on(table.householdId, table.isTransfer, table.date),
     index("idx_txn_household_date_id").on(table.householdId, table.date, table.id),

@@ -4,7 +4,7 @@ import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
 import { provisionHousehold } from "@/lib/auth/provision";
 import { decrypt } from "@/lib/encryption";
-import { plaidItems, accounts, balanceHistory, transactions } from "@/db/schema";
+import { bankConnections, accounts, balanceHistory, transactions } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { exchangeAndStoreAccounts } from "@/actions/plaid";
 import { mapPlaidAccountType } from "@/lib/plaid/utils";
@@ -60,24 +60,24 @@ describe("plaid exchange flow", () => {
     expect(result.success).toBe(true);
     expect(result.accountCount).toBe(4);
 
-    const items = await db.select().from(plaidItems).where(eq(plaidItems.householdId, hh));
+    const items = await db.select().from(bankConnections).where(eq(bankConnections.householdId, hh));
     expect(items).toHaveLength(1);
     expect(items[0].status).toBe("active");
     expect(items[0].institutionName).toBe("Chase");
     expect(items[0].plaidInstitutionId).toBe("ins_1");
 
-    const decrypted = decrypt(items[0].accessToken);
+    const decrypted = decrypt(items[0].credential);
     expect(decrypted).toBe("access-sandbox-test-token-abc123");
 
     const accts = await db.select().from(accounts).where(eq(accounts.householdId, hh));
     expect(accts).toHaveLength(4);
 
-    const checking = accts.find((a) => a.plaidAccountId === "plaid-acc-checking")!;
+    const checking = accts.find((a) => a.externalAccountId === "plaid-acc-checking")!;
     expect(checking.currentBalance).toBe(100000);
     expect(checking.availableBalance).toBe(90000);
     expect(checking.type).toBe("checking");
 
-    const credit = accts.find((a) => a.plaidAccountId === "plaid-acc-credit")!;
+    const credit = accts.find((a) => a.externalAccountId === "plaid-acc-credit")!;
     expect(credit.currentBalance).toBe(45050);
     expect(credit.creditLimit).toBe(100000);
     expect(credit.type).toBe("credit");
@@ -90,7 +90,7 @@ describe("plaid exchange flow", () => {
     await exchangeAndStoreAccounts("public-sandbox-token", hh, db);
 
     const accts = await db.select().from(accounts).where(eq(accounts.householdId, hh));
-    const investment = accts.find((a) => a.plaidAccountId === "plaid-acc-null")!;
+    const investment = accts.find((a) => a.externalAccountId === "plaid-acc-null")!;
     expect(investment.currentBalance).toBeNull();
     expect(investment.availableBalance).toBeNull();
     expect(investment.type).toBe("investment");
@@ -144,7 +144,7 @@ describe("plaid exchange flow", () => {
     const hh = await provisionHousehold("user-relink", db);
 
     const { accountId: oldCheckingId } = await insertSoftDeletedAccount(db, hh, {
-      plaidAccountId: "plaid-acc-checking",
+      externalAccountId: "plaid-acc-checking",
       name: "Old Checking",
       type: "checking",
     });
@@ -162,11 +162,11 @@ describe("plaid exchange flow", () => {
       .where(eq(accounts.householdId, hh));
     const activeAccts = allAccts.filter((a) => a.deletedAt === null);
 
-    const checking = activeAccts.find((a) => a.plaidAccountId === "plaid-acc-checking")!;
+    const checking = activeAccts.find((a) => a.externalAccountId === "plaid-acc-checking")!;
     expect(checking).toBeDefined();
     expect(checking.id).toBe(oldCheckingId);
     expect(checking.deletedAt).toBeNull();
-    expect(checking.plaidItemId).not.toBeNull();
+    expect(checking.bankConnectionId).not.toBeNull();
 
     const txns = await db
       .select()
@@ -184,13 +184,13 @@ describe("plaid exchange flow", () => {
     const newerDate = new Date("2026-05-01");
 
     const { accountId: olderId } = await insertSoftDeletedAccount(db, hh, {
-      plaidAccountId: "plaid-acc-checking",
+      externalAccountId: "plaid-acc-checking",
       name: "Older Checking",
       type: "checking",
       deletedAt: olderDate,
     });
     const { accountId: newerId } = await insertSoftDeletedAccount(db, hh, {
-      plaidAccountId: "plaid-acc-checking",
+      externalAccountId: "plaid-acc-checking",
       name: "Newer Checking",
       type: "checking",
       deletedAt: newerDate,
@@ -201,7 +201,7 @@ describe("plaid exchange flow", () => {
 
     const allAccts = await db.select().from(accounts).where(eq(accounts.householdId, hh));
     const checking = allAccts.find(
-      (a) => a.plaidAccountId === "plaid-acc-checking" && a.deletedAt === null,
+      (a) => a.externalAccountId === "plaid-acc-checking" && a.deletedAt === null,
     )!;
     expect(checking.id).toBe(newerId);
 

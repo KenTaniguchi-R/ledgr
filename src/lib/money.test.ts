@@ -5,6 +5,7 @@ import {
   centsToCompact,
   displayToCents,
   plaidAmountToCents,
+  simplefinAmountToCents,
   normalizeAmount,
   parseToCents,
 } from "./money";
@@ -105,6 +106,24 @@ describe("money utilities", () => {
     });
     it("returns 0 for zero (not null)", () => {
       expect(plaidAmountToCents(0)).toBe(0);
+    });
+  });
+
+  describe("simplefinAmountToCents", () => {
+    it("converts a positive decimal string to integer cents", () => {
+      expect(simplefinAmountToCents("100.23")).toBe(10023);
+    });
+    it("converts a negative decimal string to integer cents", () => {
+      expect(simplefinAmountToCents("-33293.43")).toBe(-3329343);
+    });
+    it("returns 0 for a zero string", () => {
+      expect(simplefinAmountToCents("0")).toBe(0);
+    });
+    it("returns null for a malformed string", () => {
+      expect(simplefinAmountToCents("not-a-number")).toBeNull();
+    });
+    it("returns null for an empty string", () => {
+      expect(simplefinAmountToCents("")).toBeNull();
     });
   });
 });

@@ -1,6 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { accounts, plaidItems, institutionLogos, ACCOUNT_TYPES, type PlaidItemStatus } from "@/db/schema";
+import { accounts, bankConnections, institutionLogos, ACCOUNT_TYPES, type ConnectionStatus, type BankProvider } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
@@ -23,8 +23,9 @@ export type AccountRow = Awaited<ReturnType<typeof getAccounts>>[number];
 
 export interface InstitutionGroup {
   institutionName: string;
-  plaidItemId: string | null;
-  status: PlaidItemStatus | null;
+  connectionId: string | null;
+  provider: BankProvider | null;
+  status: ConnectionStatus | null;
   lastSyncedAt: Date | null;
   logoBase64: string | null;
   primaryColor: string | null;
@@ -40,32 +41,33 @@ export async function getAccountsByInstitution(
   const scoped = scopedQuery(householdId, db);
   const items = await db
     .select()
-    .from(plaidItems)
-    .where(scoped.where(plaidItems));
+    .from(bankConnections)
+    .where(scoped.where(bankConnections));
 
   const itemMap = new Map(items.map((i) => [i.id, i]));
 
   const itemIds = items.map((i) => i.id);
   const logos = itemIds.length > 0
     ? await db
-        .select({ plaidItemId: institutionLogos.plaidItemId, logo: institutionLogos.logo })
+        .select({ connectionId: institutionLogos.connectionId, logo: institutionLogos.logo })
         .from(institutionLogos)
-        .where(inArray(institutionLogos.plaidItemId, itemIds))
+        .where(inArray(institutionLogos.connectionId, itemIds))
     : [];
-  const logoMap = new Map(logos.map((l) => [l.plaidItemId, l.logo]));
+  const logoMap = new Map(logos.map((l) => [l.connectionId, l.logo]));
   const groups = new Map<string, InstitutionGroup>();
 
   for (const account of allAccounts) {
-    if (account.plaidItemId) {
-      const item = itemMap.get(account.plaidItemId);
-      const key = account.plaidItemId;
+    if (account.bankConnectionId) {
+      const item = itemMap.get(account.bankConnectionId);
+      const key = account.bankConnectionId;
       if (!groups.has(key)) {
         groups.set(key, {
           institutionName: item?.institutionName ?? "Unknown Institution",
-          plaidItemId: account.plaidItemId,
+          connectionId: account.bankConnectionId,
+          provider: (item?.provider as InstitutionGroup["provider"]) ?? null,
           status: (item?.status as InstitutionGroup["status"]) ?? null,
           lastSyncedAt: item?.updatedAt ?? null,
-          logoBase64: logoMap.get(account.plaidItemId!) ?? null,
+          logoBase64: logoMap.get(account.bankConnectionId!) ?? null,
           primaryColor: item?.primaryColor ?? null,
           accounts: [],
         });
@@ -76,7 +78,8 @@ export async function getAccountsByInstitution(
       if (!groups.has(key)) {
         groups.set(key, {
           institutionName: "Manual Accounts",
-          plaidItemId: null,
+          connectionId: null,
+          provider: null,
           status: null,
           lastSyncedAt: null,
           logoBase64: null,
@@ -89,7 +92,7 @@ export async function getAccountsByInstitution(
   }
 
   const result = [...groups.values()];
-  const manualIdx = result.findIndex((g) => g.plaidItemId === null);
+  const manualIdx = result.findIndex((g) => g.connectionId === null);
   if (manualIdx > 0) {
     const [manual] = result.splice(manualIdx, 1);
     result.push(manual);

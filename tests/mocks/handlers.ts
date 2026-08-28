@@ -368,7 +368,6 @@ export const recurringErrorHandler = http.post(
     )
 );
 
-export const allHandlers = [...plaidHandlers, webhookKeyHandler];
 
 // ─── Investment Mock Handlers ───────────────────────────────────────────────
 
@@ -602,3 +601,77 @@ export const investmentsProductsNotSupportedHandler = http.post(
       { status: 400 }
     )
 );
+
+// ─── SimpleFIN Mock Handlers ────────────────────────────────────────────────
+
+export const SIMPLEFIN_TEST_SETUP_TOKEN = Buffer.from(
+  "https://bridge.simplefin.test/simplefin/claim/demo-token"
+).toString("base64");
+
+export const SIMPLEFIN_TEST_USED_SETUP_TOKEN = Buffer.from(
+  "https://bridge.simplefin.test/simplefin/claim/used-token"
+).toString("base64");
+
+export const SIMPLEFIN_TEST_ACCESS_URL = "https://demo:demo@bridge.simplefin.test/simplefin";
+
+export const SIMPLEFIN_TEST_ACCOUNTS_RESPONSE = {
+  errlist: [],
+  connections: [
+    {
+      conn_id: "CON-1",
+      name: "Test Credit Union",
+      org_id: "INST-1",
+      org_name: "Test Credit Union",
+      org_url: "https://testcu.example.com",
+      sfin_url: "https://sfin.testcu.example.com",
+    },
+  ],
+  accounts: [
+    {
+      id: "sf-acc-checking",
+      name: "Everyday Checking",
+      conn_id: "CON-1",
+      currency: "USD",
+      balance: "1250.75",
+      "available-balance": "1200.00",
+      "balance-date": 1735689600,
+      transactions: [
+        {
+          id: "sf-txn-1",
+          posted: 1735689600,
+          amount: "-42.50",
+          description: "COFFEE SHOP PURCHASE",
+          pending: false,
+        },
+        {
+          id: "sf-txn-2",
+          posted: 0,
+          transacted_at: 1735776000,
+          amount: "-15.00",
+          description: "PENDING CHARGE",
+          pending: true,
+        },
+      ],
+    },
+  ],
+};
+
+export const simplefinHandlers = [
+  http.post("https://bridge.simplefin.test/simplefin/claim/demo-token", () =>
+    HttpResponse.text(SIMPLEFIN_TEST_ACCESS_URL)
+  ),
+
+  http.post("https://bridge.simplefin.test/simplefin/claim/used-token", () => new HttpResponse(null, { status: 403 })),
+
+  http.get("https://bridge.simplefin.test/simplefin/accounts", () =>
+    HttpResponse.json(SIMPLEFIN_TEST_ACCOUNTS_RESPONSE)
+  ),
+];
+
+/** Layer this on top of `simplefinHandlers` via `server.use(...)` to simulate a revoked Access URL. */
+export const simplefinAccountsRevokedHandler = http.get(
+  "https://bridge.simplefin.test/simplefin/accounts",
+  () => new HttpResponse(null, { status: 403 })
+);
+
+export const allHandlers = [...plaidHandlers, webhookKeyHandler, ...simplefinHandlers];

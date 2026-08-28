@@ -8,7 +8,7 @@ import {
   accounts,
   transactions,
   categories,
-  plaidItems,
+  bankConnections,
 } from "../../src/db/schema";
 import type { LedgrDb } from "../../src/db";
 
@@ -22,12 +22,13 @@ describe("categorizeSyncedTransactions — PFC tier integration", () => {
     await db.insert(households).values({ id: "hh-1", name: "Test Household" });
     await seedDefaultCategories(db, "hh-1");
 
-    await db.insert(plaidItems).values({
+    await db.insert(bankConnections).values({
       id: "item-1",
       householdId: "hh-1",
+      provider: "plaid",
       plaidInstitutionId: "ins_1",
       institutionName: "Test Bank",
-      accessToken: "encrypted-token",
+      credential: "encrypted-token",
       status: "active",
     });
 
@@ -36,7 +37,7 @@ describe("categorizeSyncedTransactions — PFC tier integration", () => {
       householdId: "hh-1",
       name: "Checking",
       type: "checking",
-      plaidItemId: "item-1",
+      bankConnectionId: "item-1",
     });
   });
 
@@ -110,12 +111,13 @@ describe("categorizeSyncedTransactions — PFC tier integration", () => {
     await db.insert(households).values({ id: "hh-2", name: "Household Two" });
     await seedDefaultCategories(db, "hh-2");
 
-    await db.insert(plaidItems).values({
+    await db.insert(bankConnections).values({
       id: "item-2",
       householdId: "hh-2",
+      provider: "plaid",
       plaidInstitutionId: "ins_2",
       institutionName: "Test Bank 2",
-      accessToken: "encrypted-token-2",
+      credential: "encrypted-token-2",
       status: "active",
     });
 
@@ -124,7 +126,7 @@ describe("categorizeSyncedTransactions — PFC tier integration", () => {
       householdId: "hh-2",
       name: "Checking 2",
       type: "checking",
-      plaidItemId: "item-2",
+      bankConnectionId: "item-2",
     });
 
     await db.insert(transactions).values([

@@ -7,7 +7,7 @@ import {
   getAccountsByInstitution,
   getAccountSummary,
 } from "@/queries/accounts";
-import { accounts, plaidItems } from "@/db/schema";
+import { accounts, bankConnections } from "@/db/schema";
 import type { LedgrDb } from "@/db";
 
 describe("account queries", () => {
@@ -24,10 +24,11 @@ describe("account queries", () => {
 
   async function insertPlaidItem(testDb: LedgrDb, householdId: string) {
     const itemId = uuid();
-    await testDb.insert(plaidItems).values({
+    await testDb.insert(bankConnections).values({
       id: itemId,
       householdId,
-      accessToken: "encrypted-token",
+      provider: "plaid",
+      credential: "encrypted-token",
       plaidInstitutionId: "ins_1",
       institutionName: "Chase",
       status: "active",
@@ -67,7 +68,7 @@ describe("account queries", () => {
     const hh = await provisionHousehold("user-2", db);
     const itemId = await insertPlaidItem(db, hh);
 
-    await insertAccount(db, hh, { name: "Checking", plaidItemId: itemId, plaidAccountId: "pa-1" });
+    await insertAccount(db, hh, { name: "Checking", bankConnectionId: itemId, externalAccountId: "pa-1" });
     await insertAccount(db, hh, { name: "Cash", isManual: true });
 
     const groups = await getAccountsByInstitution(hh, db);

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { plaidItems } from "@/db/schema";
+import { bankConnections } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { scopedQuery } from "@/lib/scoped-query";
 import { syncInstitution } from "@/lib/plaid/sync";
@@ -24,9 +24,9 @@ export function registerSyncTools(server: McpServer, householdId: string) {
       const scoped = scopedQuery(householdId, db);
 
       const items = await db
-        .select({ id: plaidItems.id, institutionName: plaidItems.institutionName, status: plaidItems.status })
-        .from(plaidItems)
-        .where(scoped.where(plaidItems, eq(plaidItems.status, "active")));
+        .select({ id: bankConnections.id, institutionName: bankConnections.institutionName, status: bankConnections.status })
+        .from(bankConnections)
+        .where(scoped.where(bankConnections, eq(bankConnections.status, "active")));
 
       const results: Array<{
         itemId: string;

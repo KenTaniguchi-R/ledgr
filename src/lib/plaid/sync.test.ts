@@ -122,7 +122,7 @@ describe("processBatch", () => {
 
     expect(result.inserts).toHaveLength(0);
     expect(result.upserts).toHaveLength(1);
-    expect(result.upserts[0].plaidTransactionId).toBe("txn-mod-1");
+    expect(result.upserts[0].externalId).toBe("txn-mod-1");
     expect(result.upserts[0].amount).toBe(2500);
   });
 

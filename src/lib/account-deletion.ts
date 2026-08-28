@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
-  plaidItems,
+  bankConnections,
   accounts,
   recurringTransactions,
   households,
@@ -49,13 +49,13 @@ async function revokeAllPlaidItems(
   revoke: (token: string) => Promise<void>,
 ): Promise<void> {
   const items = await db
-    .select({ accessToken: plaidItems.accessToken })
-    .from(plaidItems)
-    .where(eq(plaidItems.householdId, householdId));
+    .select({ credential: bankConnections.credential })
+    .from(bankConnections)
+    .where(eq(bankConnections.householdId, householdId));
 
   for (const item of items) {
     try {
-      await revoke(item.accessToken);
+      await revoke(item.credential);
     } catch {
       // Best-effort: continue local cleanup even if Plaid rejects the call.
     }
@@ -81,7 +81,7 @@ export async function deleteFinancialData(
   await revokeAllPlaidItems(db, householdId, revoke);
   await db.transaction(async (tx) => {
     await tx.delete(accounts).where(eq(accounts.householdId, householdId));
-    await tx.delete(plaidItems).where(eq(plaidItems.householdId, householdId));
+    await tx.delete(bankConnections).where(eq(bankConnections.householdId, householdId));
     await tx
       .delete(recurringTransactions)
       .where(eq(recurringTransactions.householdId, householdId));

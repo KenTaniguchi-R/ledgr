@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { plaidItems, type PlaidItemStatus } from "@/db/schema";
+import { bankConnections, type ConnectionStatus } from "@/db/schema";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { syncInstitution } from "./sync";
 import { REAUTH_ERROR_CODES } from "./utils";
@@ -11,17 +11,17 @@ type WebhookHandler = (ctx: WebhookContext) => Promise<void>;
 
 async function findItemByPlaidId(db: LedgrDb, plaidItemIdValue: string) {
   const [row] = await db
-    .select({ id: plaidItems.id, householdId: plaidItems.householdId })
-    .from(plaidItems)
-    .where(eq(plaidItems.plaidItemId, plaidItemIdValue))
+    .select({ id: bankConnections.id, householdId: bankConnections.householdId })
+    .from(bankConnections)
+    .where(eq(bankConnections.plaidItemId, plaidItemIdValue))
     .limit(1);
   return row ?? null;
 }
 
-async function updateItemStatus(db: LedgrDb, itemId: string, status: PlaidItemStatus, errorCode: string | null) {
-  await db.update(plaidItems)
+async function updateItemStatus(db: LedgrDb, itemId: string, status: ConnectionStatus, errorCode: string | null) {
+  await db.update(bankConnections)
     .set({ status, errorCode, updatedAt: new Date() })
-    .where(eq(plaidItems.id, itemId));
+    .where(eq(bankConnections.id, itemId));
 }
 
 async function handleSyncUpdates({ db, payload }: WebhookContext): Promise<void> {

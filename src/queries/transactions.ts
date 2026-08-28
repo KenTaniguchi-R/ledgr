@@ -41,7 +41,7 @@ export interface TransactionRow {
   isTransfer: boolean;
   transferPairId: string | null;
   categorySource: CategorySource | null;
-  plaidTransactionId: string | null;
+  externalId: string | null;
 }
 
 export interface TransactionPage {
@@ -73,7 +73,7 @@ const transactionSelectFields = {
   isTransfer: transactions.isTransfer,
   transferPairId: transactions.transferPairId,
   categorySource: transactions.categorySource,
-  plaidTransactionId: transactions.plaidTransactionId,
+  externalId: transactions.externalId,
 };
 
 export function baseTransactionQuery(db: LedgrDb, householdId: string) {
@@ -184,7 +184,7 @@ export async function getTransactions(
     isTransfer: Boolean(row.isTransfer),
     transferPairId: row.transferPairId ?? null,
     categorySource: row.categorySource ?? null,
-    plaidTransactionId: row.plaidTransactionId ?? null,
+    externalId: row.externalId ?? null,
   }));
 
   const nextCursor = hasMore
@@ -287,7 +287,7 @@ export async function getTransactionDetail(
     isTransfer: Boolean(row.isTransfer),
     transferPairId: row.transferPairId ?? null,
     categorySource: row.categorySource ?? null,
-    plaidTransactionId: row.plaidTransactionId ?? null,
+    externalId: row.externalId ?? null,
     hasSplits: splits.length > 0,
     splits,
   };
