@@ -62,11 +62,13 @@ export async function createManualAccount(data: CreateManualAccountInput, db: Le
 const updateAccountSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   isHidden: z.boolean().optional(),
+  type: z.enum(["checking", "savings", "credit", "loan", "investment", "other"]).optional(),
 });
 
 type UpdateAccountInput = {
   name?: string;
   isHidden?: boolean;
+  type?: "checking" | "savings" | "credit" | "loan" | "investment" | "other";
 };
 
 export async function updateAccount(
@@ -97,6 +99,7 @@ export async function updateAccount(
   const updates: Partial<typeof accounts.$inferInsert> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.isHidden !== undefined) updates.isHidden = parsed.data.isHidden;
+  if (parsed.data.type !== undefined) updates.type = parsed.data.type;
 
   if (Object.keys(updates).length > 0) {
     await db.update(accounts)
@@ -105,5 +108,6 @@ export async function updateAccount(
   }
 
   revalidatePath("/accounts");
+  if (parsed.data.type !== undefined) revalidatePath("/investments");
   return { success: true };
 }

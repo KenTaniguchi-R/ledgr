@@ -12,8 +12,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { updateAccount } from "@/actions/accounts";
+import { ACCOUNT_TYPES, type AccountType } from "@/db/schema/accounts";
 import type { AccountRow } from "@/queries/accounts";
+
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  checking: "Checking",
+  savings: "Savings",
+  credit: "Credit Card",
+  loan: "Loan",
+  investment: "Investment",
+  other: "Other",
+};
 
 interface EditAccountDialogProps {
   account: AccountRow | null;
@@ -23,6 +40,7 @@ interface EditAccountDialogProps {
 export function EditAccountDialog({ account, onClose }: EditAccountDialogProps) {
   const [name, setName] = useState(account?.name ?? "");
   const [isHidden, setIsHidden] = useState(account?.isHidden ?? false);
+  const [type, setType] = useState<AccountType>(account?.type ?? "checking");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -38,6 +56,7 @@ export function EditAccountDialog({ account, onClose }: EditAccountDialogProps) 
       const result = await updateAccount(account!.id, {
         name: name !== account!.name ? name : undefined,
         isHidden: isHidden !== account!.isHidden ? isHidden : undefined,
+        type: type !== account!.type ? type : undefined,
       });
 
       if ("error" in result && result.error) {
@@ -65,6 +84,21 @@ export function EditAccountDialog({ account, onClose }: EditAccountDialogProps) 
               required
               maxLength={100}
             />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-type">Type</Label>
+            <Select value={type} onValueChange={(v) => { if (v !== null) setType(v as AccountType); }}>
+              <SelectTrigger id="edit-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ACCOUNT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {ACCOUNT_TYPE_LABELS[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="edit-hidden">Hide from dashboard</Label>
