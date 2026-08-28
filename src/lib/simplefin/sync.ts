@@ -421,7 +421,10 @@ async function doSync(
 
     // Bound the poll to since-last-sync (with a 7-day lookback buffer, so
     // recently-pending transactions that changed amount/status get picked
-    // back up) — omit start-date entirely on first sync.
+    // back up). On first sync there's no "since" to anchor to — leaving
+    // start-date unset here would let each SimpleFIN bridge apply its own
+    // (usually short, ~7-day) default window, so request a full year of
+    // history explicitly instead.
     const [lastSync] = await db
       .select({ syncedAt: syncLog.syncedAt })
       .from(syncLog)
@@ -429,9 +432,10 @@ async function doSync(
       .orderBy(desc(syncLog.syncedAt))
       .limit(1);
 
+    const INITIAL_SYNC_LOOKBACK_DAYS = 365;
     const startDate = lastSync
       ? Math.floor(lastSync.syncedAt.getTime() / 1000) - 7 * 24 * 60 * 60
-      : undefined;
+      : Math.floor(now.getTime() / 1000) - INITIAL_SYNC_LOOKBACK_DAYS * 24 * 60 * 60;
 
     const raw = await simplefinRequest(accessUrl, "/accounts", {
       pending: 1,

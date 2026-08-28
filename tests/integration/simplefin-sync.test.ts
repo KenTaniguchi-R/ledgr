@@ -216,6 +216,27 @@ describe("syncConnection", () => {
     expect(connection.errorCode).toBe("ACCESS_REVOKED");
   });
 
+  it("requests a bounded lookback window on first sync instead of relying on the bridge's default", async () => {
+    // Regression: omitting start-date on first sync left the lookback window
+    // up to the SimpleFIN bridge, which often defaults to ~7 days — users
+    // connecting an account would only see the last week of history.
+    const { householdId, connectionId } = await setupWithAccount();
+
+    let requestedStartDate: string | null = null;
+    server.use(
+      http.get("https://bridge.simplefin.test/simplefin/accounts", ({ request }) => {
+        requestedStartDate = new URL(request.url).searchParams.get("start-date");
+        return HttpResponse.json({ accounts: [] });
+      }),
+    );
+
+    await syncConnection(connectionId, householdId, db);
+
+    expect(requestedStartDate).not.toBeNull();
+    const lookbackDays = (Date.now() / 1000 - Number(requestedStartDate)) / (24 * 60 * 60);
+    expect(lookbackDays).toBeGreaterThan(300);
+  });
+
   it("returns an error for a connection that doesn't exist", async () => {
     ({ db, close } = await createTestDb());
     const { householdId } = await insertHousehold(db);
