@@ -26,7 +26,7 @@
     "prepare": "simple-git-hooks",
     "build:mcp-widgets": "tsx src/lib/mcp/apps/build.ts",
     "dev:db": "docker compose up db -d",
-    "dev:setup": "pnpm dev:db && until pg_isready -h localhost -p 5432 2>/dev/null; do sleep 1; done && pnpm db:migrate && pnpm dev"
+    "dev:setup": "pnpm dev:db && until pg_isready -h localhost -p ${DB_PORT:-5433} 2>/dev/null; do sleep 1; done && pnpm db:migrate && pnpm dev"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"
