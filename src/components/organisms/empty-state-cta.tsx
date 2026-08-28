@@ -2,6 +2,7 @@
 
 import { Building2, ShieldCheck } from "lucide-react";
 import { PlaidLinkFlow } from "./plaid-link-flow";
+import { SimplefinConnectFlow } from "./simplefin-connect-flow";
 
 export function EmptyStateCTA() {
   return (
@@ -14,10 +15,11 @@ export function EmptyStateCTA() {
       </h2>
       <p className="mt-2 text-sm text-muted-foreground max-w-sm">
         Securely link your bank accounts to automatically track balances,
-        transactions, and spending. Powered by Plaid.
+        transactions, and spending — via Plaid or SimpleFIN.
       </p>
-      <div className="mt-6">
+      <div className="mt-6 flex items-center gap-3">
         <PlaidLinkFlow label="Connect Bank" />
+        <SimplefinConnectFlow variant="primary" />
       </div>
       <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
         <ShieldCheck className="size-3.5" />

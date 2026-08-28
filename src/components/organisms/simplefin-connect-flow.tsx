@@ -40,6 +40,10 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 
 type Step = "token" | "classify" | "success";
 
+interface SimplefinConnectFlowProps {
+  variant?: "primary" | "dropdown-item";
+}
+
 interface ClassifiableAccount {
   connectionId: string;
   externalAccountId: string;
@@ -50,7 +54,7 @@ interface ClassifiableAccount {
   type: AccountType;
 }
 
-export function SimplefinConnectFlow() {
+export function SimplefinConnectFlow({ variant = "dropdown-item" }: SimplefinConnectFlowProps) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("token");
   const [setupToken, setSetupToken] = useState("");
@@ -152,13 +156,20 @@ export function SimplefinConnectFlow() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted rounded-sm"
-      >
-        <Building2 className="size-4" />
-        Connect via SimpleFIN
-      </button>
+      {variant === "primary" ? (
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          <Building2 className="size-4" />
+          Connect via SimpleFIN
+        </Button>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted rounded-sm"
+        >
+          <Building2 className="size-4" />
+          Connect via SimpleFIN
+        </button>
+      )}
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
