@@ -13,6 +13,9 @@ jobs:
   test:
     name: typecheck · lint · test
     runs-on: [self-hosted, macmini]
+    # Self-hosted runner: never execute a fork PR's code here. Only run for
+    # direct pushes (already require write access) or PRs from this same repo.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v7
 
@@ -38,7 +41,9 @@ jobs:
   mutation:
     name: mutation (diff)
     runs-on: [self-hosted, macmini]
-    if: github.event_name == 'pull_request'
+    # Self-hosted runner: never execute a fork PR's code here — only PRs from
+    # this same repo (see the test job's comment for why).
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     # Diff-scoped: only the source files changed in the PR are mutated, so runs
     # take minutes instead of a full sweep. Non-blocking (reports only): Stryker
     # currently runs just the unit suite, so files covered mainly by integration
