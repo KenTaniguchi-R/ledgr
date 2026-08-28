@@ -111,12 +111,16 @@ describe("syncConnection", () => {
           ],
         })
       ),
-      http.get("https://icons.duckduckgo.com/ip3/org-a.example.com.ico", () =>
-        new HttpResponse(new Uint8Array([1, 1, 1, 1]), { headers: { "content-type": "image/png" } })
-      ),
-      http.get("https://icons.duckduckgo.com/ip3/org-b.example.com.ico", () =>
-        new HttpResponse(new Uint8Array([2, 2, 2, 2]), { headers: { "content-type": "image/png" } })
-      ),
+      http.get("https://www.google.com/s2/favicons", ({ request }) => {
+        const domain = new URL(request.url).searchParams.get("domain");
+        if (domain === "org-a.example.com") {
+          return new HttpResponse(new Uint8Array([1, 1, 1, 1]), { headers: { "content-type": "image/png" } });
+        }
+        if (domain === "org-b.example.com") {
+          return new HttpResponse(new Uint8Array([2, 2, 2, 2]), { headers: { "content-type": "image/png" } });
+        }
+        return new HttpResponse(null, { status: 404 });
+      }),
     );
 
     const { connectionId: connectionA } = await insertSimplefinConnection(db, householdId);

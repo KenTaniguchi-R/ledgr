@@ -1,4 +1,4 @@
-const DUCKDUCKGO_FAVICON_TIMEOUT_MS = 5000;
+const FAVICON_FETCH_TIMEOUT_MS = 5000;
 
 /**
  * Best-effort logo for any domain, used both for SimpleFIN institution icons
@@ -6,11 +6,18 @@ const DUCKDUCKGO_FAVICON_TIMEOUT_MS = 5000;
  * Every failure path — network error, timeout, non-2xx, non-image response —
  * returns null rather than throwing, so callers can treat this as optional
  * and fall back to the initials avatar.
+ *
+ * Uses Google's favicon endpoint rather than a raw favicon.ico proxy (e.g.
+ * DuckDuckGo's) because it returns a single decoded PNG/JPEG at the
+ * requested size — a multi-resolution .ico bundle left several embedded
+ * frames for the browser to pick from, and browsers don't reliably choose
+ * the largest one when rendering it via <img>, so logos rendered noticeably
+ * smaller/blurrier than the source image actually was.
  */
 export async function fetchFaviconDataUri(domain: string): Promise<string | null> {
   try {
-    const res = await fetch(`https://icons.duckduckgo.com/ip3/${domain}.ico`, {
-      signal: AbortSignal.timeout(DUCKDUCKGO_FAVICON_TIMEOUT_MS),
+    const res = await fetch(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`, {
+      signal: AbortSignal.timeout(FAVICON_FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
 

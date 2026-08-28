@@ -24,7 +24,7 @@ describe("fetchFaviconDataUri", () => {
 
     expect(result).toBe(`data:image/png;base64,${Buffer.from(bytes).toString("base64")}`);
     expect(global.fetch).toHaveBeenCalledWith(
-      "https://icons.duckduckgo.com/ip3/chase.com.ico",
+      "https://www.google.com/s2/favicons?domain=chase.com&sz=128",
       expect.objectContaining({ signal: expect.anything() }),
     );
   });

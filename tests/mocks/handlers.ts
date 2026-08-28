@@ -668,7 +668,7 @@ export const simplefinHandlers = [
   ),
 
   // Institution icon lookup, keyed off connections[].org_url in the response above.
-  http.get("https://icons.duckduckgo.com/ip3/testcu.example.com.ico", () =>
+  http.get("https://www.google.com/s2/favicons", () =>
     new HttpResponse(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } })
   ),
 ];
