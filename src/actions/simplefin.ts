@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { claimSetupToken, simplefinRequest, SimplefinHttpError } from "@/lib/simplefin/client";
 import { SimplefinAccountsResponseSchema, resolveInstitution } from "@/lib/simplefin/schemas";
 import { syncConnection } from "@/lib/simplefin/sync";
-import { fetchInstitutionLogoDataUri } from "@/lib/simplefin/logo";
+import { fetchFaviconDataUri } from "@/lib/favicon";
 import { encrypt } from "@/lib/encryption";
 import { simplefinAmountToCents } from "@/lib/money";
 import { todayDateString } from "@/lib/date-utils";
@@ -86,7 +86,7 @@ export async function claimAndDiscoverAccountsDirect(
     await Promise.all(
       [...groups.entries()].map(async ([externalOrgId, group]) => {
         if (group.domain) {
-          logoDataUriByOrgId.set(externalOrgId, await fetchInstitutionLogoDataUri(group.domain));
+          logoDataUriByOrgId.set(externalOrgId, await fetchFaviconDataUri(group.domain));
         }
       }),
     );

@@ -48,6 +48,7 @@ export const transactions = pgTable(
     externalId: text("external_id"),
     provider: text("provider", { enum: ["plaid", "simplefin", "csv", "manual"] }),
     aiCategorizationAttemptedAt: timestamp("ai_categorization_attempted_at", { withTimezone: true }),
+    merchantResolutionAttemptedAt: timestamp("merchant_resolution_attempted_at", { withTimezone: true }),
     pfcPrimary: text("pfc_primary"),
     pfcDetailed: text("pfc_detailed"),
     categorySource: text("category_source"),
@@ -58,6 +59,7 @@ export const transactions = pgTable(
     index("idx_txn_household_date").on(table.householdId, table.date),
     index("idx_txn_date").on(table.date),
     index("idx_txn_merchant").on(table.merchantId),
+    index("idx_txn_household_merchant_resolution").on(table.householdId, table.merchantId, table.merchantResolutionAttemptedAt),
     index("idx_txn_transfer").on(table.transferPairId),
     uniqueIndex("idx_txn_external_id")
       .on(table.accountId, table.externalId)

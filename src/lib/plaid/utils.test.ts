@@ -3,7 +3,6 @@ import {
   mapPlaidAccountType,
   extractPlaidErrorCode,
   extractPlaidErrorMessage,
-  titleCase,
   retryWithBackoff,
   REAUTH_ERROR_CODES,
   TRANSIENT_ERROR_CODES,
@@ -59,22 +58,6 @@ describe("extractPlaidErrorMessage", () => {
     expect(extractPlaidErrorMessage(null)).toBeUndefined();
     expect(extractPlaidErrorMessage("boom")).toBeUndefined();
     expect(extractPlaidErrorMessage({ response: { data: {} } })).toBeUndefined();
-  });
-});
-
-describe("titleCase", () => {
-  test("trims, lowercases, and capitalizes each word", () => {
-    expect(titleCase("  WHOLE FOODS market  ")).toBe("Whole Foods Market");
-    expect(titleCase("acme")).toBe("Acme");
-  });
-
-  test("capitalizes the first letter following non-word boundaries", () => {
-    expect(titleCase("mcdonald's")).toBe("Mcdonald'S");
-    expect(titleCase("at&t store")).toBe("At&T Store");
-  });
-
-  test("empty string stays empty", () => {
-    expect(titleCase("")).toBe("");
   });
 });
 

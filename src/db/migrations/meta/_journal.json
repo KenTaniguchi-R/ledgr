@@ -43,6 +43,13 @@
       "when": 1788478800000,
       "tag": "0005_slippery_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787944665537,
+      "tag": "0006_wakeful_wendell_rand",
+      "breakpoints": true
     }
   ]
 }

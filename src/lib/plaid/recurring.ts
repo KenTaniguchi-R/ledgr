@@ -6,7 +6,7 @@ import {
   type PlaidRecurringStream,
 } from "./schemas";
 import { plaidAmountToCents } from "@/lib/money";
-import { titleCase } from "./utils";
+import { titleCase } from "@/lib/text-utils";
 import type { LedgrDb } from "@/db";
 import { db as defaultDb } from "@/db";
 import {

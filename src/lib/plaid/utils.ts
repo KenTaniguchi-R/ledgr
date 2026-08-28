@@ -32,13 +32,6 @@ export function extractPlaidErrorCode(err: unknown): string | null {
   return null;
 }
 
-export function titleCase(str: string): string {
-  return str
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 export function extractPlaidErrorMessage(err: unknown): string | undefined {
   if (
     err &&

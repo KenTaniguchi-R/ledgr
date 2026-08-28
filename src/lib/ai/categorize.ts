@@ -1,6 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { notDeleted } from "@/lib/query-helpers";
 import { resolvedCategoryLabel } from "@/lib/labels";
+import { coalesce } from "@/lib/coalesce";
 import { getAiConfig, createAiModel } from "./config";
 
 const categorizationSchema = z.object({
@@ -75,13 +76,24 @@ export function validateAssignments(
   );
 }
 
-function getBatchSize(provider: string): number {
+export function getBatchSize(provider: string): number {
   return provider === "custom" ? 20 : 50;
 }
 
-export async function categorizeWithAi(
+// Household-scoped, and invoked once per synced connection — coalesced so
+// several connections syncing in parallel (the "sync all" button) share a
+// single run instead of each racing over the same uncategorized rows and
+// paying for duplicate AI calls.
+export function categorizeWithAi(
   householdId: string,
   db: LedgrDb = defaultDb,
+): Promise<{ categorized: number; skipped: number }> {
+  return coalesce(`ai-categorize:${householdId}`, () => runCategorization(householdId, db));
+}
+
+async function runCategorization(
+  householdId: string,
+  db: LedgrDb,
 ): Promise<{ categorized: number; skipped: number }> {
   const config = getAiConfig();
   const model = createAiModel();
@@ -178,17 +190,22 @@ export async function categorizeWithAi(
       console.error(`AI categorization batch failed:`, e);
     }
 
+    const idsByCategoryId = new Map<string, string[]>();
+    for (const a of aboveThreshold) {
+      const ids = idsByCategoryId.get(a.categoryId);
+      if (ids) ids.push(a.transactionId);
+      else idsByCategoryId.set(a.categoryId, [a.transactionId]);
+    }
+
     await db.transaction(async (tx) => {
-      for (const a of aboveThreshold) {
+      for (const [categoryId, ids] of idsByCategoryId) {
         await tx.update(transactions)
-          .set({ categoryId: a.categoryId, categorySource: "ai", updatedAt: now })
-          .where(eq(transactions.id, a.transactionId));
+          .set({ categoryId, categorySource: "ai", updatedAt: now })
+          .where(inArray(transactions.id, ids));
       }
-      for (const id of batchIds) {
-        await tx.update(transactions)
-          .set({ aiCategorizationAttemptedAt: now })
-          .where(eq(transactions.id, id));
-      }
+      await tx.update(transactions)
+        .set({ aiCategorizationAttemptedAt: now })
+        .where(inArray(transactions.id, [...batchIds]));
     });
     categorized += aboveThreshold.length;
   }

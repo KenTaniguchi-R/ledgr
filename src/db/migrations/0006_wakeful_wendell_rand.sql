@@ -1,0 +1,2 @@
+ALTER TABLE "transactions" ADD COLUMN "merchant_resolution_attempted_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "idx_txn_household_merchant_resolution" ON "transactions" USING btree ("household_id","merchant_id","merchant_resolution_attempted_at");

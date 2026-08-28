@@ -12,11 +12,11 @@ import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "./client";
 import {
   extractPlaidErrorCode,
-  titleCase,
   REAUTH_ERROR_CODES,
   TRANSIENT_ERROR_CODES,
   retryWithBackoff,
 } from "./utils";
+import { titleCase } from "@/lib/text-utils";
 import { cleanTransactionName } from "@/lib/import/clean-name";
 import type { LedgrDb } from "@/db";
 import {
@@ -642,13 +642,22 @@ async function doSync(
       console.error("Categorization failed for item", JSON.stringify(itemId), catError);
     }
 
-    // AI categorization (async, non-fatal, separate from sync engine)
-    try {
-      const { categorizeWithAi } = await import("@/lib/ai/categorize");
-      await categorizeWithAi(householdId, db);
-    } catch (aiError) {
-      console.error("AI categorization failed for item", JSON.stringify(itemId), aiError);
-    }
+    // AI categorization and merchant/logo resolution — fire-and-forget, same
+    // pattern as syncInvestments in actions/sync.ts. Both are household-scoped
+    // (not just this item's transactions) and internally coalesced, so it's
+    // safe for several items to trigger them concurrently without blocking
+    // the sync response on LLM round-trips.
+    import("@/lib/ai/categorize")
+      .then(({ categorizeWithAi }) => categorizeWithAi(householdId, db))
+      .catch((aiError) => {
+        console.error("AI categorization failed for item", JSON.stringify(itemId), aiError);
+      });
+
+    import("@/lib/ai/resolve-merchants")
+      .then(({ resolveMerchantLogos }) => resolveMerchantLogos(householdId, db))
+      .catch((merchantError) => {
+        console.error("AI merchant resolution failed for item", JSON.stringify(itemId), merchantError);
+      });
 
     return {
       success: true,

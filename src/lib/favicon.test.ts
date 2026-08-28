@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchInstitutionLogoDataUri } from "./logo";
+import { fetchFaviconDataUri } from "./favicon";
 
-describe("fetchInstitutionLogoDataUri", () => {
+describe("fetchFaviconDataUri", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
@@ -20,7 +20,7 @@ describe("fetchInstitutionLogoDataUri", () => {
       arrayBuffer: async () => bytes.buffer,
     });
 
-    const result = await fetchInstitutionLogoDataUri("chase.com");
+    const result = await fetchFaviconDataUri("chase.com");
 
     expect(result).toBe(`data:image/png;base64,${Buffer.from(bytes).toString("base64")}`);
     expect(global.fetch).toHaveBeenCalledWith(
@@ -31,7 +31,7 @@ describe("fetchInstitutionLogoDataUri", () => {
 
   it("returns null when the response is not ok", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false });
-    expect(await fetchInstitutionLogoDataUri("nowhere.example")).toBeNull();
+    expect(await fetchFaviconDataUri("nowhere.example")).toBeNull();
   });
 
   it("returns null when the response isn't an image", async () => {
@@ -39,11 +39,11 @@ describe("fetchInstitutionLogoDataUri", () => {
       ok: true,
       headers: new Headers({ "content-type": "text/html" }),
     });
-    expect(await fetchInstitutionLogoDataUri("nowhere.example")).toBeNull();
+    expect(await fetchFaviconDataUri("nowhere.example")).toBeNull();
   });
 
   it("returns null when fetch throws instead of propagating the error", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("network down"));
-    expect(await fetchInstitutionLogoDataUri("nowhere.example")).toBeNull();
+    expect(await fetchFaviconDataUri("nowhere.example")).toBeNull();
   });
 });
