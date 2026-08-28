@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { plaidItems } from "@/db/schema/plaid";
+import { bankConnections } from "@/db/schema/bank-connections";
 import { decrypt, encrypt, needsRotation } from "@/lib/encryption";
 
 export type RotationReport = {
@@ -28,8 +28,8 @@ export async function rotateEncryptionKeys(
   dbInstance: LedgrDb = defaultDb,
 ): Promise<RotationReport> {
   const rows = await dbInstance
-    .select({ id: plaidItems.id, accessToken: plaidItems.accessToken })
-    .from(plaidItems);
+    .select({ id: bankConnections.id, credential: bankConnections.credential })
+    .from(bankConnections);
 
   const report: RotationReport = {
     total: rows.length,
@@ -40,14 +40,14 @@ export async function rotateEncryptionKeys(
 
   for (const row of rows) {
     try {
-      if (!needsRotation(row.accessToken)) {
+      if (!needsRotation(row.credential)) {
         report.skipped++;
         continue;
       }
       await dbInstance
-        .update(plaidItems)
-        .set({ accessToken: encrypt(decrypt(row.accessToken)), updatedAt: new Date() })
-        .where(eq(plaidItems.id, row.id));
+        .update(bankConnections)
+        .set({ credential: encrypt(decrypt(row.credential)), updatedAt: new Date() })
+        .where(eq(bankConnections.id, row.id));
       report.rotated++;
     } catch (err) {
       report.failed++;

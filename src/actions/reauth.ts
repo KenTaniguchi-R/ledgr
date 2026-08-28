@@ -9,7 +9,7 @@ import { decrypt } from "@/lib/encryption";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 import { scopedQuery } from "@/lib/scoped-query";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { plaidItems } from "@/db/schema";
+import { bankConnections } from "@/db/schema";
 import { syncInstitution } from "@/lib/plaid/sync";
 
 export async function createUpdateLinkTokenDirect(
@@ -19,9 +19,9 @@ export async function createUpdateLinkTokenDirect(
 ) {
   const scoped = scopedQuery(householdId, db);
   const [item] = await db
-    .select({ accessToken: plaidItems.accessToken, status: plaidItems.status })
-    .from(plaidItems)
-    .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
+    .select({ credential: bankConnections.credential, status: bankConnections.status })
+    .from(bankConnections)
+    .where(scoped.where(bankConnections, eq(bankConnections.id, plaidItemId)))
     .limit(1);
 
   if (!item) {
@@ -33,7 +33,7 @@ export async function createUpdateLinkTokenDirect(
   }
 
   try {
-    const accessToken = decrypt(item.accessToken);
+    const accessToken = decrypt(item.credential);
     const response = await getPlaidClient().linkTokenCreate({
       access_token: accessToken,
       client_name: "Ledgr",
@@ -62,9 +62,9 @@ export async function completeReAuthDirect(
 ) {
   const scoped = scopedQuery(householdId, db);
   const [item] = await db
-    .select({ accessToken: plaidItems.accessToken, status: plaidItems.status })
-    .from(plaidItems)
-    .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)))
+    .select({ credential: bankConnections.credential, status: bankConnections.status })
+    .from(bankConnections)
+    .where(scoped.where(bankConnections, eq(bankConnections.id, plaidItemId)))
     .limit(1);
 
   if (!item) {
@@ -76,16 +76,16 @@ export async function completeReAuthDirect(
   }
 
   try {
-    const accessToken = decrypt(item.accessToken);
+    const accessToken = decrypt(item.credential);
     const itemRes = await getPlaidClient().itemGet({ access_token: accessToken });
 
     if (itemRes.data.item.error) {
       return { error: "Bank connection still requires re-authentication" };
     }
 
-    await db.update(plaidItems)
+    await db.update(bankConnections)
       .set({ status: "active", errorCode: null, updatedAt: new Date() })
-      .where(scoped.where(plaidItems, eq(plaidItems.id, plaidItemId)));
+      .where(scoped.where(bankConnections, eq(bankConnections.id, plaidItemId)));
 
     await syncInstitution(plaidItemId, householdId, db);
 

@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { households } from "./households";
-import { plaidItems } from "./plaid";
+import { bankConnections } from "./bank-connections";
 
 export const ACCOUNT_TYPES = ["checking", "savings", "credit", "loan", "investment", "other"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
@@ -21,10 +21,10 @@ export const accounts = pgTable(
     householdId: text("household_id")
       .notNull()
       .references(() => households.id, { onDelete: "cascade" }),
-    plaidItemId: text("plaid_item_id").references(() => plaidItems.id, {
+    bankConnectionId: text("bank_connection_id").references(() => bankConnections.id, {
       onDelete: "set null",
     }),
-    plaidAccountId: text("plaid_account_id"),
+    externalAccountId: text("external_account_id"),
     name: text("name").notNull(),
     officialName: text("official_name"),
     type: text("type", { enum: ACCOUNT_TYPES }).notNull(),
@@ -41,9 +41,9 @@ export const accounts = pgTable(
   },
   (table) => [
     index("idx_accounts_household").on(table.householdId),
-    index("idx_accounts_plaid_item").on(table.plaidItemId),
+    index("idx_accounts_bank_connection").on(table.bankConnectionId),
     index("idx_accounts_resurrection")
-      .on(table.plaidAccountId, table.householdId)
+      .on(table.externalAccountId, table.householdId)
       .where(sql`deleted_at IS NOT NULL`),
   ]
 );

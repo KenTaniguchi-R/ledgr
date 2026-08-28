@@ -64,8 +64,8 @@ describe("applyInvestmentsToDb", () => {
     plaidItemId = pi.plaidItemId;
     const acc = await insertAccount(db, householdId, {
       type: "investment",
-      plaidAccountId: "plaid-acc-ira",
-      plaidItemId,
+      externalAccountId: "plaid-acc-ira",
+      bankConnectionId: plaidItemId,
     });
     accountId = acc.accountId;
   });

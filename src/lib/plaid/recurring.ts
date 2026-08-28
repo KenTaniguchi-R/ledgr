@@ -37,22 +37,22 @@ export async function syncRecurringTransactions(
     const client = getPlaidClient();
 
     const itemAccounts = await db
-      .select({ plaidAccountId: accounts.plaidAccountId, id: accounts.id })
+      .select({ externalAccountId: accounts.externalAccountId, id: accounts.id })
       .from(accounts)
       .where(
         and(
           eq(accounts.householdId, householdId),
-          eq(accounts.plaidItemId, plaidItemId),
+          eq(accounts.bankConnectionId, plaidItemId),
         ),
       );
 
     const accountIds = itemAccounts
-      .map((a) => a.plaidAccountId)
+      .map((a) => a.externalAccountId)
       .filter((id): id is string => id !== null);
 
     const plaidToInternalAccount = new Map<string, string>();
     for (const a of itemAccounts) {
-      if (a.plaidAccountId) plaidToInternalAccount.set(a.plaidAccountId, a.id);
+      if (a.externalAccountId) plaidToInternalAccount.set(a.externalAccountId, a.id);
     }
 
     const response = await client.transactionsRecurringGet({
@@ -169,7 +169,7 @@ export async function syncRecurringTransactions(
             .set({ recurringTransactionId: recurringId, updatedAt: now })
             .where(
               and(
-                inArray(transactions.plaidTransactionId, stream.transaction_ids),
+                inArray(transactions.externalId, stream.transaction_ids),
                 eq(transactions.householdId, householdId),
               ),
             );

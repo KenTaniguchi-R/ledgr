@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { z } from "zod";
@@ -13,6 +13,11 @@ const WIDGET_NAMES = [
 ] as const;
 
 type WidgetName = (typeof WIDGET_NAMES)[number];
+const APP_RESULT_SCHEMA = z.object({
+  type: z.literal("app"),
+  html: z.string(),
+  data: z.unknown(),
+});
 
 function loadWidgetHtml(name: WidgetName): string {
   const widgetsDir = resolve(dirname(new URL(import.meta.url).pathname), "widgets");
@@ -43,14 +48,15 @@ export function registerAppTools(server: McpServer, householdId: string) {
       title: "Show Financial Dashboard",
       description:
         "Show an interactive financial dashboard widget. Choose a view: spending-breakdown (pie chart of spending by category), transaction-table (sortable table of recent transactions), budget-progress (budget category progress bars), or net-worth-trend (area chart of net worth over time).",
-      inputSchema: {
+      inputSchema: z.object({
         view: z
           .enum(["spending-breakdown", "transaction-table", "budget-progress", "net-worth-trend"])
           .describe("Which dashboard widget to display"),
         month: z.string().optional().describe("Month in YYYY-MM format (defaults to current month)"),
         range: z.enum(["1M", "3M", "6M", "1Y", "all"]).optional().describe("Time range for net-worth-trend (defaults to 6M)"),
         limit: z.number().optional().describe("Number of transactions for transaction-table (defaults to 25)"),
-      },
+      }),
+      outputSchema: APP_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async ({ view, month, range, limit }) => {

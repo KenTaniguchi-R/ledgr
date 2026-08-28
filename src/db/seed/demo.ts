@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   households,
-  plaidItems,
+  bankConnections,
   syncLog,
   accounts,
   balanceHistory,
@@ -100,12 +100,13 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
     // ------------------------------------------------------------------
     // 3. Plaid Items
     // ------------------------------------------------------------------
-    await tx.insert(plaidItems)
+    await tx.insert(bankConnections)
       .values([
         {
           id: PLAID_ITEM_CHASE,
           householdId: DEMO_HOUSEHOLD_ID,
-          accessToken: encrypt("demo-not-a-real-token-chase"),
+          provider: "plaid",
+          credential: encrypt("demo-not-a-real-token-chase"),
           plaidItemId: "demo-item-chase-0001",
           plaidInstitutionId: "ins_3",
           institutionName: "Chase",
@@ -118,7 +119,8 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: PLAID_ITEM_VANGUARD,
           householdId: DEMO_HOUSEHOLD_ID,
-          accessToken: encrypt("demo-not-a-real-token-vanguard"),
+          provider: "plaid",
+          credential: encrypt("demo-not-a-real-token-vanguard"),
           plaidItemId: "demo-item-vanguard-0001",
           plaidInstitutionId: "ins_115617",
           institutionName: "Vanguard",
@@ -137,7 +139,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
       .values([
         {
           id: uuid(),
-          plaidItemId: PLAID_ITEM_CHASE,
+          connectionId: PLAID_ITEM_CHASE,
           syncedAt: new Date(toDateStr(daysAgo(1)) + "T08:00:00.000Z"),
           cursorBefore: "demo-cursor-chase-000",
           cursorAfter: "demo-cursor-chase-001",
@@ -147,7 +149,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         },
         {
           id: uuid(),
-          plaidItemId: PLAID_ITEM_CHASE,
+          connectionId: PLAID_ITEM_CHASE,
           syncedAt: new Date(toDateStr(daysAgo(3)) + "T08:00:00.000Z"),
           cursorBefore: null,
           cursorAfter: "demo-cursor-chase-000",
@@ -157,7 +159,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         },
         {
           id: uuid(),
-          plaidItemId: PLAID_ITEM_VANGUARD,
+          connectionId: PLAID_ITEM_VANGUARD,
           syncedAt: new Date(toDateStr(daysAgo(1)) + "T09:00:00.000Z"),
           cursorBefore: "demo-cursor-vanguard-000",
           cursorAfter: "demo-cursor-vanguard-001",
@@ -167,7 +169,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         },
         {
           id: uuid(),
-          plaidItemId: PLAID_ITEM_VANGUARD,
+          connectionId: PLAID_ITEM_VANGUARD,
           syncedAt: new Date(toDateStr(daysAgo(5)) + "T09:00:00.000Z"),
           cursorBefore: null,
           cursorAfter: "demo-cursor-vanguard-000",
@@ -185,8 +187,8 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: ACCOUNT_CHECKING,
           householdId: DEMO_HOUSEHOLD_ID,
-          plaidItemId: PLAID_ITEM_CHASE,
-          plaidAccountId: "demo-plaid-acct-checking",
+          bankConnectionId: PLAID_ITEM_CHASE,
+          externalAccountId: "demo-plaid-acct-checking",
           name: "Main Checking",
           type: "checking",
           currentBalance: 420000,
@@ -200,8 +202,8 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: ACCOUNT_SAVINGS,
           householdId: DEMO_HOUSEHOLD_ID,
-          plaidItemId: PLAID_ITEM_CHASE,
-          plaidAccountId: "demo-plaid-acct-savings",
+          bankConnectionId: PLAID_ITEM_CHASE,
+          externalAccountId: "demo-plaid-acct-savings",
           name: "Emergency Fund",
           type: "savings",
           currentBalance: 1250000,
@@ -215,8 +217,8 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: ACCOUNT_CREDIT,
           householdId: DEMO_HOUSEHOLD_ID,
-          plaidItemId: PLAID_ITEM_CHASE,
-          plaidAccountId: "demo-plaid-acct-credit",
+          bankConnectionId: PLAID_ITEM_CHASE,
+          externalAccountId: "demo-plaid-acct-credit",
           name: "Everyday Card",
           type: "credit",
           currentBalance: -180000,
@@ -230,8 +232,8 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: ACCOUNT_INVESTMENT,
           householdId: DEMO_HOUSEHOLD_ID,
-          plaidItemId: PLAID_ITEM_VANGUARD,
-          plaidAccountId: "demo-plaid-acct-investment",
+          bankConnectionId: PLAID_ITEM_VANGUARD,
+          externalAccountId: "demo-plaid-acct-investment",
           name: "Brokerage",
           type: "investment",
           currentBalance: 4500000,
@@ -244,7 +246,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         {
           id: ACCOUNT_CAR_LOAN,
           householdId: DEMO_HOUSEHOLD_ID,
-          plaidItemId: null,
+          bankConnectionId: null,
           name: "Car Loan",
           type: "loan",
           currentBalance: -820000,

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 interface TransactionMetadataProps {
   originalName: string;
   categorySource: string | null;
-  plaidTransactionId: string | null;
+  externalId: string | null;
   transferPairId: string | null;
   onSelectTransferPair?: (id: string) => void;
 }
@@ -23,7 +23,7 @@ const SOURCE_LABELS: Record<string, string> = {
 export function TransactionMetadata({
   originalName,
   categorySource,
-  plaidTransactionId,
+  externalId,
   transferPairId,
   onSelectTransferPair,
 }: TransactionMetadataProps) {
@@ -56,11 +56,11 @@ export function TransactionMetadata({
               </Badge>
             </div>
           )}
-          {plaidTransactionId && (
+          {externalId && (
             <div className="flex justify-between">
-              <span>Plaid ID</span>
+              <span>External ID</span>
               <span className="font-mono text-[11px] max-w-[60%] truncate text-right">
-                {plaidTransactionId}
+                {externalId}
               </span>
             </div>
           )}

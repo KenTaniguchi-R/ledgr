@@ -66,7 +66,7 @@ export async function updateTransactionFields(
   const [existing] = await db
     .select({
       id: transactions.id,
-      plaidTransactionId: transactions.plaidTransactionId,
+      externalId: transactions.externalId,
       transferPairId: transactions.transferPairId,
     })
     .from(transactions)
@@ -79,7 +79,7 @@ export async function updateTransactionFields(
 
   const fields = parsedData.data;
 
-  if (fields.date && existing.plaidTransactionId) {
+  if (fields.date && existing.externalId) {
     return { error: "Cannot edit date on bank-synced transactions" };
   }
 

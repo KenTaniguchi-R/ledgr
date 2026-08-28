@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { getUpcomingBills } from "@/queries/recurring";
 import { centsToDisplay } from "@/lib/money";
 import { READ_ANNOTATIONS } from "../constants";
-import { jsonResult } from "../tool-result";
+import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
 export function registerRecurringTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -11,10 +11,11 @@ export function registerRecurringTools(server: McpServer, householdId: string) {
     {
       title: "Get Upcoming Bills",
       description: "Get upcoming recurring bills sorted by next due date.",
-      inputSchema: {
+      inputSchema: z.object({
         search: z.string().optional().describe("Search bills by name"),
         limit: z.number().int().min(1).max(100).optional().describe("Maximum number of bills to return"),
-      },
+      }),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {

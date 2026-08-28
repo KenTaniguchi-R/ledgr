@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Plus, PenLine } from "lucide-react";
 import { PlaidLinkFlow } from "./plaid-link-flow";
+import { SimplefinConnectFlow } from "./simplefin-connect-flow";
 import { AddManualAccountDialog } from "./add-manual-account-dialog";
 
 export function AccountsActions() {
@@ -25,7 +26,8 @@ export function AccountsActions() {
           </Button>
         } />
         <DropdownMenuContent align="end">
-          <PlaidLinkFlow variant="dropdown-item" label="Connect Bank" />
+          <PlaidLinkFlow variant="dropdown-item" label="Connect via Plaid" />
+          <SimplefinConnectFlow />
           <DropdownMenuItem onClick={() => setManualDialogOpen(true)}>
             <PenLine className="size-4" />
             Add Manual Account

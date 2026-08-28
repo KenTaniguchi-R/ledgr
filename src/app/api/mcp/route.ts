@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { createMcpServer } from "@/lib/mcp/server";
+import { mcpHandler } from "@/lib/mcp/server";
 import { authenticateRequest } from "@/lib/mcp/auth/oauth-server";
-import { registerAllTools } from "@/lib/mcp/tools/index";
 import { getLedgrUrl } from "@/lib/mcp/constants";
 
 export async function POST(request: Request) {
@@ -32,14 +30,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "insufficient_scope" }, { status: 403 });
   }
 
-  const server = createMcpServer();
-  registerAllTools(server, claims);
-
-  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  await server.connect(transport);
-  return transport.handleRequest(request);
+  const token = request.headers.get("Authorization")!.slice(7);
+  return mcpHandler.fetch(request, {
+    authInfo: {
+      token,
+      clientId: claims.sub,
+      scopes,
+      resource: new URL(`${getLedgrUrl()}/api/mcp`),
+      extra: { claims },
+    },
+  });
 }
 
-export async function GET() {
-  return NextResponse.json({ error: "Use POST for Streamable HTTP transport" }, { status: 405 });
-}
+export const GET = POST;

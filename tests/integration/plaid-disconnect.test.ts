@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from "vitest
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
-import { accounts, plaidItems } from "@/db/schema";
+import { accounts, bankConnections } from "@/db/schema";
 import { disconnectPlaidItem } from "@/actions/plaid";
 import { resetPlaidClient } from "@/lib/plaid/client";
 import { insertHousehold, insertPlaidItem, insertAccount } from "./helpers";
@@ -37,17 +37,17 @@ describe("disconnectPlaidItem", () => {
     await close?.();
   });
 
-  it("preserves plaidAccountId on disconnect", async () => {
+  it("preserves externalAccountId on disconnect", async () => {
     ({ db, close } = await createTestDb());
     const { householdId } = await insertHousehold(db);
     const { plaidItemId } = await insertPlaidItem(db, householdId);
     await insertAccount(db, householdId, {
-      plaidItemId,
-      plaidAccountId: "plaid-acc-checking-123",
+      bankConnectionId: plaidItemId,
+      externalAccountId: "plaid-acc-checking-123",
     });
     await insertAccount(db, householdId, {
-      plaidItemId,
-      plaidAccountId: "plaid-acc-savings-456",
+      bankConnectionId: plaidItemId,
+      externalAccountId: "plaid-acc-savings-456",
     });
 
     const { getHouseholdId } = await import("@/lib/auth/session");
@@ -60,28 +60,28 @@ describe("disconnectPlaidItem", () => {
 
     for (const acct of accts) {
       expect(acct.deletedAt).not.toBeNull();
-      expect(acct.plaidItemId).toBeNull();
-      expect(acct.plaidAccountId).not.toBeNull();
+      expect(acct.bankConnectionId).toBeNull();
+      expect(acct.externalAccountId).not.toBeNull();
     }
 
-    expect(accts.map((a) => a.plaidAccountId).sort()).toEqual([
+    expect(accts.map((a) => a.externalAccountId).sort()).toEqual([
       "plaid-acc-checking-123",
       "plaid-acc-savings-456",
     ]);
   });
 
-  it("hard-deletes the plaidItems row", async () => {
+  it("hard-deletes the bankConnections row", async () => {
     ({ db, close } = await createTestDb());
     const { householdId } = await insertHousehold(db);
     const { plaidItemId } = await insertPlaidItem(db, householdId);
-    await insertAccount(db, householdId, { plaidItemId });
+    await insertAccount(db, householdId, { bankConnectionId: plaidItemId });
 
     const { getHouseholdId } = await import("@/lib/auth/session");
     vi.mocked(getHouseholdId).mockResolvedValue(householdId);
 
     await disconnectPlaidItem(plaidItemId, db);
 
-    const items = await db.select().from(plaidItems).where(eq(plaidItems.id, plaidItemId));
+    const items = await db.select().from(bankConnections).where(eq(bankConnections.id, plaidItemId));
     expect(items).toHaveLength(0);
   });
 });

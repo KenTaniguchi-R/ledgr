@@ -1,11 +1,11 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { setBudgetCategoryScoped } from "@/actions/budgets";
 import { getCurrentMonth } from "@/lib/date-utils";
 import { centsToDisplay } from "@/lib/money";
 import { READ_ANNOTATIONS, WRITE_ANNOTATIONS } from "../constants";
-import { jsonResult } from "../tool-result";
+import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
 export function registerBudgetReadTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -14,13 +14,14 @@ export function registerBudgetReadTools(server: McpServer, householdId: string) 
       title: "Get Budget",
       description:
         "Get the budget for a given month, including category groups, spending, and summary totals.",
-      inputSchema: {
+      inputSchema: z.object({
         month: z
           .string()
           .regex(/^\d{4}-\d{2}$/)
           .optional()
           .describe("Month in YYYY-MM format. Defaults to the current month."),
-      },
+      }),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {
@@ -67,7 +68,7 @@ export function registerBudgetWriteTools(server: McpServer, householdId: string)
       title: "Set Budget Category",
       description:
         "Set or update the spending limit for a category within a budget. Creates the budget category row if it does not exist.",
-      inputSchema: {
+      inputSchema: z.object({
         budgetId: z.string().min(1).describe("The budget ID"),
         categoryId: z.string().min(1).describe("The category ID to set the limit for"),
         limitAmountCents: z
@@ -75,7 +76,8 @@ export function registerBudgetWriteTools(server: McpServer, householdId: string)
           .int()
           .min(0)
           .describe("The spending limit in cents (e.g. 5000 = $50.00)"),
-      },
+      }),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: WRITE_ANNOTATIONS,
     },
     async (args) => {

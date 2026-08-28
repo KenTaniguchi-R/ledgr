@@ -6,7 +6,7 @@ import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
 import { encrypt } from "@/lib/encryption";
 import { resetPlaidClient } from "@/lib/plaid/client";
-import { households, householdMembers, plaidItems, accounts, syncLog } from "@/db/schema";
+import { households, householdMembers, bankConnections, accounts, syncLog } from "@/db/schema";
 import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
 import type { LedgrDb } from "@/db";
 
@@ -49,10 +49,11 @@ describe("dispatchWebhook", () => {
     const now = new Date();
     await testDb.insert(households).values({ id: HOUSEHOLD_ID, name: "Test", createdAt: now, updatedAt: now });
     await testDb.insert(householdMembers).values({ id: uuid(), householdId: HOUSEHOLD_ID, userId: "user-1", role: "owner", createdAt: now });
-    await testDb.insert(plaidItems).values({
+    await testDb.insert(bankConnections).values({
       id: INTERNAL_ITEM_ID,
       householdId: HOUSEHOLD_ID,
-      accessToken: encrypt("access-sandbox-test-token"),
+      provider: "plaid",
+      credential: encrypt("access-sandbox-test-token"),
       plaidItemId: PLAID_ITEM_ID_VALUE,
       institutionName: "Chase",
       status: "active",
@@ -62,8 +63,8 @@ describe("dispatchWebhook", () => {
     await testDb.insert(accounts).values({
       id: "acc-wh-checking",
       householdId: HOUSEHOLD_ID,
-      plaidItemId: INTERNAL_ITEM_ID,
-      plaidAccountId: "plaid-acc-checking",
+      bankConnectionId: INTERNAL_ITEM_ID,
+      externalAccountId: "plaid-acc-checking",
       name: "Checking",
       type: "checking",
       createdAt: now,
@@ -84,7 +85,7 @@ describe("dispatchWebhook", () => {
 
     await dispatchWebhook({ webhook_type: "TRANSACTIONS", webhook_code: "SYNC_UPDATES_AVAILABLE", item_id: PLAID_ITEM_ID_VALUE }, db);
 
-    const logs = await db.select().from(syncLog).where(eq(syncLog.plaidItemId, INTERNAL_ITEM_ID));
+    const logs = await db.select().from(syncLog).where(eq(syncLog.connectionId, INTERNAL_ITEM_ID));
     expect(logs).toHaveLength(1);
     expect(logs[0].cursorAfter).toBe("cursor_wh");
   });
@@ -101,7 +102,7 @@ describe("dispatchWebhook", () => {
       error: { error_type: "ITEM_ERROR", error_code: "ITEM_LOGIN_REQUIRED", error_message: "login required" },
     }, db);
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("reauth_required");
     expect(item!.errorCode).toBe("ITEM_LOGIN_REQUIRED");
   });
@@ -118,7 +119,7 @@ describe("dispatchWebhook", () => {
       error: { error_type: "INSTITUTION_ERROR", error_code: "INSTITUTION_DOWN", error_message: "down" },
     }, db);
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("error");
     expect(item!.errorCode).toBe("INSTITUTION_DOWN");
   });
@@ -134,7 +135,7 @@ describe("dispatchWebhook", () => {
       item_id: PLAID_ITEM_ID_VALUE,
     }, db);
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("active");
   });
 
@@ -149,7 +150,7 @@ describe("dispatchWebhook", () => {
       item_id: PLAID_ITEM_ID_VALUE,
     }, db);
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("reauth_required");
   });
 
@@ -164,7 +165,7 @@ describe("dispatchWebhook", () => {
       item_id: PLAID_ITEM_ID_VALUE,
     }, db);
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("revoked");
   });
 
@@ -181,7 +182,7 @@ describe("dispatchWebhook", () => {
     }, db);
 
     // The seeded item is untouched because nothing matched.
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("active");
   });
 
@@ -190,10 +191,11 @@ describe("dispatchWebhook", () => {
     await setup();
     const now = new Date();
     await db.insert(households).values({ id: DEMO_HOUSEHOLD_ID, name: "Demo", createdAt: now, updatedAt: now });
-    await db.insert(plaidItems).values({
+    await db.insert(bankConnections).values({
       id: "demo-item",
       householdId: DEMO_HOUSEHOLD_ID,
-      accessToken: encrypt("access-sandbox-demo"),
+      provider: "plaid",
+      credential: encrypt("access-sandbox-demo"),
       plaidItemId: "plaid-demo-item",
       institutionName: "Demo Bank",
       status: "active",
@@ -208,7 +210,7 @@ describe("dispatchWebhook", () => {
       error: { error_type: "ITEM_ERROR", error_code: "ITEM_LOGIN_REQUIRED", error_message: "login required" },
     }, db);
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, "demo-item"));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, "demo-item"));
     expect(item!.status).toBe("active");
     expect(item!.errorCode).toBeNull();
   });
@@ -224,7 +226,7 @@ describe("dispatchWebhook", () => {
       item_id: PLAID_ITEM_ID_VALUE,
     }, db);
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, INTERNAL_ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, INTERNAL_ITEM_ID));
     expect(item!.status).toBe("active");
   });
 });

@@ -34,6 +34,17 @@ export function plaidAmountToCents(plaidAmount: number | null | undefined): numb
   return Math.round(plaidAmount * 100);
 }
 
+// SimpleFIN amounts are decimal strings, e.g. "-33293.43". Unlike Plaid's
+// convention (positive = money out), SimpleFIN's positive = deposit/income
+// already matches our normalizedAmount invariant — no sign flip needed at
+// the call site.
+export function simplefinAmountToCents(amountStr: string): number | null {
+  if (amountStr.trim() === "") return null;
+  const n = Number(amountStr);
+  if (Number.isNaN(n)) return null;
+  return Math.round(n * 100);
+}
+
 export function centsToInputDisplay(cents: number): string {
   return (cents / 100).toFixed(2);
 }

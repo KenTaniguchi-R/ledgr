@@ -1,10 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { NetWorthPoint } from "@/queries/dashboard";
 import { getDashboardSummary, getNetWorthHistory } from "@/queries/dashboard";
 import { centsToDisplay } from "@/lib/money";
 import { READ_ANNOTATIONS } from "../constants";
-import { jsonResult } from "../tool-result";
+import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
 export interface NetWorthHistoryEntry {
   date: string;
@@ -39,7 +39,8 @@ export function registerDashboardTools(server: McpServer, householdId: string) {
       title: "Get Dashboard Summary",
       description:
         "Get the household dashboard summary: net worth, monthly income, monthly expenses, and monthly net.",
-      inputSchema: {},
+      inputSchema: z.object({}),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async () => {
@@ -63,12 +64,13 @@ export function registerDashboardTools(server: McpServer, householdId: string) {
       title: "Get Net Worth History",
       description:
         "Get the household net-worth trend over time as a dated series of assets, liabilities, and net worth. The final point reflects today's live balances.",
-      inputSchema: {
+      inputSchema: z.object({
         range: z
           .enum(["1M", "3M", "6M", "1Y", "all"])
           .optional()
           .describe("Time window for the series. Defaults to '6M'."),
-      },
+      }),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async ({ range }) => {

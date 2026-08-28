@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createTestDb } from "./setup";
 import { insertHousehold, insertPlaidItem } from "./helpers";
 import type { LedgrDb } from "@/db";
-import { plaidItems } from "@/db/schema/plaid";
+import { bankConnections } from "@/db/schema/bank-connections";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { rotateEncryptionKeys } from "@/lib/jobs/rotate-encryption-keys";
 
@@ -28,8 +28,8 @@ describe("rotateEncryptionKeys (integration)", () => {
     const v1Token = encrypt("access-prod-v1");
 
     const { householdId } = await insertHousehold(db, "Rotate HH");
-    await insertPlaidItem(db, householdId, { id: "item-legacy", accessToken: legacyToken });
-    await insertPlaidItem(db, householdId, { id: "item-v1", accessToken: v1Token });
+    await insertPlaidItem(db, householdId, { id: "item-legacy", credential: legacyToken });
+    await insertPlaidItem(db, householdId, { id: "item-v1", credential: v1Token });
 
     // Introduce v2 — it becomes the active write key.
     process.env.ENCRYPTION_KEY_V2 = randomBytes(32).toString("hex");
@@ -38,14 +38,14 @@ describe("rotateEncryptionKeys (integration)", () => {
     expect(report).toEqual({ total: 2, rotated: 2, skipped: 0, failed: 0 });
 
     const rows = await db
-      .select({ id: plaidItems.id, accessToken: plaidItems.accessToken })
-      .from(plaidItems)
-      .where(eq(plaidItems.householdId, householdId));
+      .select({ id: bankConnections.id, credential: bankConnections.credential })
+      .from(bankConnections)
+      .where(eq(bankConnections.householdId, householdId));
     for (const row of rows) {
-      expect(row.accessToken).toMatch(/^v2:/);
+      expect(row.credential).toMatch(/^v2:/);
     }
     const legacyRow = rows.find((r) => r.id === "item-legacy");
-    expect(decrypt(legacyRow!.accessToken)).toBe("access-prod-legacy");
+    expect(decrypt(legacyRow!.credential)).toBe("access-prod-legacy");
 
     // Second run: nothing left to rotate.
     const second = await rotateEncryptionKeys(db);
@@ -56,8 +56,8 @@ describe("rotateEncryptionKeys (integration)", () => {
     // Clear the V2 key from the previous test so this token is written as v1.
     delete process.env.ENCRYPTION_KEY_V2;
     const { householdId } = await insertHousehold(db, "Bad HH");
-    await insertPlaidItem(db, householdId, { id: "item-garbage", accessToken: "not-valid-ciphertext" });
-    await insertPlaidItem(db, householdId, { id: "item-good", accessToken: encrypt("access-good") });
+    await insertPlaidItem(db, householdId, { id: "item-garbage", credential: "not-valid-ciphertext" });
+    await insertPlaidItem(db, householdId, { id: "item-good", credential: encrypt("access-good") });
     process.env.ENCRYPTION_KEY_V2 = randomBytes(32).toString("hex");
 
     const report = await rotateEncryptionKeys(db);
@@ -66,10 +66,10 @@ describe("rotateEncryptionKeys (integration)", () => {
     expect(report).toEqual({ total: 4, rotated: 1, skipped: 2, failed: 1 });
 
     const [good] = await db
-      .select({ accessToken: plaidItems.accessToken })
-      .from(plaidItems)
-      .where(eq(plaidItems.id, "item-good"));
-    expect(good.accessToken).toMatch(/^v2:/);
-    expect(decrypt(good.accessToken)).toBe("access-good");
+      .select({ credential: bankConnections.credential })
+      .from(bankConnections)
+      .where(eq(bankConnections.id, "item-good"));
+    expect(good.credential).toMatch(/^v2:/);
+    expect(decrypt(good.credential)).toBe("access-good");
   });
 });

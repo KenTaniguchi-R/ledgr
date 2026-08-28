@@ -27,7 +27,7 @@ export async function applyInvestmentsToDb(
     const itemAccounts = await tx
       .select({ id: accounts.id })
       .from(accounts)
-      .where(and(eq(accounts.plaidItemId, itemId), isNull(accounts.deletedAt)));
+      .where(and(eq(accounts.bankConnectionId, itemId), isNull(accounts.deletedAt)));
     const itemAccountIds = itemAccounts.map((a) => a.id);
 
     if (itemAccountIds.length > 0) {

@@ -11,7 +11,7 @@ import {
   insertCategoryRule,
 } from "./helpers";
 import { categorizeSyncedTransactions } from "../../src/lib/categorization/engine";
-import { transactions, plaidItems } from "../../src/db/schema";
+import { transactions, bankConnections } from "../../src/db/schema";
 import { eq } from "drizzle-orm";
 import type { LedgrDb } from "../../src/db";
 
@@ -27,13 +27,14 @@ describe("categorizeSyncedTransactions", () => {
 
     ({ householdId } = await insertHousehold(db));
     plaidItemId = uuid();
-    await db.insert(plaidItems).values({
+    await db.insert(bankConnections).values({
       id: plaidItemId,
       householdId,
-      accessToken: "encrypted-token",
+      provider: "plaid",
+      credential: "encrypted-token",
       status: "active",
     });
-    ({ accountId } = await insertAccount(db, householdId, { plaidItemId }));
+    ({ accountId } = await insertAccount(db, householdId, { bankConnectionId: plaidItemId }));
   });
 
   afterAll(async () => {

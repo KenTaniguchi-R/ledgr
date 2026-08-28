@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { getPortfolioSummary, getHoldings } from "@/queries/investments";
 import { centsToDisplay } from "@/lib/money";
 import { READ_ANNOTATIONS } from "../constants";
-import { jsonResult } from "../tool-result";
+import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
 export function registerInvestmentTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -12,7 +12,8 @@ export function registerInvestmentTools(server: McpServer, householdId: string) 
       title: "Get Portfolio Summary",
       description:
         "Get investment portfolio summary: total value, day change, total gain/loss, and cost basis.",
-      inputSchema: {},
+      inputSchema: z.object({}),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async () => {
@@ -36,10 +37,11 @@ export function registerInvestmentTools(server: McpServer, householdId: string) 
       title: "Get Holdings",
       description:
         "Get investment holdings, optionally consolidated across accounts or broken down by account.",
-      inputSchema: {
+      inputSchema: z.object({
         view: z.enum(["consolidated", "by-account"]).optional().describe("How to aggregate holdings. Defaults to 'consolidated'."),
         accountId: z.string().optional().describe("Filter to a specific investment account ID"),
-      },
+      }),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {

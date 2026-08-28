@@ -1,12 +1,13 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
+import { z } from "zod";
 import { db } from "@/db";
-import { plaidItems } from "@/db/schema";
+import { bankConnections } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { scopedQuery } from "@/lib/scoped-query";
 import { syncInstitution } from "@/lib/plaid/sync";
 import { checkSyncRateLimit } from "../rate-limit";
 import { SYNC_ANNOTATIONS } from "../constants";
-import { jsonResult } from "../tool-result";
+import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
 export function registerSyncTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -15,16 +16,17 @@ export function registerSyncTools(server: McpServer, householdId: string) {
       title: "Sync Accounts",
       description:
         "Trigger a Plaid sync for all connected institutions in the household. Rate-limited to once per minute per institution.",
-      inputSchema: {},
+      inputSchema: z.object({}),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: SYNC_ANNOTATIONS,
     },
     async () => {
       const scoped = scopedQuery(householdId, db);
 
       const items = await db
-        .select({ id: plaidItems.id, institutionName: plaidItems.institutionName, status: plaidItems.status })
-        .from(plaidItems)
-        .where(scoped.where(plaidItems, eq(plaidItems.status, "active")));
+        .select({ id: bankConnections.id, institutionName: bankConnections.institutionName, status: bankConnections.status })
+        .from(bankConnections)
+        .where(scoped.where(bankConnections, eq(bankConnections.status, "active")));
 
       const results: Array<{
         itemId: string;

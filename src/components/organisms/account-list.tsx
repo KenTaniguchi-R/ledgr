@@ -9,9 +9,11 @@ import { Separator } from "@/components/ui/separator";
 import { AccountCard } from "@/components/molecules/account-card";
 import { InstitutionHeader } from "@/components/molecules/institution-header";
 import { PlaidLinkFlow } from "./plaid-link-flow";
+import { SimplefinReconnectFlow } from "./simplefin-reconnect-flow";
 import { EditAccountDialog } from "./edit-account-dialog";
 import { triggerSync } from "@/actions/sync";
 import { disconnectPlaidItem } from "@/actions/plaid";
+import { disconnectSimplefinConnection } from "@/actions/simplefin";
 import type { InstitutionGroup, AccountRow } from "@/queries/accounts";
 import type { SyncStatus } from "@/components/atoms/sync-status-badge";
 
@@ -27,28 +29,28 @@ interface AccountListProps {
 export function AccountList({ groups }: AccountListProps) {
   const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
   const [syncStates, setSyncStates] = useState<Map<string, SyncState>>(new Map());
-  const [reAuthingItemId, setReAuthingItemId] = useState<string | null>(null);
+  const [reAuthingConnectionId, setReAuthingConnectionId] = useState<string | null>(null);
   const [reAuthError, setReAuthError] = useState<string | null>(null);
   const router = useRouter();
 
-  const plaidItemIds = groups
-    .map((g) => g.plaidItemId)
+  const connectionIds = groups
+    .map((g) => g.connectionId)
     .filter((id): id is string => id !== null);
 
-  const handleSync = useCallback(async (itemId: string) => {
+  const handleSync = useCallback(async (connectionId: string) => {
     setSyncStates((prev) => {
       const next = new Map(prev);
-      next.set(itemId, { status: "syncing" });
+      next.set(connectionId, { status: "syncing" });
       return next;
     });
 
-    const result = await triggerSync(itemId);
+    const result = await triggerSync(connectionId);
 
     const newStatus: SyncStatus = result.success ? "success" : "error";
 
     setSyncStates((prev) => {
       const next = new Map(prev);
-      next.set(itemId, {
+      next.set(connectionId, {
         status: newStatus,
         error: result.success ? undefined : result.error,
       });
@@ -61,7 +63,7 @@ export function AccountList({ groups }: AccountListProps) {
       setTimeout(() => {
         setSyncStates((prev) => {
           const next = new Map(prev);
-          next.delete(itemId);
+          next.delete(connectionId);
           return next;
         });
       }, 3000);
@@ -69,39 +71,43 @@ export function AccountList({ groups }: AccountListProps) {
   }, [router]);
 
   const handleSyncAll = useCallback(async () => {
-    await Promise.allSettled(plaidItemIds.map((id) => handleSync(id)));
-  }, [plaidItemIds, handleSync]);
+    await Promise.allSettled(connectionIds.map((id) => handleSync(id)));
+  }, [connectionIds, handleSync]);
 
-  const getSyncState = (itemId: string | null): SyncState =>
-    (itemId ? syncStates.get(itemId) : undefined) ?? { status: "idle" };
+  const getSyncState = (connectionId: string | null): SyncState =>
+    (connectionId ? syncStates.get(connectionId) : undefined) ?? { status: "idle" };
 
   const handleReAuthSuccess = useCallback(() => {
-    setReAuthingItemId(null);
+    setReAuthingConnectionId(null);
     setReAuthError(null);
     router.refresh();
   }, [router]);
 
-  const handleReAuthError = useCallback((itemId: string, error: string) => {
-    setReAuthingItemId(itemId);
+  const handleReAuthError = useCallback((connectionId: string, error: string) => {
+    setReAuthingConnectionId(connectionId);
     setReAuthError(error);
   }, []);
 
-  const handleDisconnect = useCallback(async (itemId: string) => {
-    await disconnectPlaidItem(itemId);
+  const handleDisconnect = useCallback(async (connectionId: string, provider: string | null) => {
+    if (provider === "simplefin") {
+      await disconnectSimplefinConnection(connectionId);
+    } else {
+      await disconnectPlaidItem(connectionId);
+    }
     router.refresh();
   }, [router]);
 
-  const isSyncing = plaidItemIds.some((id) => getSyncState(id).status === "syncing");
+  const isSyncing = connectionIds.some((id) => getSyncState(id).status === "syncing");
 
   return (
     <>
-      {plaidItemIds.length > 0 && (
+      {connectionIds.length > 0 && (
         <div className="flex justify-end">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleSyncAll}
-            disabled={isSyncing || reAuthingItemId !== null}
+            disabled={isSyncing || reAuthingConnectionId !== null}
           >
             <RefreshCw className="size-3.5 mr-1" />
             Sync All
@@ -111,33 +117,44 @@ export function AccountList({ groups }: AccountListProps) {
 
       <div className="space-y-6">
         {groups.map((group) => {
-          const state = getSyncState(group.plaidItemId);
+          const state = getSyncState(group.connectionId);
           return (
-            <Card key={group.plaidItemId ?? "__manual__"}>
+            <Card key={group.connectionId ?? "__manual__"}>
               <InstitutionHeader
                 institutionName={group.institutionName}
                 logoBase64={group.logoBase64}
                 primaryColor={group.primaryColor}
                 status={group.status}
                 accountCount={group.accounts.length}
-                plaidItemId={group.plaidItemId}
+                connectionId={group.connectionId}
                 lastSyncedAt={group.lastSyncedAt}
                 syncStatus={state.status}
                 syncError={state.error}
-                onSync={() => group.plaidItemId && handleSync(group.plaidItemId)}
-                onDisconnect={group.plaidItemId ? () => handleDisconnect(group.plaidItemId!) : undefined}
+                onSync={() => group.connectionId && handleSync(group.connectionId)}
+                onDisconnect={
+                  group.connectionId
+                    ? () => handleDisconnect(group.connectionId!, group.provider)
+                    : undefined
+                }
                 reconnectButton={
-                  group.status === "reauth_required" && group.plaidItemId ? (
+                  group.provider === "plaid" && group.status === "reauth_required" && group.connectionId ? (
                     <PlaidLinkFlow
                       mode="update"
                       variant="reconnect-inline"
-                      plaidItemId={group.plaidItemId}
+                      plaidItemId={group.connectionId}
                       onReAuthSuccess={handleReAuthSuccess}
-                      onError={(err) => handleReAuthError(group.plaidItemId!, err)}
+                      onError={(err) => handleReAuthError(group.connectionId!, err)}
+                    />
+                  ) : group.provider === "simplefin" && group.status === "revoked" && group.connectionId ? (
+                    <SimplefinReconnectFlow
+                      connectionId={group.connectionId}
+                      institutionName={group.institutionName}
+                      onReconnectSuccess={handleReAuthSuccess}
+                      onError={(err) => handleReAuthError(group.connectionId!, err)}
                     />
                   ) : undefined
                 }
-                reAuthError={group.plaidItemId === reAuthingItemId ? reAuthError : null}
+                reAuthError={group.connectionId === reAuthingConnectionId ? reAuthError : null}
               />
               <Separator />
               <div>

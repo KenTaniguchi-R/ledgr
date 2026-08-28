@@ -6,7 +6,7 @@ import { createTestDb } from "./setup";
 import { server } from "../mocks/server";
 import { encrypt } from "@/lib/encryption";
 import { resetPlaidClient } from "@/lib/plaid/client";
-import { households, householdMembers, plaidItems, accounts, syncLog } from "@/db/schema";
+import { households, householdMembers, bankConnections, accounts, syncLog } from "@/db/schema";
 import type { LedgrDb } from "@/db";
 
 const HOUSEHOLD_ID = "hh-reauth-test";
@@ -48,10 +48,11 @@ describe("re-auth server actions", () => {
     const now = new Date();
     await testDb.insert(households).values({ id: HOUSEHOLD_ID, name: "Test", createdAt: now, updatedAt: now });
     await testDb.insert(householdMembers).values({ id: uuid(), householdId: HOUSEHOLD_ID, userId: USER_ID, role: "owner", createdAt: now });
-    await testDb.insert(plaidItems).values({
+    await testDb.insert(bankConnections).values({
       id: ITEM_ID,
       householdId: HOUSEHOLD_ID,
-      accessToken: encrypt("access-sandbox-reauth-token"),
+      provider: "plaid",
+      credential: encrypt("access-sandbox-reauth-token"),
       plaidItemId: "plaid-item-reauth-1",
       institutionName: "Chase",
       status,
@@ -62,8 +63,8 @@ describe("re-auth server actions", () => {
     await testDb.insert(accounts).values({
       id: "acc-reauth-1",
       householdId: HOUSEHOLD_ID,
-      plaidItemId: ITEM_ID,
-      plaidAccountId: "plaid-acc-checking",
+      bankConnectionId: ITEM_ID,
+      externalAccountId: "plaid-acc-checking",
       name: "Checking",
       type: "checking",
       createdAt: now,
@@ -115,11 +116,11 @@ describe("re-auth server actions", () => {
     const result = await completeReAuthDirect(ITEM_ID, HOUSEHOLD_ID, db);
     expect(result).toEqual({ success: true });
 
-    const [item] = await db.select().from(plaidItems).where(eq(plaidItems.id, ITEM_ID));
+    const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, ITEM_ID));
     expect(item!.status).toBe("active");
     expect(item!.errorCode).toBeNull();
 
-    const logs = await db.select().from(syncLog).where(eq(syncLog.plaidItemId, ITEM_ID));
+    const logs = await db.select().from(syncLog).where(eq(syncLog.connectionId, ITEM_ID));
     expect(logs).toHaveLength(1);
   });
 });

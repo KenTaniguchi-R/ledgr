@@ -20,7 +20,7 @@ import {
 import { cleanTransactionName } from "@/lib/import/clean-name";
 import type { LedgrDb } from "@/db";
 import {
-  plaidItems,
+  bankConnections,
   syncLog,
   transactions,
   accounts,
@@ -53,12 +53,12 @@ export interface ProcessedBatch {
   inserts: TransactionRow[];
   upserts: TransactionRow[];
   merchantUpserts: MerchantUpsert[];
-  pendingToRemove: string[]; // plaid_transaction_ids to soft-delete
-  removedIds: string[]; // plaid_transaction_ids to soft-delete
+  pendingToRemove: string[]; // external_ids to soft-delete
+  removedIds: string[]; // external_ids to soft-delete
 }
 
 interface TransactionRow {
-  plaidTransactionId: string;
+  externalId: string;
   plaidAccountId: string;
   date: string;
   originalName: string;
@@ -177,7 +177,7 @@ export function processBatch(
     const accountType = accountTypeMap.get(txn.account_id) ?? "other";
     const normalizedAmt = normalizeAmount(amountCents, accountType);
     return {
-      plaidTransactionId: txn.transaction_id,
+      externalId: txn.transaction_id,
       plaidAccountId: txn.account_id,
       date: txn.date,
       originalName: txn.name,
@@ -254,20 +254,20 @@ async function applyToDb(
   return db.transaction(async (tx) => {
     // --- Build account lookup: plaid_account_id → internal account id ---
     const accountRows = await tx
-      .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
+      .select({ id: accounts.id, externalAccountId: accounts.externalAccountId })
       .from(accounts)
       .where(
         and(
           eq(accounts.householdId, householdId),
-          eq(accounts.plaidItemId, itemId),
+          eq(accounts.bankConnectionId, itemId),
           isNull(accounts.deletedAt),
         ),
       );
 
     const plaidToInternal = new Map<string, string>();
     for (const row of accountRows) {
-      if (row.plaidAccountId) {
-        plaidToInternal.set(row.plaidAccountId, row.id);
+      if (row.externalAccountId) {
+        plaidToInternal.set(row.externalAccountId, row.id);
       }
     }
 
@@ -342,7 +342,8 @@ async function applyToDb(
         id: uuid(),
         accountId: internalAccountId,
         householdId,
-        plaidTransactionId: row.plaidTransactionId,
+        externalId: row.externalId,
+        provider: "plaid",
         pendingTransactionId: row.pendingTransactionId,
         merchantId,
         date: row.date,
@@ -372,15 +373,15 @@ async function applyToDb(
       .map((row) => ({ row, internalAccountId: plaidToInternal.get(row.plaidAccountId) }))
       .filter((x): x is { row: TransactionRow; internalAccountId: string } => !!x.internalAccountId);
 
-    const upsertPlaidIds = upsertsWithAccount.map(({ row }) => row.plaidTransactionId);
-    const existingUpsertRows = upsertPlaidIds.length
+    const upsertExternalIds = upsertsWithAccount.map(({ row }) => row.externalId);
+    const existingUpsertRows = upsertExternalIds.length
       ? await tx
-          .select({ id: transactions.id, plaidTransactionId: transactions.plaidTransactionId })
+          .select({ id: transactions.id, externalId: transactions.externalId })
           .from(transactions)
-          .where(inArray(transactions.plaidTransactionId, upsertPlaidIds))
+          .where(inArray(transactions.externalId, upsertExternalIds))
       : [];
-    const existingIdByPlaidId = new Map(
-      existingUpsertRows.map((r) => [r.plaidTransactionId, r.id]),
+    const existingIdByExternalId = new Map(
+      existingUpsertRows.map((r) => [r.externalId, r.id]),
     );
 
     const upsertInsertRows: (typeof transactions.$inferInsert)[] = [];
@@ -389,7 +390,7 @@ async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
-      const existingId = existingIdByPlaidId.get(row.plaidTransactionId);
+      const existingId = existingIdByExternalId.get(row.externalId);
       if (existingId) {
         await tx.update(transactions)
           .set({
@@ -415,7 +416,8 @@ async function applyToDb(
           id: uuid(),
           accountId: internalAccountId,
           householdId,
-          plaidTransactionId: row.plaidTransactionId,
+          externalId: row.externalId,
+          provider: "plaid",
           pendingTransactionId: row.pendingTransactionId,
           merchantId,
           date: row.date,
@@ -439,11 +441,11 @@ async function applyToDb(
     const modifiedCount = upsertsWithAccount.length;
 
     // --- Soft-delete pending→posted replacements, inheriting category ---
-    for (const pendingPlaidId of processed.pendingToRemove) {
+    for (const pendingExternalId of processed.pendingToRemove) {
       // Only remove the pending row if its posted replacement was actually
       // inserted this batch — otherwise (e.g. unmapped account) the
       // transaction would silently vanish.
-      if (!insertedPendingIds.has(pendingPlaidId)) continue;
+      if (!insertedPendingIds.has(pendingExternalId)) continue;
 
       const [pendingRow] = await tx
         .select({
@@ -452,12 +454,12 @@ async function applyToDb(
           reviewed: transactions.reviewed,
         })
         .from(transactions)
-        .where(eq(transactions.plaidTransactionId, pendingPlaidId))
+        .where(eq(transactions.externalId, pendingExternalId))
         .limit(1);
 
       await tx.update(transactions)
         .set({ deletedAt: now, updatedAt: now })
-        .where(eq(transactions.plaidTransactionId, pendingPlaidId));
+        .where(eq(transactions.externalId, pendingExternalId));
 
       // If the pending transaction was manually categorized, copy to the posted version
       if (pendingRow?.categoryId) {
@@ -466,7 +468,7 @@ async function applyToDb(
           .from(transactions)
           .where(
             and(
-              eq(transactions.pendingTransactionId, pendingPlaidId),
+              eq(transactions.pendingTransactionId, pendingExternalId),
               isNull(transactions.deletedAt),
             ),
           )
@@ -491,7 +493,7 @@ async function applyToDb(
       const result = await tx
         .update(transactions)
         .set({ deletedAt: now, updatedAt: now })
-        .where(inArray(transactions.plaidTransactionId, processed.removedIds));
+        .where(inArray(transactions.externalId, processed.removedIds));
       removedCount = result.rowCount ?? 0;
     }
 
@@ -511,15 +513,15 @@ async function applyToDb(
     }
 
     // --- Update sync cursor ---
-    await tx.update(plaidItems)
+    await tx.update(bankConnections)
       .set({ syncCursor: newCursor, updatedAt: now })
-      .where(eq(plaidItems.id, itemId));
+      .where(eq(bankConnections.id, itemId));
 
     // --- Write sync_log entry ---
     await tx.insert(syncLog)
       .values({
         id: uuid(),
-        plaidItemId: itemId,
+        connectionId: itemId,
         cursorAfter: newCursor,
         addedCount,
         modifiedCount,
@@ -528,9 +530,9 @@ async function applyToDb(
       });
 
     // --- Reset item status to active ---
-    await tx.update(plaidItems)
+    await tx.update(bankConnections)
       .set({ status: "active", errorCode: null, updatedAt: now })
-      .where(eq(plaidItems.id, itemId));
+      .where(eq(bankConnections.id, itemId));
 
     return { addedCount, modifiedCount, removedCount };
   });
@@ -571,12 +573,12 @@ async function doSync(
   const now = new Date();
 
   try {
-    // Read plaid_items row
+    // Read bank_connections row
     const [item] = await db
       .select()
-      .from(plaidItems)
+      .from(bankConnections)
       .where(
-        and(eq(plaidItems.id, itemId), eq(plaidItems.householdId, householdId)),
+        and(eq(bankConnections.id, itemId), eq(bankConnections.householdId, householdId)),
       )
       .limit(1);
 
@@ -585,27 +587,27 @@ async function doSync(
     }
 
     // Decrypt access token
-    const accessToken = decrypt(item.accessToken);
+    const accessToken = decrypt(item.credential);
 
     // Build accountTypeMap
     const accountRows = await db
       .select({
-        plaidAccountId: accounts.plaidAccountId,
+        externalAccountId: accounts.externalAccountId,
         type: accounts.type,
       })
       .from(accounts)
       .where(
         and(
           eq(accounts.householdId, householdId),
-          eq(accounts.plaidItemId, itemId),
+          eq(accounts.bankConnectionId, itemId),
           isNull(accounts.deletedAt),
         ),
       );
 
     const accountTypeMap = new Map<string, string>();
     for (const row of accountRows) {
-      if (row.plaidAccountId) {
-        accountTypeMap.set(row.plaidAccountId, row.type);
+      if (row.externalAccountId) {
+        accountTypeMap.set(row.externalAccountId, row.type);
       }
     }
 
@@ -662,28 +664,28 @@ async function doSync(
 
     // Classify error and update item status
     if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
-      await db.update(plaidItems)
+      await db.update(bankConnections)
         .set({
           status: "reauth_required",
           errorCode,
           updatedAt: now,
         })
-        .where(eq(plaidItems.id, itemId));
+        .where(eq(bankConnections.id, itemId));
     } else if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
-      await db.update(plaidItems)
+      await db.update(bankConnections)
         .set({
           status: "error",
           errorCode,
           updatedAt: now,
         })
-        .where(eq(plaidItems.id, itemId));
+        .where(eq(bankConnections.id, itemId));
     }
 
     // Write error sync_log entry
     await db.insert(syncLog)
       .values({
         id: uuid(),
-        plaidItemId: itemId,
+        connectionId: itemId,
         error: errorCode ?? errorMessage,
         syncedAt: now,
       });

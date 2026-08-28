@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { getTransactions } from "@/queries/transactions";
 import { centsToDisplay } from "@/lib/money";
 import { READ_ANNOTATIONS } from "../constants";
-import { jsonResult } from "../tool-result";
+import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
 export function registerTransactionTools(server: McpServer, householdId: string) {
   server.registerTool(
@@ -12,7 +12,7 @@ export function registerTransactionTools(server: McpServer, householdId: string)
       title: "Get Transactions",
       description:
         "Fetch a paginated list of transactions. Returns up to 50 rows per page with a cursor for the next page.",
-      inputSchema: {
+      inputSchema: z.object({
         dateFrom: z.string().optional().describe("Start date in YYYY-MM-DD format"),
         dateTo: z.string().optional().describe("End date in YYYY-MM-DD format"),
         accountId: z.string().optional().describe("Filter by account ID"),
@@ -20,7 +20,8 @@ export function registerTransactionTools(server: McpServer, householdId: string)
         reviewed: z.boolean().optional().describe("Filter by reviewed status"),
         search: z.string().optional().describe("Search transactions by name"),
         cursor: z.string().optional().describe("Pagination cursor from a previous response"),
-      },
+      }),
+      outputSchema: JSON_RESULT_SCHEMA,
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {

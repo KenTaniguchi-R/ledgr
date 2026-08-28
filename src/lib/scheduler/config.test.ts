@@ -5,6 +5,7 @@ const KEYS = [
   "SCHEDULER_ENABLED",
   "SCHEDULER_SNAPSHOT_CRON",
   "SCHEDULER_SAFETY_SYNC_CRON",
+  "SCHEDULER_SIMPLEFIN_SYNC_CRON",
 ];
 
 describe("getSchedulerConfig", () => {
@@ -28,6 +29,7 @@ describe("getSchedulerConfig", () => {
       enabled: true,
       snapshotCron: "15 3 * * *",
       safetySyncCron: "30 4 * * *",
+      simplefinSyncCron: "45 4 * * *",
     });
   });
 
@@ -44,13 +46,20 @@ describe("getSchedulerConfig", () => {
   it("uses overridden cron expressions", () => {
     process.env.SCHEDULER_SNAPSHOT_CRON = "0 2 * * *";
     process.env.SCHEDULER_SAFETY_SYNC_CRON = "0 5 * * *";
+    process.env.SCHEDULER_SIMPLEFIN_SYNC_CRON = "0 6 * * *";
     const cfg = getSchedulerConfig();
     expect(cfg.snapshotCron).toBe("0 2 * * *");
     expect(cfg.safetySyncCron).toBe("0 5 * * *");
+    expect(cfg.simplefinSyncCron).toBe("0 6 * * *");
   });
 
   it("rejects an invalid cron expression with a clear error", () => {
     process.env.SCHEDULER_SNAPSHOT_CRON = "not a cron";
     expect(() => getSchedulerConfig()).toThrow(/SCHEDULER_SNAPSHOT_CRON/);
+  });
+
+  it("rejects an invalid SimpleFIN sync cron expression with a clear error", () => {
+    process.env.SCHEDULER_SIMPLEFIN_SYNC_CRON = "not a cron";
+    expect(() => getSchedulerConfig()).toThrow(/SCHEDULER_SIMPLEFIN_SYNC_CRON/);
   });
 });

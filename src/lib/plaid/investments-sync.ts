@@ -13,7 +13,7 @@ import { decrypt } from "@/lib/encryption";
 import { todayDateString } from "@/lib/date-utils";
 import { eq, and, isNull } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
-import { accounts, plaidItems } from "@/db/schema";
+import { accounts, bankConnections } from "@/db/schema";
 import type { PlaidHolding, PlaidInvestmentTxn } from "./schemas";
 import type { InvestmentSyncResult } from "./investments-process";
 import { processHoldings, processInvestmentTransactions } from "./investments-process";
@@ -95,27 +95,27 @@ async function doInvestmentSync(
   db: LedgrDb,
 ): Promise<InvestmentSyncResult> {
   const [item] = await db
-    .select({ accessToken: plaidItems.accessToken })
-    .from(plaidItems)
-    .where(and(eq(plaidItems.id, itemId), eq(plaidItems.householdId, householdId)))
+    .select({ credential: bankConnections.credential })
+    .from(bankConnections)
+    .where(and(eq(bankConnections.id, itemId), eq(bankConnections.householdId, householdId)))
     .limit(1);
 
   if (!item) {
     return { success: false, error: "Item not found" };
   }
 
-  const accessToken = decrypt(item.accessToken);
+  const accessToken = decrypt(item.credential);
   const client = getPlaidClient();
 
   const itemAccounts = await db
-    .select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId })
+    .select({ id: accounts.id, externalAccountId: accounts.externalAccountId })
     .from(accounts)
-    .where(and(eq(accounts.plaidItemId, itemId), isNull(accounts.deletedAt)));
+    .where(and(eq(accounts.bankConnectionId, itemId), isNull(accounts.deletedAt)));
 
   const plaidToInternalAccount = new Map<string, string>();
   for (const acc of itemAccounts) {
-    if (acc.plaidAccountId) {
-      plaidToInternalAccount.set(acc.plaidAccountId, acc.id);
+    if (acc.externalAccountId) {
+      plaidToInternalAccount.set(acc.externalAccountId, acc.id);
     }
   }
 
@@ -154,16 +154,16 @@ async function doInvestmentSync(
     }
 
     if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
-      await db.update(plaidItems)
+      await db.update(bankConnections)
         .set({ status: "reauth_required" })
-        .where(eq(plaidItems.id, itemId));
+        .where(eq(bankConnections.id, itemId));
       return { success: false, error: `Reauth required: ${errorCode}` };
     }
 
     if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
-      await db.update(plaidItems)
+      await db.update(bankConnections)
         .set({ status: "error" })
-        .where(eq(plaidItems.id, itemId));
+        .where(eq(bankConnections.id, itemId));
       return { success: false, error: `Transient error: ${errorCode}` };
     }
 
