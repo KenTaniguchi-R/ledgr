@@ -110,6 +110,8 @@ export const TransactionRow = memo(function TransactionRow({
           categories={categories}
           disabled={txn.hasSplits}
           isTransfer={txn.isTransfer}
+          merchantId={txn.merchantId}
+          merchantName={txn.merchantName}
         />
       </div>
 
