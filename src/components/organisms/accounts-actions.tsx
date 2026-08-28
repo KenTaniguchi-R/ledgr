@@ -25,7 +25,7 @@ export function AccountsActions() {
             Add Account
           </Button>
         } />
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="w-56">
           <PlaidLinkFlow variant="dropdown-item" label="Connect via Plaid" />
           <SimplefinConnectFlow />
           <DropdownMenuItem onClick={() => setManualDialogOpen(true)}>

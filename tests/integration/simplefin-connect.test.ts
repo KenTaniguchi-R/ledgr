@@ -141,6 +141,52 @@ describe("SimpleFIN connect flow", () => {
     expect(second.success).toBe(false);
   });
 
+  it("reuses the existing connection and account when a Setup Token is regenerated and reconnected", async () => {
+    await setup();
+    const { householdId: hh } = await insertHousehold(db);
+
+    const firstDiscovered = await claimAndDiscoverAccountsDirect(SIMPLEFIN_TEST_SETUP_TOKEN, hh, db);
+    if (!firstDiscovered.success) throw new Error("expected success");
+    const first = firstDiscovered.connections[0];
+
+    const firstConfirm = await confirmSimplefinAccountsDirect(
+      [{ connectionId: first.connectionId, accounts: first.accounts.map((a) => ({ ...a, type: "checking" as const })) }],
+      hh,
+      db,
+    );
+    expect(firstConfirm.success).toBe(true);
+
+    // User goes back to their SimpleFIN Bridge, regenerates a new Setup
+    // Token for the same institution, and reconnects via the same flow.
+    const secondDiscovered = await claimAndDiscoverAccountsDirect(SIMPLEFIN_TEST_SETUP_TOKEN, hh, db);
+    if (!secondDiscovered.success) throw new Error("expected success");
+    const second = secondDiscovered.connections[0];
+
+    // No second bank_connections row for this institution — the existing
+    // one is reused and put back into pending_classification.
+    expect(second.connectionId).toBe(first.connectionId);
+    expect(second.accounts[0].existingType).toBe("checking");
+
+    const midwayConnections = await db.select().from(bankConnections).where(eq(bankConnections.householdId, hh));
+    expect(midwayConnections).toHaveLength(1);
+    expect(midwayConnections[0].status).toBe("pending_classification");
+
+    const secondConfirm = await confirmSimplefinAccountsDirect(
+      [{ connectionId: second.connectionId, accounts: second.accounts.map((a) => ({ ...a, type: a.existingType ?? "checking" })) }],
+      hh,
+      db,
+    );
+    expect(secondConfirm.success).toBe(true);
+
+    const finalConnections = await db.select().from(bankConnections).where(eq(bankConnections.householdId, hh));
+    expect(finalConnections).toHaveLength(1);
+    expect(finalConnections[0].status).toBe("active");
+
+    const accts = await db.select().from(accounts).where(eq(accounts.householdId, hh));
+    expect(accts).toHaveLength(1);
+    expect(accts[0].externalAccountId).toBe("sf-acc-checking");
+  });
+
   it("isolates draft connections between households", async () => {
     await setup();
     const { householdId: hhA } = await insertHousehold(db);

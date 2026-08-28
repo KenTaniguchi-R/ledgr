@@ -95,7 +95,7 @@ export function SimplefinConnectFlow({ variant = "dropdown-item" }: SimplefinCon
             accounts.push({
               connectionId: connection.connectionId,
               ...account,
-              type: "checking",
+              type: account.existingType ?? "checking",
             });
           }
         }
@@ -226,11 +226,11 @@ export function SimplefinConnectFlow({ variant = "dropdown-item" }: SimplefinCon
                   should show up in Ledgr.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-2 max-h-80 overflow-y-auto">
+              <div className="grid gap-2 max-h-80 overflow-y-auto overflow-x-hidden">
                 {discoveredAccounts.map((account) => (
                   <div
                     key={account.externalAccountId}
-                    className="flex items-center gap-3 rounded-lg border p-3"
+                    className="flex min-w-0 items-center gap-3 rounded-lg border p-3"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{account.name}</p>

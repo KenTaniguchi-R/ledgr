@@ -1,7 +1,7 @@
 "use server";
 
 import { v4 as uuid } from "uuid";
-import { eq, and, isNotNull, desc } from "drizzle-orm";
+import { eq, and, isNotNull, isNull, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { claimSetupToken, simplefinRequest, SimplefinHttpError } from "@/lib/simplefin/client";
 import { SimplefinAccountsResponseSchema, resolveInstitution } from "@/lib/simplefin/schemas";
@@ -25,6 +25,7 @@ export interface DiscoveredAccount {
   currency: string;
   currentBalanceCents: number | null;
   availableBalanceCents: number | null;
+  existingType: AccountType | null;
 }
 
 export interface DiscoveredConnection {
@@ -81,15 +82,79 @@ export async function claimAndDiscoverAccountsDirect(
 
     await db.transaction(async (tx) => {
       for (const { institutionName, accounts: groupAccounts } of groups.values()) {
-        const connectionId = uuid();
-        await tx.insert(bankConnections).values({
-          id: connectionId,
-          householdId,
-          provider: "simplefin",
-          credential: encryptedCredential,
-          institutionName,
-          status: "pending_classification",
-        });
+        const externalIds = groupAccounts.map((a) => a.id);
+
+        // Regenerating a Setup Token and reconnecting must not create a
+        // second bank_connections row for the same institution — look for
+        // live accounts we already track with these SimpleFIN account ids
+        // and, if found, refresh that existing connection's credential
+        // instead of creating a duplicate.
+        const existingLive = await tx
+          .select({
+            bankConnectionId: accounts.bankConnectionId,
+            externalAccountId: accounts.externalAccountId,
+            type: accounts.type,
+          })
+          .from(accounts)
+          .where(
+            and(
+              eq(accounts.householdId, householdId),
+              isNull(accounts.deletedAt),
+              isNotNull(accounts.bankConnectionId),
+              inArray(accounts.externalAccountId, externalIds),
+            ),
+          );
+
+        const existingTypeByExternalId = new Map(
+          existingLive.map((a) => [a.externalAccountId as string, a.type]),
+        );
+
+        const connectionIdCounts = new Map<string, number>();
+        for (const row of existingLive) {
+          if (!row.bankConnectionId) continue;
+          connectionIdCounts.set(
+            row.bankConnectionId,
+            (connectionIdCounts.get(row.bankConnectionId) ?? 0) + 1,
+          );
+        }
+        let reuseConnectionId: string | null = null;
+        let maxCount = 0;
+        for (const [id, count] of connectionIdCounts) {
+          if (count > maxCount) {
+            reuseConnectionId = id;
+            maxCount = count;
+          }
+        }
+
+        let connectionId: string;
+        if (reuseConnectionId) {
+          connectionId = reuseConnectionId;
+          await tx
+            .update(bankConnections)
+            .set({
+              credential: encryptedCredential,
+              // Route back through classification like a brand-new
+              // connection would — confirmSimplefinAccountsDirect only
+              // finalizes connections in this state, so this both reuses
+              // existing rows/accounts (no duplicates) and keeps the
+              // double-confirm guard intact.
+              status: "pending_classification",
+              errorCode: null,
+              institutionName,
+              updatedAt: new Date(),
+            })
+            .where(eq(bankConnections.id, connectionId));
+        } else {
+          connectionId = uuid();
+          await tx.insert(bankConnections).values({
+            id: connectionId,
+            householdId,
+            provider: "simplefin",
+            credential: encryptedCredential,
+            institutionName,
+            status: "pending_classification",
+          });
+        }
 
         connections.push({
           connectionId,
@@ -102,6 +167,7 @@ export async function claimAndDiscoverAccountsDirect(
             availableBalanceCents: account["available-balance"]
               ? simplefinAmountToCents(account["available-balance"])
               : null,
+            existingType: existingTypeByExternalId.get(account.id) ?? null,
           })),
         });
       }
@@ -168,18 +234,37 @@ export async function confirmSimplefinAccountsDirect(
           .where(eq(bankConnections.id, group.connectionId));
 
         for (const account of group.accounts) {
-          const [existingDeleted] = await tx
+          // Prefer a live account with this external id (a reused connection
+          // or a re-run of this flow) over a soft-deleted one, so we update
+          // in place instead of inserting a duplicate.
+          const [existingLive] = await tx
             .select({ id: accounts.id })
             .from(accounts)
             .where(
               and(
                 eq(accounts.externalAccountId, account.externalAccountId),
                 eq(accounts.householdId, householdId),
-                isNotNull(accounts.deletedAt),
+                isNull(accounts.deletedAt),
               ),
             )
-            .orderBy(desc(accounts.deletedAt))
             .limit(1);
+
+          const [existingDeleted] = existingLive
+            ? []
+            : await tx
+                .select({ id: accounts.id })
+                .from(accounts)
+                .where(
+                  and(
+                    eq(accounts.externalAccountId, account.externalAccountId),
+                    eq(accounts.householdId, householdId),
+                    isNotNull(accounts.deletedAt),
+                  ),
+                )
+                .orderBy(desc(accounts.deletedAt))
+                .limit(1);
+
+          const existing = existingLive ?? existingDeleted;
 
           const accountFields = {
             name: account.name,
@@ -190,11 +275,11 @@ export async function confirmSimplefinAccountsDirect(
           };
 
           let accountId: string;
-          if (existingDeleted) {
-            accountId = existingDeleted.id;
+          if (existing) {
+            accountId = existing.id;
             await tx.update(accounts)
               .set({ ...accountFields, deletedAt: null, bankConnectionId: group.connectionId, updatedAt: new Date() })
-              .where(eq(accounts.id, existingDeleted.id));
+              .where(eq(accounts.id, existing.id));
           } else {
             accountId = uuid();
             await tx.insert(accounts).values({
