@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const { lookupMock } = vi.hoisted(() => ({ lookupMock: vi.fn() }));
+vi.mock("node:dns/promises", () => ({ lookup: lookupMock }));
+
 import { claimSetupToken, parseAccessUrl, simplefinRequest, SimplefinHttpError } from "./client";
+
+// Every test host in this file resolves to a public IP unless a test
+// overrides it — keeps DNS fully mocked so these tests never touch the
+// network and stay deterministic regardless of the real bridge.simplefin.org.
+beforeEach(() => {
+  lookupMock.mockResolvedValue([{ address: "203.0.113.10", family: 4 }]);
+});
 
 describe("parseAccessUrl", () => {
   it("splits Basic Auth credentials out of the Access URL into a header", () => {
@@ -55,6 +66,22 @@ describe("claimSetupToken", () => {
     const setupToken = Buffer.from("not-a-url").toString("base64");
     await expect(claimSetupToken(setupToken)).rejects.toThrow("HTTPS URL");
   });
+
+  it("refuses to claim a token whose URL resolves to a private/internal address (SSRF guard)", async () => {
+    lookupMock.mockResolvedValue([{ address: "169.254.169.254", family: 4 }]); // cloud metadata
+    const setupToken = Buffer.from("https://internal.example/simplefin/claim/x").toString("base64");
+
+    await expect(claimSetupToken(setupToken)).rejects.toMatchObject({ status: 400 });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses to claim a token whose URL resolves to a loopback address", async () => {
+    lookupMock.mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
+    const setupToken = Buffer.from("https://localhost-alias.example/claim/x").toString("base64");
+
+    await expect(claimSetupToken(setupToken)).rejects.toMatchObject({ status: 400 });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });
 
 describe("simplefinRequest", () => {
@@ -98,5 +125,14 @@ describe("simplefinRequest", () => {
     await expect(
       simplefinRequest("https://user:pass@bridge.simplefin.org/simplefin", "/accounts"),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("refuses to request an Access URL that resolves to a private address (SSRF guard)", async () => {
+    lookupMock.mockResolvedValue([{ address: "10.0.0.5", family: 4 }]);
+
+    await expect(
+      simplefinRequest("https://user:pass@internal.example/simplefin", "/accounts"),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

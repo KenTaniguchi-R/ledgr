@@ -8,6 +8,13 @@ import { syncConnection } from "@/lib/simplefin/sync";
 import { insertHousehold, insertSimplefinConnection, insertAccount, insertCategoryGroup, insertCategory } from "./helpers";
 import type { LedgrDb } from "@/db";
 
+// MSW mocks fetch, not DNS — the SSRF guard in lib/simplefin/client.ts does a
+// real dns.lookup() before fetching, so it needs mocking too or these tests
+// would depend on real DNS resolution of the fake bridge.simplefin.test host.
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: "203.0.113.10", family: 4 }]),
+}));
+
 beforeAll(() => {
   vi.stubEnv("ENCRYPTION_KEY", "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2");
   server.listen({ onUnhandledRequest: "error" });
