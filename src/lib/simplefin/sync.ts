@@ -1,13 +1,19 @@
 import { v4 as uuid } from "uuid";
 import { eq, and, isNull, inArray, desc } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
-import { bankConnections, syncLog, transactions, accounts } from "@/db/schema";
+import { bankConnections, syncLog, transactions, accounts, investmentHoldings, holdingsHistory } from "@/db/schema";
 import { decrypt } from "@/lib/encryption";
 import { simplefinAmountToCents } from "@/lib/money";
 import { cleanTransactionName } from "@/lib/import/clean-name";
+import { todayDateString } from "@/lib/date-utils";
 import { simplefinRequest } from "./client";
-import { SimplefinAccountsResponseSchema, type SimplefinAccount } from "./schemas";
+import { SimplefinAccountsResponseSchema, type SimplefinAccount, type SimplefinHolding } from "./schemas";
 import { classifyPollError } from "./utils";
+
+// SimpleFIN brokerages don't send a security type the way Plaid does — this
+// is just enough to distinguish crypto (relevant for allocation charts) from
+// everything else, which falls back to "other".
+const KNOWN_CRYPTO_SYMBOLS = new Set(["BTC", "ETH", "SOL", "DOGE", "LTC", "BCH", "ADA", "XRP", "USDC", "USDT"]);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +49,18 @@ interface AccountBalanceInfo {
   currency: string;
   currentBalanceCents: number | null;
   availableBalanceCents: number | null;
+}
+
+export interface HoldingRow {
+  externalAccountId: string;
+  securityId: string;
+  securityName: string;
+  ticker: string | null;
+  quantity: number;
+  costBasis: number | null;
+  currentValue: number;
+  type: "crypto" | "other";
+  currency: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +114,56 @@ function balancesFromAccounts(simplefinAccounts: SimplefinAccount[]): AccountBal
   }));
 }
 
+/** Stable per-security identifier — SimpleFIN has no security master, so the ticker stands in for Plaid's security_id. */
+function simplefinSecurityId(holding: SimplefinHolding): string {
+  const symbol = holding.symbol?.trim();
+  if (symbol) return `simplefin:${symbol.toUpperCase()}`;
+  const description = holding.description?.trim();
+  if (description) return `simplefin:${description.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return `simplefin:${holding.id}`;
+}
+
+/**
+ * Robinhood's SimpleFIN feed (and reportedly others) always sends
+ * cost_basis "0.00" while purchase_price is populated correctly, so a
+ * literal zero cost basis is treated as "not reported" and approximated
+ * from purchase_price × shares instead of taken at face value.
+ */
+function resolveCostBasisCents(holding: SimplefinHolding, quantity: number): number | null {
+  const reported = holding.cost_basis ? simplefinAmountToCents(holding.cost_basis) : null;
+  if (reported) return reported;
+  const purchasePriceCents = holding.purchase_price ? simplefinAmountToCents(holding.purchase_price) : null;
+  if (purchasePriceCents !== null) return Math.round(purchasePriceCents * quantity);
+  return reported;
+}
+
+export function processHoldings(simplefinAccounts: SimplefinAccount[]): HoldingRow[] {
+  const rows: HoldingRow[] = [];
+
+  for (const account of simplefinAccounts) {
+    for (const holding of account.holdings ?? []) {
+      const quantity = holding.shares ? Number(holding.shares) : 0;
+      const currentValue = holding.market_value ? simplefinAmountToCents(holding.market_value) : null;
+      if (!quantity && !currentValue) continue; // no position, nothing to show
+
+      const symbol = holding.symbol?.trim() || null;
+      rows.push({
+        externalAccountId: account.id,
+        securityId: simplefinSecurityId(holding),
+        securityName: holding.description?.trim() || symbol || "Unknown Security",
+        ticker: symbol,
+        quantity,
+        costBasis: resolveCostBasisCents(holding, quantity),
+        currentValue: currentValue ?? 0,
+        type: symbol && KNOWN_CRYPTO_SYMBOLS.has(symbol.toUpperCase()) ? "crypto" : "other",
+        currency: holding.currency?.trim() || account.currency,
+      });
+    }
+  }
+
+  return rows;
+}
+
 // ---------------------------------------------------------------------------
 // 2. applyToDb
 // ---------------------------------------------------------------------------
@@ -104,10 +172,12 @@ async function applyToDb(
   db: LedgrDb,
   processed: ProcessedBatch,
   balances: AccountBalanceInfo[],
+  holdings: HoldingRow[],
   connectionId: string,
   householdId: string,
 ): Promise<{ addedCount: number; modifiedCount: number }> {
   const now = new Date();
+  const today = todayDateString();
 
   return db.transaction(async (tx) => {
     const accountRows = await tx
@@ -199,6 +269,49 @@ async function applyToDb(
         .where(eq(accounts.id, internalId));
     }
 
+    // Holdings are a full snapshot each sync (SimpleFIN has no delta/cursor
+    // for positions) — replace this connection's rows outright, same as Plaid.
+    const holdingAccountIds = accountRows.map((r) => r.id);
+    if (holdingAccountIds.length) {
+      await tx.delete(investmentHoldings).where(inArray(investmentHoldings.accountId, holdingAccountIds));
+    }
+
+    const holdingRowsWithAccount = holdings
+      .map((h) => ({ h, internalAccountId: externalToInternal.get(h.externalAccountId) }))
+      .filter((x): x is { h: HoldingRow; internalAccountId: string } => !!x.internalAccountId);
+
+    if (holdingRowsWithAccount.length) {
+      await tx.insert(investmentHoldings).values(
+        holdingRowsWithAccount.map(({ h, internalAccountId }) => ({
+          id: uuid(),
+          accountId: internalAccountId,
+          plaidSecurityId: h.securityId,
+          securityName: h.securityName,
+          ticker: h.ticker,
+          quantity: h.quantity,
+          costBasis: h.costBasis,
+          currentValue: h.currentValue,
+          type: h.type,
+          sector: null,
+          currency: h.currency,
+          asOfDate: today,
+        })),
+      );
+
+      await tx.insert(holdingsHistory).values(
+        holdingRowsWithAccount.map(({ h, internalAccountId }) => ({
+          id: uuid(),
+          accountId: internalAccountId,
+          plaidSecurityId: h.securityId,
+          securityName: h.securityName,
+          ticker: h.ticker,
+          quantity: h.quantity,
+          value: h.currentValue,
+          date: today,
+        })),
+      ).onConflictDoNothing();
+    }
+
     await tx.insert(syncLog)
       .values({
         id: uuid(),
@@ -284,7 +397,8 @@ async function doSync(
 
     const processed = processBatch(parsed.accounts);
     const balances = balancesFromAccounts(parsed.accounts);
-    const counts = await applyToDb(db, processed, balances, connectionId, householdId);
+    const holdings = processHoldings(parsed.accounts);
+    const counts = await applyToDb(db, processed, balances, holdings, connectionId, householdId);
 
     return {
       success: true,

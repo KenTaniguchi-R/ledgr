@@ -16,6 +16,23 @@ export const SimplefinTransactionSchema = z.object({
 
 export type SimplefinTransaction = z.infer<typeof SimplefinTransactionSchema>;
 
+// Not in the official spec's Account attribute table, but a widely-supported
+// de-facto extension — brokerages (e.g. Robinhood) send this on their
+// SimpleFIN accounts even though simplefin.org doesn't document it.
+export const SimplefinHoldingSchema = z.object({
+  id: z.string(),
+  symbol: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  shares: z.string().nullable().optional(),
+  market_value: z.string().nullable().optional(),
+  cost_basis: z.string().nullable().optional(),
+  purchase_price: z.string().nullable().optional(),
+  currency: z.string().nullable().optional(),
+  created: z.number().nullable().optional(),
+});
+
+export type SimplefinHolding = z.infer<typeof SimplefinHoldingSchema>;
+
 // v1: account.org identifies the institution directly.
 export const SimplefinOrganizationSchema = z.object({
   domain: z.string().nullable().optional(),
@@ -47,6 +64,7 @@ export const SimplefinAccountSchema = z.object({
   "available-balance": z.string().nullable().optional(),
   "balance-date": z.number(),
   transactions: z.array(SimplefinTransactionSchema).nullable().optional(),
+  holdings: z.array(SimplefinHoldingSchema).nullable().optional(),
   extra: z.record(z.string(), z.unknown()).nullable().optional(),
   // v1
   org: SimplefinOrganizationSchema.nullable().optional(),

@@ -59,7 +59,7 @@ export function InvestmentPageLayout({ summary, history, allocation, holdings, t
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
         <TrendingUp className="size-12 text-muted-foreground" />
         <h2 className="text-xl font-semibold">No Investment Accounts</h2>
-        <p className="text-muted-foreground max-w-md">Connect a brokerage or retirement account via Plaid to see your portfolio here.</p>
+        <p className="text-muted-foreground max-w-md">Connect a brokerage or retirement account via Plaid or SimpleFIN to see your portfolio here.</p>
       </div>
     );
   }

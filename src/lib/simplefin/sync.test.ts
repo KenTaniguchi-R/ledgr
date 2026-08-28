@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { processBatch } from "./sync";
-import type { SimplefinAccount, SimplefinTransaction } from "./schemas";
+import { processBatch, processHoldings } from "./sync";
+import type { SimplefinAccount, SimplefinTransaction, SimplefinHolding } from "./schemas";
 
 function makeTxn(overrides: Partial<SimplefinTransaction> = {}): SimplefinTransaction {
   return {
@@ -24,10 +24,26 @@ function makeAccount(overrides: Partial<SimplefinAccount> = {}): SimplefinAccoun
     "available-balance": "1000.00",
     "balance-date": 1735689600,
     transactions: [],
+    holdings: [],
     extra: null,
     org: { domain: "mybank.com", "sfin-url": "https://sfin.mybank.com", name: "My Bank", url: null, id: null },
     conn_id: null,
     conn_name: null,
+    ...overrides,
+  };
+}
+
+function makeHolding(overrides: Partial<SimplefinHolding> = {}): SimplefinHolding {
+  return {
+    id: "HOL-1",
+    symbol: "NVDA",
+    description: "NVIDIA Corp",
+    shares: "0.102313",
+    market_value: "22.38915379",
+    cost_basis: "0.00",
+    purchase_price: "54.929",
+    currency: "USD",
+    created: 1787938315,
     ...overrides,
   };
 }
@@ -112,5 +128,64 @@ describe("processBatch", () => {
       makeAccount({ id: "acc-b", transactions: [makeTxn({ id: "t3" })] }),
     ]);
     expect(result.rows).toHaveLength(3);
+  });
+});
+
+describe("processHoldings", () => {
+  it("converts decimal-string market_value to integer cents", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ market_value: "22.38915379" })] })]);
+    expect(result[0].currentValue).toBe(2239); // rounds to nearest cent
+  });
+
+  it("parses shares as a plain float quantity, not cents", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ shares: "0.102313" })] })]);
+    expect(result[0].quantity).toBeCloseTo(0.102313);
+  });
+
+  it("falls back to purchase_price × shares when cost_basis is reported as zero", () => {
+    const result = processHoldings([
+      makeAccount({ holdings: [makeHolding({ cost_basis: "0.00", purchase_price: "54.929", shares: "0.102313" })] }),
+    ]);
+    expect(result[0].costBasis).toBe(Math.round(5492.9 * 0.102313));
+  });
+
+  it("uses a genuinely nonzero cost_basis as-is, without falling back", () => {
+    const result = processHoldings([
+      makeAccount({ holdings: [makeHolding({ cost_basis: "500.00", purchase_price: "999.00" })] }),
+    ]);
+    expect(result[0].costBasis).toBe(50000);
+  });
+
+  it("classifies a known crypto ticker as type crypto", () => {
+    const result = processHoldings([
+      makeAccount({ holdings: [makeHolding({ symbol: "BTC", description: "Bitcoin Crypto Currency" })] }),
+    ]);
+    expect(result[0].type).toBe("crypto");
+  });
+
+  it("classifies an equity ticker as type other", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: "VOO" })] })]);
+    expect(result[0].type).toBe("other");
+  });
+
+  it("skips a holding with no shares and no market value", () => {
+    const result = processHoldings([
+      makeAccount({ holdings: [makeHolding({ shares: "0", market_value: "0.00" })] }),
+    ]);
+    expect(result).toHaveLength(0);
+  });
+
+  it("tags each holding with its owning account's id", () => {
+    const result = processHoldings([
+      makeAccount({ id: "acc-a", holdings: [makeHolding({ id: "HOL-a" })] }),
+      makeAccount({ id: "acc-b", holdings: [makeHolding({ id: "HOL-b" })] }),
+    ]);
+    expect(result.find((r) => r.securityId.includes("NVDA"))?.externalAccountId).toBeDefined();
+    expect(result.every((r) => ["acc-a", "acc-b"].includes(r.externalAccountId))).toBe(true);
+  });
+
+  it("returns no rows for an account with no holdings", () => {
+    const result = processHoldings([makeAccount({ holdings: null })]);
+    expect(result).toHaveLength(0);
   });
 });
