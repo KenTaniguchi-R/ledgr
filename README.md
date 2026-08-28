@@ -18,7 +18,7 @@
 
 ---
 
-Ledgr connects to your bank accounts through [Plaid](https://plaid.com), automatically syncs and categorizes transactions, and gives you budgets, investment tracking, bill detection, and financial reports — all running on your own server with your own data.
+Ledgr connects to your bank accounts through [Plaid](https://plaid.com) or [SimpleFIN](https://www.simplefin.org), automatically syncs and categorizes transactions, and gives you budgets, investment tracking, bill detection, and financial reports — all running on your own server with your own data.
 
 It also exposes an [MCP](https://modelcontextprotocol.io) server, so AI assistants like Claude can query your finances through natural conversation.
 
@@ -35,10 +35,10 @@ Claude: Based on your transactions, you spent $342.18 on dining out in April...
 
 ## Features
 
-- **Automatic bank sync** — connect 12,000+ banks via Plaid, with real-time webhook sync or scheduled polling
+- **Automatic bank sync** — connect 12,000+ banks via Plaid (real-time webhook sync or scheduled polling), or via SimpleFIN if you'd rather not use a Plaid developer account
 - **Smart categorization** — four-tier pipeline: your rules > merchant defaults > Plaid categories > AI fallback
 - **Budgets** — set monthly budgets by category, track progress in real time
-- **Investment tracking** — portfolio holdings, performance history, and allocation breakdowns
+- **Investment tracking** — portfolio holdings, performance history, and allocation breakdowns, synced automatically from Plaid or SimpleFIN
 - **Recurring bill detection** — automatically identifies subscriptions and recurring charges
 - **Financial reports** — spending, income, net worth, and category trends over time
 - **AI agent interface (MCP)** — query your finances from Claude Code, Claude Desktop, Cursor, or any MCP client
@@ -70,9 +70,9 @@ docker compose up -d
 
 Visit `http://localhost:4200`, create an account, and start exploring.
 
-On first boot, Ledgr generates an encryption key and session secret and stores them in the app data volume. **Back up that volume (or the `/data/encryption-key` file) along with your database** — losing the key means losing access to encrypted data like Plaid tokens. Prefer to manage the key yourself? Set `ENCRYPTION_KEY` in a `.env` file (see [Configuration](#configuration)) and it takes precedence.
+On first boot, Ledgr generates an encryption key and session secret and stores them in the app data volume. **Back up that volume (or the `/data/encryption-key` file) along with your database** — losing the key means losing access to encrypted data like Plaid and SimpleFIN tokens. Prefer to manage the key yourself? Set `ENCRYPTION_KEY` in a `.env` file (see [Configuration](#configuration)) and it takes precedence.
 
-> Add your Plaid keys to `.env` to enable bank sync — see [Connect Your Bank](#connect-your-bank) below. The app works without Plaid via CSV import.
+> Add your Plaid keys to `.env` to enable bank sync — see [Connect Your Bank](#connect-your-bank) below (or skip the keys and use [SimpleFIN](#or-connect-via-simplefin)). The app works without either via CSV import.
 
 ## Connect Your Bank
 
@@ -93,6 +93,16 @@ On first boot, Ledgr generates an encryption key and session secret and stores t
 <br />
 <em>Connect any of 12,000+ banks through Plaid</em>
 </div>
+
+### Or connect via SimpleFIN
+
+[SimpleFIN](https://www.simplefin.org) works out of the box — no developer account or `.env` changes needed.
+
+1. Get a SimpleFIN Bridge account and generate a Setup Token from your bridge provider
+2. In the app, go to **Accounts > Link Bank** and choose the SimpleFIN option
+3. Paste your Setup Token to connect
+
+SimpleFIN has no webhooks, so accounts sync on a daily schedule (`SCHEDULER_SIMPLEFIN_SYNC_CRON`, see [Configuration](#configuration)) instead of in real time. Investment holdings sync the same way as they do for Plaid.
 
 ## Connect Your AI Agent
 
@@ -182,7 +192,7 @@ Read, write, and sync tools are gated by OAuth scopes (`ledgr:read`, `ledgr:writ
 
 | | Ledgr | Actual Budget | Firefly III | Maybe Finance |
 |---|:---:|:---:|:---:|:---:|
-| Automatic bank sync | Plaid (12,000+ banks) | GoCardless (EU) | Spectre/GoCardless | -- |
+| Automatic bank sync | Plaid (12,000+ banks) or SimpleFIN | GoCardless (EU) | Spectre/GoCardless | -- |
 | AI agent (MCP) | Yes | -- | -- | -- |
 | AI categorization | Yes (BYOK) | -- | -- | -- |
 | Investment tracking | Yes | -- | -- | Yes |
@@ -212,6 +222,7 @@ Migrations run automatically on container startup.
 | `PLAID_ENV` | No | `production` | `production` or `sandbox` |
 | `PLAID_SYNC_MODE` | No | `poll` | `poll` (scheduled) or `webhook` (real-time) |
 | `PLAID_WEBHOOK_URL` | No | -- | Public URL for Plaid webhooks (webhook mode) |
+| `SCHEDULER_SIMPLEFIN_SYNC_CRON` | No | `45 4 * * *` | Daily SimpleFIN account sync (no webhooks, so this is the only sync trigger) |
 | `AI_PROVIDER` | No | -- | `openai`, `anthropic`, `google`, or `custom` |
 | `AI_API_KEY` | No | -- | Provider API key for AI chat & categorization |
 | `MCP_ENABLED` | No | `false` | Enable the MCP endpoint for AI agents |
@@ -265,7 +276,7 @@ pnpm db:studio              # Drizzle Studio (DB browser)
 | Charts | Recharts 3 |
 | Database | PostgreSQL 18 via Drizzle ORM |
 | Auth | Better Auth |
-| Bank Sync | Plaid Node SDK |
+| Bank Sync | Plaid Node SDK, SimpleFIN |
 | AI | Vercel AI SDK (BYOK) |
 | MCP | Model Context Protocol SDK |
 | Testing | Vitest + Playwright + Stryker |
@@ -275,6 +286,7 @@ pnpm db:studio              # Drizzle Studio (DB browser)
 - [x] Plaid webhook support (real-time sync)
 - [x] AI chat assistant (in-app)
 - [x] OFX/QFX import
+- [x] SimpleFIN bank sync (Plaid alternative)
 - [ ] Mobile-responsive UI
 - [ ] Multi-currency support
 - [ ] Custom report builder
