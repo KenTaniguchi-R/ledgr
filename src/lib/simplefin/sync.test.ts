@@ -163,8 +163,23 @@ describe("processHoldings", () => {
     expect(result[0].type).toBe("crypto");
   });
 
-  it("classifies an equity ticker as type other", () => {
+  it("classifies a known ETF ticker as type etf", () => {
     const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: "VOO" })] })]);
+    expect(result[0].type).toBe("etf");
+  });
+
+  it("classifies a known bond ETF ticker as type bond", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: "BND" })] })]);
+    expect(result[0].type).toBe("bond");
+  });
+
+  it("falls back to type stock for an unrecognized ticker", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: "NVDA" })] })]);
+    expect(result[0].type).toBe("stock");
+  });
+
+  it("falls back to type other when there's no ticker at all", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: null })] })]);
     expect(result[0].type).toBe("other");
   });
 
