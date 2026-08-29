@@ -76,6 +76,42 @@ describe("getDashboardSummary", () => {
     expect(result.monthlyIncome).toBe(200000);
     expect(result.monthlyNet).toBe(200000 - 3000);
   });
+
+  it("excludes transfer transactions from income and expenses", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId, {
+      type: "checking",
+      currentBalance: 100000,
+    });
+
+    const thisMonth = new Date().toISOString().slice(0, 7);
+
+    // A real expense and a real income transaction.
+    await insertTransaction(db, householdId, accountId, {
+      date: `${thisMonth}-05`,
+      normalizedAmount: -3000,
+      amount: 3000,
+    });
+    await insertTransaction(db, householdId, accountId, {
+      date: `${thisMonth}-06`,
+      normalizedAmount: 20000,
+      amount: -20000,
+    });
+
+    // A self-transfer between the household's own accounts must not count as
+    // either income or spending, even though its amount is a large positive.
+    await insertTransaction(db, householdId, accountId, {
+      date: `${thisMonth}-10`,
+      normalizedAmount: 500000,
+      amount: -500000,
+      isTransfer: true,
+    });
+
+    const result = await getDashboardSummary(householdId, undefined, db);
+
+    expect(result.monthlyExpenses).toBe(3000);
+    expect(result.monthlyIncome).toBe(20000);
+  });
 });
 
 describe("getNetWorthHistory", () => {

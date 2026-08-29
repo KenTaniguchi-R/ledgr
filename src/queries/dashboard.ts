@@ -98,7 +98,9 @@ export async function getDashboardSummary(
         notDeleted(transactions),
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
-        eq(transactions.pending, false)
+        eq(transactions.pending, false),
+        eq(transactions.isTransfer, false),
+        isNull(transactions.transferPairId)
       )
     );
 
