@@ -42,50 +42,18 @@ jobs:
       # self-hosted runner. No secrets required.
       - run: pnpm test
 
-  # Cheap gate on a GitHub-hosted runner (free + unlimited concurrency on this
-  # public repo) so a PR that changes no mutatable source never occupies a
-  # self-hosted slot. The single macmini runner pool is the scarce resource —
-  # queueing, not compute, dominates PR wall-clock — so trading ~20s of hosted
-  # latency for a freed slot is worth it. Shares scripts/mutate-diff.sh with the
-  # run itself, so the gate and the run agree on what "mutatable" means.
-  mutation-gate:
-    name: mutation gate
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    outputs:
-      should-run: ${{ steps.check.outputs.should-run }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - id: check
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          FILES=$(bash scripts/mutate-diff.sh --list-only "$BASE_SHA" "$HEAD_SHA")
-          if [ -n "$FILES" ]; then
-            echo "should-run=true" >> "$GITHUB_OUTPUT"
-            echo "Mutatable source changed — mutation job will run:"
-            echo "$FILES" | awk '{print "  " $0}'
-          else
-            echo "should-run=false" >> "$GITHUB_OUTPUT"
-            echo "No mutatable source changed — skipping the mutation job."
-          fi
-
   mutation:
     name: mutation (diff)
     runs-on: [self-hosted, macmini]
-    needs: mutation-gate
+    # Runs only after `test` releases its runner. Mutation is non-blocking, but
+    # a wide diff can keep Stryker busy for 30+ min (observed on a 9-file diff),
+    # and while it held the runner the *blocking* typecheck/lint/test jobs of
+    # every other PR queued behind a job nobody gates on. Ordering it after test
+    # keeps the blocking checks first without giving up the self-hosted runner.
+    needs: test
     # Self-hosted runner: never execute a fork PR's code here — only PRs from
-    # this same repo (see the test job's comment for why). The gate job carries
-    # the same guard, so this is belt-and-braces: a fork PR skips the gate, and
-    # a skipped gate yields an empty output that fails this check too. Kept
-    # explicit so the protection is visible in the job it protects.
-    if: >-
-      needs.mutation-gate.outputs.should-run == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    # this same repo (see the test job's comment for why).
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     # Diff-scoped: only the source files changed in the PR are mutated, so runs
     # take minutes instead of a full cold sweep. Non-blocking (reports only):
     # Stryker currently runs just the unit suite, so files covered mainly by
