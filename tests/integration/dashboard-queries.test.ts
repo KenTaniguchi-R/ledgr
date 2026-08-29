@@ -184,6 +184,71 @@ describe("getNetWorthHistory", () => {
     expect(point.netWorth).toBe(70000);
   });
 
+  it("carries an account's last known balance forward to dates it has no row for", async () => {
+    // The real-world shape: balance reconstruction covers depository accounts
+    // densely but leaves investment accounts with only sparse snapshots. A
+    // missing row must mean "unchanged", not "worth zero".
+    const { householdId } = await insertHousehold(db);
+    const { accountId: checkingId } = await insertAccount(db, householdId, {
+      type: "checking",
+      currentBalance: 10000,
+    });
+    const { accountId: brokerageId } = await insertAccount(db, householdId, {
+      type: "investment",
+      currentBalance: 500000,
+    });
+
+    const day = (n: number) => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+
+    // Checking has a row on both days; the brokerage only on the earlier one.
+    await db.insert(balanceHistory).values([
+      { id: uuid(), accountId: checkingId, date: day(20), balance: 9000 },
+      { id: uuid(), accountId: checkingId, date: day(10), balance: 10000 },
+      { id: uuid(), accountId: brokerageId, date: day(20), balance: 400000 },
+    ]);
+
+    const result = await getNetWorthHistory(householdId, "3M", db);
+
+    const later = result.find((p) => p.date === day(10))!;
+    expect(later).toBeDefined();
+    // 10000 checking + 400000 brokerage carried forward — not 10000 alone.
+    expect(later.assets).toBe(410000);
+  });
+
+  it("seeds carry-forward from the last balance before the window starts", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId: brokerageId } = await insertAccount(db, householdId, {
+      type: "investment",
+      currentBalance: 500000,
+    });
+    const { accountId: checkingId } = await insertAccount(db, householdId, {
+      type: "checking",
+      currentBalance: 10000,
+    });
+
+    const day = (n: number) => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+
+    // The brokerage's only snapshot predates the 1M window entirely.
+    await db.insert(balanceHistory).values([
+      { id: uuid(), accountId: brokerageId, date: day(120), balance: 400000 },
+      { id: uuid(), accountId: checkingId, date: day(5), balance: 10000 },
+    ]);
+
+    const result = await getNetWorthHistory(householdId, "1M", db);
+
+    const point = result.find((p) => p.date === day(5))!;
+    expect(point).toBeDefined();
+    expect(point.assets).toBe(410000);
+  });
+
   it("returns empty array when no account has a balance", async () => {
     // The CSV-import scenario: accounts exist but carry no balance, so there is
     // no net worth to plot. The chart must see an empty series to render its
