@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { NetWorthPoint } from "@/queries/dashboard";
 import { getDashboardSummary, getNetWorthHistory } from "@/queries/dashboard";
 import { centsToDisplay } from "@/lib/money";
+import { withHousehold } from "@/lib/household-context";
 import { READ_ANNOTATIONS } from "../constants";
 import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
@@ -44,7 +45,7 @@ export function registerDashboardTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async () => {
-      const s = await getDashboardSummary(householdId);
+      const s = await withHousehold(householdId, (tx) => getDashboardSummary(householdId, undefined, tx));
       return jsonResult({
         netWorthCents: s.netWorth,
         netWorthDisplay: centsToDisplay(s.netWorth),

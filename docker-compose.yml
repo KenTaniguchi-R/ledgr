@@ -42,7 +42,14 @@ services:
     environment:
       PORT: 3000
       LEDGR_DATA_DIR: /data
+      # Superuser/owner — migrations and app-role provisioning only. RLS
+      # policies (docs/rls-pilot.md) never restrict this role.
       DATABASE_URL: postgresql://ledgr:${POSTGRES_PASSWORD:-ledgr}@db:5432/ledgr
+      # Restricted, non-superuser role the app actually queries through, so
+      # RLS policies apply. ensure-app-role.mjs creates it on boot from these
+      # credentials — reuses POSTGRES_PASSWORD rather than a separate secret
+      # since both roles are equally trusted inside this container/network.
+      APP_DATABASE_URL: postgresql://ledgr_app:${POSTGRES_PASSWORD:-ledgr}@db:5432/ledgr
       BETTER_AUTH_URL: http://localhost:${PORT:-4200}
       NEXT_PUBLIC_APP_URL: http://localhost:${PORT:-4200}
     restart: unless-stopped

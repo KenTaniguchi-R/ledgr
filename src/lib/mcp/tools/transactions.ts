@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { getTransactions } from "@/queries/transactions";
 import { centsToDisplay } from "@/lib/money";
+import { withHousehold } from "@/lib/household-context";
 import { READ_ANNOTATIONS } from "../constants";
 import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
@@ -26,7 +27,7 @@ export function registerTransactionTools(server: McpServer, householdId: string)
     },
     async (args) => {
       const { cursor, ...filters } = args;
-      const page = await getTransactions(householdId, filters, 50, cursor ?? null);
+      const page = await withHousehold(householdId, (tx) => getTransactions(householdId, filters, 50, cursor ?? null, tx));
 
       return jsonResult({
         rows: page.rows.map((t) => ({

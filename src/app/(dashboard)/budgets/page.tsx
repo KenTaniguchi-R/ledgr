@@ -1,4 +1,5 @@
 import { getHouseholdId } from "@/lib/auth/session";
+import { withHousehold } from "@/lib/household-context";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { BudgetPageHeader } from "@/components/organisms/budget-page-header";
 import { BudgetTable } from "@/components/organisms/budget-table";
@@ -17,8 +18,8 @@ export default async function BudgetsPage({
   const prevMonth = shiftMonth(month, -1);
 
   const [data, prevData] = await Promise.all([
-    getBudgetForMonth(householdId, month),
-    getBudgetForMonth(householdId, prevMonth),
+    withHousehold(householdId, (tx) => getBudgetForMonth(householdId, month, tx)),
+    withHousehold(householdId, (tx) => getBudgetForMonth(householdId, prevMonth, tx)),
   ]);
   const hasPrevBudget = prevData.budget !== null;
 

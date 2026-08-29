@@ -1,4 +1,5 @@
 import { getHouseholdId } from "@/lib/auth/session";
+import { withHousehold } from "@/lib/household-context";
 import {
   getDashboardSummary,
   getNetWorthHistory,
@@ -28,20 +29,20 @@ export default async function DashboardPage() {
   // widget's initial month must match what getMonthlySpending resolved to, so a
   // returning user whose latest data is from an earlier month doesn't open on an
   // empty current month.
-  const latestActivityMonth = await getLatestActivityMonth(householdId);
+  const latestActivityMonth = await withHousehold(householdId, (tx) => getLatestActivityMonth(householdId, tx));
   const spendingMonth = latestActivityMonth ?? getCurrentMonth();
   const prevMonth = shiftMonth(spendingMonth, -1);
 
   const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
     await Promise.all([
-      getDashboardSummary(householdId, spendingMonth),
-      getDashboardSummary(householdId, prevMonth),
+      withHousehold(householdId, (tx) => getDashboardSummary(householdId, spendingMonth, tx)),
+      withHousehold(householdId, (tx) => getDashboardSummary(householdId, prevMonth, tx)),
       getNetWorthHistory(householdId, "6M"),
-      getMonthlySpending(householdId, spendingMonth),
-      getCashFlow(householdId, 6),
-      getRecentTransactions(householdId, 5),
+      withHousehold(householdId, (tx) => getMonthlySpending(householdId, spendingMonth, tx)),
+      withHousehold(householdId, (tx) => getCashFlow(householdId, 6, tx)),
+      withHousehold(householdId, (tx) => getRecentTransactions(householdId, 5, tx)),
       getAccounts(householdId),
-      getBudgetForMonth(householdId, getCurrentMonth()),
+      withHousehold(householdId, (tx) => getBudgetForMonth(householdId, getCurrentMonth(), tx)),
       getUpcomingBills(householdId, { limit: 5 }),
       getInvestmentsSummary(householdId),
       session ? getLayoutForUser(session.user.id) : null,

@@ -9,6 +9,7 @@ import { savedReports } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 import { getHouseholdId } from "@/lib/auth/session";
+import { withHousehold } from "@/lib/household-context";
 import { getTransactions, type TransactionRow } from "@/queries/transactions";
 
 const saveReportSchema = z.object({
@@ -90,11 +91,12 @@ export async function getDrillDownTransactions(filters: {
 }): Promise<{ rows: TransactionRow[]; hasMore: boolean }> {
   const householdId = await getHouseholdId();
 
-  const page = await getTransactions(householdId, {
-    categoryId: filters.categoryId ?? undefined,
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
-  }, DRILL_DOWN_LIMIT);
+  const page = await withHousehold(householdId, (tx) =>
+    getTransactions(householdId, {
+      categoryId: filters.categoryId ?? undefined,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+    }, DRILL_DOWN_LIMIT, undefined, tx));
 
   return { rows: page.rows, hasMore: page.nextCursor !== null };
 }

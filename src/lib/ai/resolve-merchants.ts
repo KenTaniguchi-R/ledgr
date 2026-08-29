@@ -8,6 +8,7 @@ import { notDeleted } from "@/lib/query-helpers";
 import { titleCase } from "@/lib/text-utils";
 import { fetchFaviconDataUri } from "@/lib/favicon";
 import { coalesce } from "@/lib/coalesce";
+import { withHousehold } from "@/lib/household-context";
 import { getAiConfig, createAiModel } from "./config";
 import { getBatchSize } from "./categorize";
 
@@ -101,17 +102,20 @@ async function runMerchantResolution(
   const model = createAiModel();
   if (!config || !model) return { resolved: 0, skipped: 0 };
 
-  const candidates = await db
-    .select({ id: transactions.id, name: transactions.name })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.householdId, householdId),
-        isNull(transactions.merchantId),
-        isNull(transactions.merchantResolutionAttemptedAt),
-        notDeleted(transactions),
+  // Short-lived transaction — not held open across the batched LLM calls below.
+  const candidates = await withHousehold(householdId, (tx) =>
+    tx
+      .select({ id: transactions.id, name: transactions.name })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.householdId, householdId),
+          isNull(transactions.merchantId),
+          isNull(transactions.merchantResolutionAttemptedAt),
+          notDeleted(transactions),
+        ),
       ),
-    );
+  db);
 
   if (candidates.length === 0) return { resolved: 0, skipped: 0 };
 
@@ -164,7 +168,7 @@ async function runMerchantResolution(
       else txnIdsByMerchantId.set(merchantId, [transactionId]);
     }
 
-    await db.transaction(async (tx) => {
+    await withHousehold(householdId, async (tx) => {
       for (const [merchantId, ids] of txnIdsByMerchantId) {
         await tx.update(transactions)
           .set({ merchantId, updatedAt: now })
@@ -173,7 +177,7 @@ async function runMerchantResolution(
       await tx.update(transactions)
         .set({ merchantResolutionAttemptedAt: now })
         .where(inArray(transactions.id, [...batchIds]));
-    });
+    }, db);
     resolved += merchantIdByTxnId.size;
   }
 
@@ -206,15 +210,19 @@ async function linkOrCreateMerchants(
     if (!uniqueByName.has(c.name)) uniqueByName.set(c.name, c);
   }
 
-  const existing = await db
-    .select({ id: merchants.id, name: merchants.name, logoUrl: merchants.logoUrl })
-    .from(merchants)
-    .where(
-      and(
-        eq(merchants.householdId, householdId),
-        inArray(merchants.name, [...uniqueByName.keys()]),
+  // Short-lived — not held open across the per-candidate favicon fetches
+  // (network I/O) below.
+  const existing = await withHousehold(householdId, (tx) =>
+    tx
+      .select({ id: merchants.id, name: merchants.name, logoUrl: merchants.logoUrl })
+      .from(merchants)
+      .where(
+        and(
+          eq(merchants.householdId, householdId),
+          inArray(merchants.name, [...uniqueByName.keys()]),
+        ),
       ),
-    );
+  db);
   const existingByName = new Map(existing.map((m) => [m.name, m]));
 
   const merchantIdByName = new Map<string, string>();
@@ -228,9 +236,11 @@ async function linkOrCreateMerchants(
         if (!found.logoUrl) {
           const logo = await fetchFaviconDataUri(candidate.domain);
           if (logo) {
-            await db.update(merchants)
-              .set({ logoUrl: logo, updatedAt: now })
-              .where(eq(merchants.id, found.id));
+            await withHousehold(householdId, (tx) =>
+              tx.update(merchants)
+                .set({ logoUrl: logo, updatedAt: now })
+                .where(eq(merchants.id, found.id)),
+            db);
           }
         }
         return;
@@ -238,15 +248,17 @@ async function linkOrCreateMerchants(
 
       const logo = await fetchFaviconDataUri(candidate.domain);
       const id = uuid();
-      await db.insert(merchants).values({
-        id,
-        householdId,
-        name,
-        rawNames: JSON.stringify([candidate.rawName]),
-        logoUrl: logo,
-        createdAt: now,
-        updatedAt: now,
-      });
+      await withHousehold(householdId, (tx) =>
+        tx.insert(merchants).values({
+          id,
+          householdId,
+          name,
+          rawNames: JSON.stringify([candidate.rawName]),
+          logoUrl: logo,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      db);
       merchantIdByName.set(name, id);
     }),
   );

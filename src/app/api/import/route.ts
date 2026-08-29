@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession, getHouseholdId } from "@/lib/auth/session";
 import { guardDemoMode } from "@/lib/demo-mode";
 import { scopedQuery } from "@/lib/scoped-query";
-import { db } from "@/db";
+import { withHousehold } from "@/lib/household-context";
 import { transactions, accounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
@@ -88,12 +88,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const scoped = scopedQuery(householdId);
-    const [account] = await db
-      .select({ id: accounts.id, type: accounts.type })
-      .from(accounts)
-      .where(scoped.where(accounts, eq(accounts.id, accountId)))
-      .limit(1);
+    const account = await withHousehold(householdId, (tx) => {
+      const scoped = scopedQuery(householdId, tx);
+      return tx
+        .select({ id: accounts.id, type: accounts.type })
+        .from(accounts)
+        .where(scoped.where(accounts, eq(accounts.id, accountId)))
+        .limit(1)
+        .then(([row]) => row ?? null);
+    });
 
     if (!account) {
       return NextResponse.json(
@@ -151,7 +154,7 @@ export async function POST(request: Request) {
       unparseableCount = skipped.length;
     }
 
-    const { unique, duplicates } = await findDuplicates(normalized, accountId, db);
+    const { unique, duplicates } = await withHousehold(householdId, (tx) => findDuplicates(normalized, accountId, tx));
 
     if (duplicates.length > 0 && !skipDuplicates) {
       return NextResponse.json({
@@ -169,7 +172,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ imported: 0, skipped: normalized.length, unparseableCount });
     }
 
-    await db.transaction(async (tx) => {
+    await withHousehold(householdId, async (tx) => {
       for (const row of toInsert) {
         await tx.insert(transactions)
           .values({

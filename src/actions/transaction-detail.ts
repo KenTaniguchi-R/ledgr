@@ -9,6 +9,7 @@ import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, countRows } from "@/lib/query-helpers";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 import { getHouseholdId } from "@/lib/auth/session";
+import { withHousehold } from "@/lib/household-context";
 import { getTransactionDetail, type TransactionDetail } from "@/queries/transactions";
 
 const transactionIdSchema = z.string().min(1);
@@ -42,7 +43,7 @@ export async function fetchTransactionDetail(
   const parsed = transactionIdSchema.safeParse(transactionId);
   if (!parsed.success) return { error: "Invalid input" };
 
-  const detail = await getTransactionDetail(householdId, parsed.data, db);
+  const detail = await withHousehold(householdId, (tx) => getTransactionDetail(householdId, parsed.data, tx), db);
   if (!detail) return { error: "deleted" };
 
   return { data: detail };
@@ -62,50 +63,50 @@ export async function updateTransactionFields(
   const parsedData = updateFieldsSchema.safeParse(data);
   if (!parsedId.success || !parsedData.success) return { error: "Invalid input" };
 
-  const scoped = scopedQuery(householdId, db);
-  const [existing] = await db
-    .select({
-      id: transactions.id,
-      externalId: transactions.externalId,
-      transferPairId: transactions.transferPairId,
-    })
-    .from(transactions)
-    .where(
-      scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)),
-    )
-    .limit(1);
-
-  if (!existing) return { error: "Transaction not found" };
-
   const fields = parsedData.data;
 
-  if (fields.date && existing.externalId) {
-    return { error: "Cannot edit date on bank-synced transactions" };
-  }
+  return withHousehold(householdId, async (tx) => {
+    const scoped = scopedQuery(householdId, tx);
+    const [existing] = await tx
+      .select({
+        id: transactions.id,
+        externalId: transactions.externalId,
+        transferPairId: transactions.transferPairId,
+      })
+      .from(transactions)
+      .where(
+        scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)),
+      )
+      .limit(1);
 
-  if (fields.isTransfer === false && existing.transferPairId) {
-    await db.transaction(async (tx) => {
+    if (!existing) return { error: "Transaction not found" };
+
+    if (fields.date && existing.externalId) {
+      return { error: "Cannot edit date on bank-synced transactions" };
+    }
+
+    if (fields.isTransfer === false && existing.transferPairId) {
       await tx.update(transactions)
         .set({ isTransfer: false, transferPairId: null, updatedAt: new Date() })
         .where(eq(transactions.id, existing.id));
       await tx.update(transactions)
         .set({ isTransfer: false, transferPairId: null, updatedAt: new Date() })
-        .where(eq(transactions.id, existing.transferPairId!));
-    });
-    if (Object.keys(fields).length === 1) return { success: true };
-  }
+        .where(eq(transactions.id, existing.transferPairId));
+      if (Object.keys(fields).length === 1) return { success: true };
+    }
 
-  const updates: Partial<typeof transactions.$inferInsert> = { updatedAt: new Date() };
-  if (fields.name !== undefined) updates.name = fields.name;
-  if (fields.notes !== undefined) updates.notes = fields.notes;
-  if (fields.date !== undefined) updates.date = fields.date;
-  if (fields.isTransfer !== undefined) updates.isTransfer = fields.isTransfer;
+    const updates: Partial<typeof transactions.$inferInsert> = { updatedAt: new Date() };
+    if (fields.name !== undefined) updates.name = fields.name;
+    if (fields.notes !== undefined) updates.notes = fields.notes;
+    if (fields.date !== undefined) updates.date = fields.date;
+    if (fields.isTransfer !== undefined) updates.isTransfer = fields.isTransfer;
 
-  await db.update(transactions)
-    .set(updates)
-    .where(eq(transactions.id, existing.id));
+    await tx.update(transactions)
+      .set(updates)
+      .where(eq(transactions.id, existing.id));
 
-  return { success: true };
+    return { success: true };
+  }, db);
 }
 
 
@@ -126,15 +127,18 @@ export async function upsertSplit(
   const parsedData = splitSchema.safeParse(data);
   if (!parsedId.success || !parsedData.success) return { error: "Invalid input" };
 
-  const scoped = scopedQuery(householdId, db);
-  const [txn] = await db
-    .select({
-      id: transactions.id,
-      normalizedAmount: transactions.normalizedAmount,
-    })
-    .from(transactions)
-    .where(scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)))
-    .limit(1);
+  const txn = await withHousehold(householdId, async (tx) => {
+    const scoped = scopedQuery(householdId, tx);
+    const [row] = await tx
+      .select({
+        id: transactions.id,
+        normalizedAmount: transactions.normalizedAmount,
+      })
+      .from(transactions)
+      .where(scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)))
+      .limit(1);
+    return row ?? null;
+  }, db);
 
   if (!txn) return { error: "Transaction not found" };
 
@@ -215,16 +219,16 @@ export async function deleteSplit(
 
   if (!split) return { error: "Split not found" };
 
-  const scoped = scopedQuery(householdId, db);
-  const [txn] = await db
-    .select({ id: transactions.id })
-    .from(transactions)
-    .where(scoped.where(transactions, eq(transactions.id, split.transactionId), notDeleted(transactions)))
-    .limit(1);
+  return withHousehold(householdId, async (tx) => {
+    const scoped = scopedQuery(householdId, tx);
+    const [txn] = await tx
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(scoped.where(transactions, eq(transactions.id, split.transactionId), notDeleted(transactions)))
+      .limit(1);
 
-  if (!txn) return { error: "Transaction not found" };
+    if (!txn) return { error: "Transaction not found" };
 
-  return db.transaction(async (tx) => {
     await tx.delete(transactionSplits)
       .where(eq(transactionSplits.id, split.id));
 
@@ -241,5 +245,5 @@ export async function deleteSplit(
     }
 
     return { success: true };
-  });
+  }, db);
 }

@@ -19,6 +19,7 @@ import {
 import { seedDefaultCategories } from "@/db/seed/categories";
 import { encrypt } from "@/lib/encryption";
 import { DEMO_HOUSEHOLD_ID } from "@/lib/demo-mode";
+import { withHousehold } from "@/lib/household-context";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,7 +78,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
 
   const now = new Date();
 
-  await db.transaction(async (tx) => {
+  await withHousehold(DEMO_HOUSEHOLD_ID, async (tx) => {
     // ------------------------------------------------------------------
     // 1. Household
     // ------------------------------------------------------------------
@@ -718,5 +719,5 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
     for (let i = 0; i < holdingsHistoryRows.length; i += BATCH_SIZE) {
       await tx.insert(holdingsHistory).values(holdingsHistoryRows.slice(i, i + BATCH_SIZE));
     }
-  });
+  }, db);
 }

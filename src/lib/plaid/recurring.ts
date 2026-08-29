@@ -9,6 +9,7 @@ import { plaidAmountToCents } from "@/lib/money";
 import { titleCase } from "@/lib/text-utils";
 import type { LedgrDb } from "@/db";
 import { db as defaultDb } from "@/db";
+import { withHousehold } from "@/lib/household-context";
 import {
   recurringTransactions,
   transactions,
@@ -70,7 +71,7 @@ export async function syncRecurringTransactions(
     const now = new Date();
     const seenStreamIds = new Set<string>();
 
-    const result = await db.transaction(async (tx) => {
+    const result = await withHousehold(householdId, async (tx) => {
       let upserted = 0;
       let deactivated = 0;
 
@@ -199,7 +200,7 @@ export async function syncRecurringTransactions(
       }
 
       return { upserted, deactivated };
-    });
+    }, db);
 
     return result;
   } catch (err) {

@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { setBudgetCategoryScoped } from "@/actions/budgets";
 import { getCurrentMonth } from "@/lib/date-utils";
+import { withHousehold } from "@/lib/household-context";
 import { centsToDisplay } from "@/lib/money";
 import { READ_ANNOTATIONS, WRITE_ANNOTATIONS } from "../constants";
 import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
@@ -26,7 +27,7 @@ export function registerBudgetReadTools(server: McpServer, householdId: string) 
     },
     async (args) => {
       const month = args.month ?? getCurrentMonth();
-      const b = await getBudgetForMonth(householdId, month);
+      const b = await withHousehold(householdId, (tx) => getBudgetForMonth(householdId, month, tx));
 
       return jsonResult({
         budget: b.budget,

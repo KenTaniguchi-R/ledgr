@@ -10,6 +10,7 @@ import {
 import { notDeleted } from "@/lib/query-helpers";
 import { resolvedCategoryLabel } from "@/lib/labels";
 import { coalesce } from "@/lib/coalesce";
+import { withHousehold } from "@/lib/household-context";
 import { getAiConfig, createAiModel } from "./config";
 
 const categorizationSchema = z.object({
@@ -99,32 +100,52 @@ async function runCategorization(
   const model = createAiModel();
   if (!config || !model) return { categorized: 0, skipped: 0 };
 
-  const uncategorized = await db
-    .select({
-      id: transactions.id,
-      name: transactions.name,
-      amount: transactions.amount,
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.householdId, householdId),
-        isNull(transactions.categoryId),
-        isNull(transactions.aiCategorizationAttemptedAt),
-        notDeleted(transactions),
-      ),
-    );
+  // Short-lived transaction — not held open across the batched LLM calls below.
+  const initial = await withHousehold(householdId, async (tx) => {
+    const uncategorizedRows = await tx
+      .select({
+        id: transactions.id,
+        name: transactions.name,
+        amount: transactions.amount,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.householdId, householdId),
+          isNull(transactions.categoryId),
+          isNull(transactions.aiCategorizationAttemptedAt),
+          notDeleted(transactions),
+        ),
+      );
 
-  if (uncategorized.length === 0) return { categorized: 0, skipped: 0 };
+    if (uncategorizedRows.length === 0) return null;
 
-  const cats = await db
-    .select()
-    .from(categories)
-    .where(eq(categories.householdId, householdId));
-  const groups = await db
-    .select()
-    .from(categoryGroups)
-    .where(eq(categoryGroups.householdId, householdId));
+    const catRows = await tx
+      .select()
+      .from(categories)
+      .where(eq(categories.householdId, householdId));
+    const groupRows = await tx
+      .select()
+      .from(categoryGroups)
+      .where(eq(categoryGroups.householdId, householdId));
+
+    const exampleTxnRows = await tx
+      .select({ name: transactions.name, categoryId: transactions.categoryId })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.householdId, householdId),
+          eq(transactions.reviewed, true),
+        ),
+      )
+      .limit(10);
+
+    return { uncategorizedRows, catRows, groupRows, exampleTxnRows };
+  }, db);
+
+  if (!initial) return { categorized: 0, skipped: 0 };
+  const { uncategorizedRows: uncategorized, catRows: cats, groupRows: groups, exampleTxnRows: exampleRows } = initial;
+
   const groupMap = new Map(groups.map((g) => [g.id, g.name]));
 
   const categoryInfos: CategoryInfo[] = cats.map((c) => ({
@@ -133,17 +154,6 @@ async function runCategorization(
     groupName: groupMap.get(c.groupId) ?? "Other",
   }));
   const validCategoryIds = new Set(cats.map((c) => c.id));
-
-  const exampleRows = await db
-    .select({ name: transactions.name, categoryId: transactions.categoryId })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.householdId, householdId),
-        eq(transactions.reviewed, true),
-      ),
-    )
-    .limit(10);
 
   const examples = exampleRows
     .filter((e) => e.categoryId)
@@ -197,7 +207,7 @@ async function runCategorization(
       else idsByCategoryId.set(a.categoryId, [a.transactionId]);
     }
 
-    await db.transaction(async (tx) => {
+    await withHousehold(householdId, async (tx) => {
       for (const [categoryId, ids] of idsByCategoryId) {
         await tx.update(transactions)
           .set({ categoryId, categorySource: "ai", updatedAt: now })
@@ -206,7 +216,7 @@ async function runCategorization(
       await tx.update(transactions)
         .set({ aiCategorizationAttemptedAt: now })
         .where(inArray(transactions.id, [...batchIds]));
-    });
+    }, db);
     categorized += aboveThreshold.length;
   }
 

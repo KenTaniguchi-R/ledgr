@@ -11,6 +11,7 @@ import { SimplefinAccountsResponseSchema, resolveInstitution, type SimplefinAcco
 import { classifyPollError } from "./utils";
 import { fetchFaviconDataUri } from "@/lib/favicon";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
+import { withHousehold } from "@/lib/household-context";
 
 // SimpleFIN brokerages don't send a security type the way Plaid does — this
 // is just enough to distinguish crypto (relevant for allocation charts) from
@@ -181,7 +182,7 @@ async function applyToDb(
   const now = new Date();
   const today = todayDateString();
 
-  return db.transaction(async (tx) => {
+  return withHousehold(householdId, async (tx) => {
     const accountRows = await tx
       .select({ id: accounts.id, externalAccountId: accounts.externalAccountId })
       .from(accounts)
@@ -329,7 +330,7 @@ async function applyToDb(
       .where(eq(bankConnections.id, connectionId));
 
     return { addedCount, modifiedCount };
-  });
+  }, db);
 }
 
 // ---------------------------------------------------------------------------
@@ -359,6 +360,7 @@ export async function syncConnection(
 async function backfillInstitutionLogo(
   db: LedgrDb,
   connectionId: string,
+  householdId: string,
   syncedAccounts: SimplefinAccount[],
   connections: SimplefinConnection[] | null | undefined,
 ): Promise<void> {
@@ -379,10 +381,12 @@ async function backfillInstitutionLogo(
   // connectionId; do the same here rather than assuming syncedAccounts[0]
   // belongs to this institution, or the wrong org's domain (and icon) gets
   // cached for it.
-  const registered = await db
-    .select({ externalAccountId: accounts.externalAccountId })
-    .from(accounts)
-    .where(and(eq(accounts.bankConnectionId, connectionId), isNull(accounts.deletedAt)));
+  const registered = await withHousehold(householdId, (tx) =>
+    tx
+      .select({ externalAccountId: accounts.externalAccountId })
+      .from(accounts)
+      .where(and(eq(accounts.bankConnectionId, connectionId), isNull(accounts.deletedAt))),
+  db);
   const registeredIds = new Set(registered.map((r) => r.externalAccountId));
 
   const account = syncedAccounts.find((a) => registeredIds.has(a.id));
@@ -407,15 +411,31 @@ async function doSync(
   const now = new Date();
 
   try {
-    const [connection] = await db
-      .select()
-      .from(bankConnections)
-      .where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)))
-      .limit(1);
+    // Kept as its own short-lived transaction — not held open across the
+    // SimpleFIN API round trip that follows.
+    const initial = await withHousehold(householdId, async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(bankConnections)
+        .where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)))
+        .limit(1);
 
-    if (!connection) {
+      if (!row) return null;
+
+      const [lastSyncRow] = await tx
+        .select({ syncedAt: syncLog.syncedAt })
+        .from(syncLog)
+        .where(eq(syncLog.connectionId, connectionId))
+        .orderBy(desc(syncLog.syncedAt))
+        .limit(1);
+
+      return { connection: row, lastSync: lastSyncRow };
+    }, db);
+
+    if (!initial) {
       return { success: false, error: `SimpleFIN connection ${connectionId} not found` };
     }
+    const { connection, lastSync } = initial;
 
     const accessUrl = decrypt(connection.credential);
 
@@ -425,13 +445,6 @@ async function doSync(
     // start-date unset here would let each SimpleFIN bridge apply its own
     // (usually short, ~7-day) default window, so request a full year of
     // history explicitly instead.
-    const [lastSync] = await db
-      .select({ syncedAt: syncLog.syncedAt })
-      .from(syncLog)
-      .where(eq(syncLog.connectionId, connectionId))
-      .orderBy(desc(syncLog.syncedAt))
-      .limit(1);
-
     const INITIAL_SYNC_LOOKBACK_DAYS = 365;
     const startDate = lastSync
       ? Math.floor(lastSync.syncedAt.getTime() / 1000) - 7 * 24 * 60 * 60
@@ -454,7 +467,7 @@ async function doSync(
     // reusing the institution data this sync already fetched rather than
     // requiring a reconnect.
     try {
-      await backfillInstitutionLogo(db, connectionId, parsed.accounts, parsed.connections);
+      await backfillInstitutionLogo(db, connectionId, householdId, parsed.accounts, parsed.connections);
     } catch (logoError) {
       console.error("Institution logo backfill failed for connection", JSON.stringify(connectionId), logoError);
     }
@@ -492,17 +505,19 @@ async function doSync(
   } catch (err: unknown) {
     const { status, errorCode, message } = classifyPollError(err);
 
-    await db.update(bankConnections)
-      .set({ status, errorCode, updatedAt: now })
-      .where(eq(bankConnections.id, connectionId));
+    await withHousehold(householdId, async (tx) => {
+      await tx.update(bankConnections)
+        .set({ status, errorCode, updatedAt: now })
+        .where(eq(bankConnections.id, connectionId));
 
-    await db.insert(syncLog)
-      .values({
-        id: uuid(),
-        connectionId,
-        error: message,
-        syncedAt: now,
-      });
+      await tx.insert(syncLog)
+        .values({
+          id: uuid(),
+          connectionId,
+          error: message,
+          syncedAt: now,
+        });
+    }, db);
 
     return { success: false, error: message };
   }

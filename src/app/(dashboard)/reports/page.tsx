@@ -1,4 +1,5 @@
 import { getHouseholdId } from "@/lib/auth/session";
+import { withHousehold } from "@/lib/household-context";
 import { getCategories } from "@/queries/categories";
 import { getAccounts } from "@/queries/accounts";
 import {
@@ -79,12 +80,13 @@ export default async function ReportsPage({
 
   switch (tab) {
     case "spending":
-      spendingData = await getSpendingByCategory(householdId, filters, undefined, compPeriod);
+      spendingData = await withHousehold(householdId, (tx) =>
+        getSpendingByCategory(householdId, filters, tx, compPeriod));
       break;
     case "income-expense": {
       const [ie, ieCat] = await Promise.all([
-        getIncomeVsExpense(householdId, filters),
-        getIncomeExpenseByCategory(householdId, filters),
+        withHousehold(householdId, (tx) => getIncomeVsExpense(householdId, filters, tx)),
+        withHousehold(householdId, (tx) => getIncomeExpenseByCategory(householdId, filters, tx)),
       ]);
       incomeExpenseData = ie;
       incomeExpenseCategoryData = ieCat;
@@ -92,9 +94,9 @@ export default async function ReportsPage({
     }
     case "cash-flow": {
       const [sankey, safeToSpend, cashFlowBar] = await Promise.all([
-        getCashFlowSankey(householdId, filters),
-        getSafeToSpend(householdId),
-        getIncomeVsExpense(householdId, filters),
+        withHousehold(householdId, (tx) => getCashFlowSankey(householdId, filters, tx)),
+        withHousehold(householdId, (tx) => getSafeToSpend(householdId, tx)),
+        withHousehold(householdId, (tx) => getIncomeVsExpense(householdId, filters, tx)),
       ]);
       sankeyData = sankey;
       safeToSpendData = safeToSpend;
@@ -102,7 +104,7 @@ export default async function ReportsPage({
       break;
     }
     case "trends":
-      trendsData = await getCategoryTrends(householdId, filters);
+      trendsData = await withHousehold(householdId, (tx) => getCategoryTrends(householdId, filters, tx));
       break;
     case "net-worth":
       netWorthData = await getReportNetWorthHistory(householdId, filters);

@@ -18,6 +18,7 @@ import {
 } from "./utils";
 import { titleCase } from "@/lib/text-utils";
 import { cleanTransactionName } from "@/lib/import/clean-name";
+import { withHousehold } from "@/lib/household-context";
 import type { LedgrDb } from "@/db";
 import {
   bankConnections,
@@ -251,7 +252,7 @@ async function applyToDb(
 ): Promise<{ addedCount: number; modifiedCount: number; removedCount: number }> {
   const now = new Date();
 
-  return db.transaction(async (tx) => {
+  return withHousehold(householdId, async (tx) => {
     // --- Build account lookup: plaid_account_id → internal account id ---
     const accountRows = await tx
       .select({ id: accounts.id, externalAccountId: accounts.externalAccountId })
@@ -535,7 +536,7 @@ async function applyToDb(
       .where(eq(bankConnections.id, itemId));
 
     return { addedCount, modifiedCount, removedCount };
-  });
+  }, db);
 }
 
 // ---------------------------------------------------------------------------
@@ -573,43 +574,49 @@ async function doSync(
   const now = new Date();
 
   try {
-    // Read bank_connections row
-    const [item] = await db
-      .select()
-      .from(bankConnections)
-      .where(
-        and(eq(bankConnections.id, itemId), eq(bankConnections.householdId, householdId)),
-      )
-      .limit(1);
+    // Read bank_connections row + build accountTypeMap. Kept as its own
+    // short-lived transaction — not held open across the Plaid API round
+    // trip (with retries) that follows.
+    const initial = await withHousehold(householdId, async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(bankConnections)
+        .where(
+          and(eq(bankConnections.id, itemId), eq(bankConnections.householdId, householdId)),
+        )
+        .limit(1);
 
-    if (!item) {
+      if (!row) return null;
+
+      const accountRows = await tx
+        .select({
+          externalAccountId: accounts.externalAccountId,
+          type: accounts.type,
+        })
+        .from(accounts)
+        .where(
+          and(
+            eq(accounts.householdId, householdId),
+            eq(accounts.bankConnectionId, itemId),
+            isNull(accounts.deletedAt),
+          ),
+        );
+
+      const map = new Map<string, string>();
+      for (const r of accountRows) {
+        if (r.externalAccountId) map.set(r.externalAccountId, r.type);
+      }
+
+      return { item: row, accountTypeMap: map };
+    }, db);
+
+    if (!initial) {
       return { success: false, error: `Plaid item ${itemId} not found` };
     }
+    const { item, accountTypeMap } = initial;
 
     // Decrypt access token
     const accessToken = decrypt(item.credential);
-
-    // Build accountTypeMap
-    const accountRows = await db
-      .select({
-        externalAccountId: accounts.externalAccountId,
-        type: accounts.type,
-      })
-      .from(accounts)
-      .where(
-        and(
-          eq(accounts.householdId, householdId),
-          eq(accounts.bankConnectionId, itemId),
-          isNull(accounts.deletedAt),
-        ),
-      );
-
-    const accountTypeMap = new Map<string, string>();
-    for (const row of accountRows) {
-      if (row.externalAccountId) {
-        accountTypeMap.set(row.externalAccountId, row.type);
-      }
-    }
 
     // Fetch all pages
     const client = getPlaidClient();
@@ -671,33 +678,36 @@ async function doSync(
     const errorMessage =
       err instanceof Error ? err.message : "Unknown sync error";
 
-    // Classify error and update item status
-    if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
-      await db.update(bankConnections)
-        .set({
-          status: "reauth_required",
-          errorCode,
-          updatedAt: now,
-        })
-        .where(eq(bankConnections.id, itemId));
-    } else if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
-      await db.update(bankConnections)
-        .set({
-          status: "error",
-          errorCode,
-          updatedAt: now,
-        })
-        .where(eq(bankConnections.id, itemId));
-    }
+    // Classify error and update item status. sync_log has no householdId
+    // column (not RLS-scoped), but bank_connections does, so both still need
+    // to run inside withHousehold to actually write the status update.
+    await withHousehold(householdId, async (tx) => {
+      if (errorCode && REAUTH_ERROR_CODES.has(errorCode)) {
+        await tx.update(bankConnections)
+          .set({
+            status: "reauth_required",
+            errorCode,
+            updatedAt: now,
+          })
+          .where(eq(bankConnections.id, itemId));
+      } else if (errorCode && TRANSIENT_ERROR_CODES.has(errorCode)) {
+        await tx.update(bankConnections)
+          .set({
+            status: "error",
+            errorCode,
+            updatedAt: now,
+          })
+          .where(eq(bankConnections.id, itemId));
+      }
 
-    // Write error sync_log entry
-    await db.insert(syncLog)
-      .values({
-        id: uuid(),
-        connectionId: itemId,
-        error: errorCode ?? errorMessage,
-        syncedAt: now,
-      });
+      await tx.insert(syncLog)
+        .values({
+          id: uuid(),
+          connectionId: itemId,
+          error: errorCode ?? errorMessage,
+          syncedAt: now,
+        });
+    }, db);
 
     return { success: false, error: errorCode ?? errorMessage };
   }

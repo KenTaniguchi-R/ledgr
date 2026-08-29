@@ -1,17 +1,11 @@
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { sql } from "drizzle-orm";
-import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import type * as schema from "@/db/schema";
-
-// `db.transaction(cb)` hands `cb` a PgTransaction, not a NodePgDatabase — the
-// two share the query-builder surface (PgTransaction extends PgDatabase) but
-// aren't the same type, so LedgrDb (typed as `typeof db`, which pins
-// `$client: Pool`) doesn't accept a transaction. This is the common base
-// both satisfy.
-type LedgrQueryable = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 /**
- * RLS PILOT — see docs/rls-pilot.md. Not wired into any call site yet.
+ * RLS PILOT — see docs/rls-pilot.md. Wired into every call site that touches
+ * `transactions` (the only table with RLS enabled so far). Still inert in
+ * any deployment where the app connects as a superuser/BYPASSRLS role —
+ * see docs/rls-pilot.md for the role-separation prerequisite.
  *
  * Runs `work` inside a Postgres transaction with `app.household_id` set via
  * SET LOCAL, so the household_isolation RLS policy on `transactions` (and,
@@ -30,7 +24,7 @@ type LedgrQueryable = PgDatabase<PgQueryResultHKT, typeof schema>;
  */
 export async function withHousehold<T>(
   householdId: string,
-  work: (tx: LedgrQueryable) => Promise<T>,
+  work: (tx: LedgrDb) => Promise<T>,
   db: LedgrDb = defaultDb,
 ): Promise<T> {
   return db.transaction(async (tx) => {

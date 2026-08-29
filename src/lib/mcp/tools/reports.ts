@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { getSpendingByCategory, getIncomeVsExpense } from "@/queries/reports";
 import { centsToDisplay } from "@/lib/money";
+import { withHousehold } from "@/lib/household-context";
 import { READ_ANNOTATIONS } from "../constants";
 import { JSON_RESULT_SCHEMA, jsonResult } from "../tool-result";
 
@@ -22,12 +23,13 @@ export function registerReportTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {
-      const rows = await getSpendingByCategory(householdId, {
-        dateFrom: args.dateFrom,
-        dateTo: args.dateTo,
-        accountIds: args.accountIds,
-        categoryIds: args.categoryIds,
-      });
+      const rows = await withHousehold(householdId, (tx) =>
+        getSpendingByCategory(householdId, {
+          dateFrom: args.dateFrom,
+          dateTo: args.dateTo,
+          accountIds: args.accountIds,
+          categoryIds: args.categoryIds,
+        }, tx));
 
       return jsonResult(
         rows.map((r) => ({
@@ -59,11 +61,12 @@ export function registerReportTools(server: McpServer, householdId: string) {
       annotations: READ_ANNOTATIONS,
     },
     async (args) => {
-      const rows = await getIncomeVsExpense(householdId, {
-        dateFrom: args.dateFrom,
-        dateTo: args.dateTo,
-        accountIds: args.accountIds,
-      });
+      const rows = await withHousehold(householdId, (tx) =>
+        getIncomeVsExpense(householdId, {
+          dateFrom: args.dateFrom,
+          dateTo: args.dateTo,
+          accountIds: args.accountIds,
+        }, tx));
 
       return jsonResult(
         rows.map((r) => ({

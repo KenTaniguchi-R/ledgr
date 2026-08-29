@@ -1,25 +1,46 @@
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { accounts, balanceHistory, transactions } from "@/db/schema";
+import { accounts, balanceHistory, transactions, households } from "@/db/schema";
 import { todayDateString } from "@/lib/date-utils";
+import { withHousehold } from "@/lib/household-context";
 import { v4 as uuid } from "uuid";
 
 /**
  * Reconstructs approximate historical daily balances for all eligible accounts
- * by walking backward from the current balance using posted transactions.
+ * in every household, by walking backward from the current balance using
+ * posted transactions.
  *
  * - Skips investment accounts (use Plaid investments endpoint instead)
  * - Skips hidden and deleted accounts
  * - Skips accounts without a currentBalance
  * - Non-destructive: uses onConflictDoNothing so existing rows are preserved
+ *
+ * Cross-household by design (an operator maintenance job, run via `pnpm
+ * backfill-balances` — not reachable from the app), so it can't run inside a
+ * single withHousehold() transaction like household-scoped app code does.
+ * Instead it loops one household at a time, each in its own transaction —
+ * this also keeps it correct if it's ever run through the restricted
+ * APP_DATABASE_URL role instead of the admin one (docs/rls-pilot.md).
  */
 export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<void> {
-  // 1. Get all eligible accounts
+  const allHouseholds = await db.select({ id: households.id }).from(households);
+  for (const { id: householdId } of allHouseholds) {
+    await backfillForHousehold(householdId, db);
+  }
+}
+
+async function backfillForHousehold(householdId: string, db: LedgrDb): Promise<void> {
+  return withHousehold(householdId, (tx) => backfillForHouseholdTx(householdId, tx), db);
+}
+
+async function backfillForHouseholdTx(householdId: string, db: LedgrDb): Promise<void> {
+  // 1. Get all eligible accounts for this household
   const allAccounts = await db
     .select()
     .from(accounts)
     .where(
       and(
+        eq(accounts.householdId, householdId),
         isNull(accounts.deletedAt),
         eq(accounts.isHidden, false),
       )

@@ -67,13 +67,13 @@ export const transactions = pgTable(
     index("idx_txn_household_reviewed_date").on(table.householdId, table.reviewed, table.date),
     index("idx_txn_household_transfer_date").on(table.householdId, table.isTransfer, table.date),
     index("idx_txn_household_date_id").on(table.householdId, table.date, table.id),
-    // RLS PILOT — not yet load-bearing. This policy only has effect for a
-    // non-superuser, non-BYPASSRLS connection; the app currently connects as
-    // the POSTGRES_USER role, which the official postgres image grants
-    // superuser, so this is inert until deployment adds a restricted app
-    // role (see docs/rls-pilot.md). Also requires every call site touching
-    // `transactions` to run inside withHousehold() (src/lib/household-context.ts)
-    // so `app.household_id` is actually set — most call sites don't yet.
+    // RLS PILOT — every call site touching `transactions` now runs inside
+    // withHousehold() (src/lib/household-context.ts), which sets
+    // app.household_id per this policy's requirement. Still not load-bearing
+    // in a default deployment, though: this policy only has effect for a
+    // non-superuser, non-BYPASSRLS connection, and the app currently connects
+    // as the POSTGRES_USER role, which the official postgres image grants
+    // superuser. See docs/rls-pilot.md for the remaining role-separation step.
     pgPolicy("household_isolation", {
       for: "all",
       using: sql`household_id = current_setting('app.household_id', true)`,

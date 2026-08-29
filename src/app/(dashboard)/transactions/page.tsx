@@ -1,4 +1,5 @@
 import { getHouseholdId } from "@/lib/auth/session";
+import { withHousehold } from "@/lib/household-context";
 import {
   getTransactions,
   getTransactionSummary,
@@ -26,11 +27,13 @@ export default async function TransactionsPage({
     .some(([, v]) => v !== undefined);
 
   const [page, allCategories, allAccounts, summary, unreviewedSummary] = await Promise.all([
-    getTransactions(householdId, filters),
+    withHousehold(householdId, (tx) => getTransactions(householdId, filters, undefined, undefined, tx)),
     getCategories(householdId),
     getAccounts(householdId),
-    hasAnyFilters ? getTransactionSummary(householdId, filters) : Promise.resolve(null),
-    getTransactionSummary(householdId, { reviewed: false }),
+    hasAnyFilters
+      ? withHousehold(householdId, (tx) => getTransactionSummary(householdId, filters, tx))
+      : Promise.resolve(null),
+    withHousehold(householdId, (tx) => getTransactionSummary(householdId, { reviewed: false }, tx)),
   ]);
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
 

@@ -1,12 +1,13 @@
 import { centsToDisplay } from "@/lib/money";
 import { getCurrentMonth, monthBounds, formatMonthLong, todayDateString } from "@/lib/date-utils";
+import { withHousehold } from "@/lib/household-context";
 import { getMonthlySpending, getNetWorthHistory } from "@/queries/dashboard";
 import { getTransactions } from "@/queries/transactions";
 import { getBudgetForMonth } from "@/queries/budgets";
 
 export async function spendingBreakdownData(householdId: string, month?: string) {
   const targetMonth = month ?? getCurrentMonth();
-  const spending = await getMonthlySpending(householdId, targetMonth);
+  const spending = await withHousehold(householdId, (tx) => getMonthlySpending(householdId, targetMonth, tx));
   const totalCents = spending.reduce((s, r) => s + r.total, 0);
 
   const categories = spending.map((r) => ({
@@ -28,7 +29,7 @@ export async function spendingBreakdownData(householdId: string, month?: string)
 
 export async function transactionTableData(householdId: string, limit?: number) {
   const txnLimit = limit ?? 25;
-  const page = await getTransactions(householdId, {}, txnLimit);
+  const page = await withHousehold(householdId, (tx) => getTransactions(householdId, {}, txnLimit, undefined, tx));
 
   const txnRows = page.rows.map((r) => ({
     date: r.date,
@@ -52,7 +53,7 @@ export async function transactionTableData(householdId: string, limit?: number) 
 
 export async function budgetProgressData(householdId: string, month?: string) {
   const targetMonth = month ?? getCurrentMonth();
-  const budget = await getBudgetForMonth(householdId, targetMonth);
+  const budget = await withHousehold(householdId, (tx) => getBudgetForMonth(householdId, targetMonth, tx));
 
   const allCategories = budget.groups.flatMap((g) =>
     g.categories.map((c) => ({

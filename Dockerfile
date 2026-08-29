@@ -50,6 +50,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 COPY --from=builder /app/src/db/migrations ./migrations
 COPY --from=builder /app/scripts/migrate.mjs ./migrations/migrate.mjs
+COPY --from=builder /app/scripts/ensure-app-role.mjs ./migrations/ensure-app-role.mjs
 COPY --from=migrate-deps /deps/node_modules ./migrations/node_modules
 COPY --from=builder --chmod=755 /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --from=builder --chmod=755 /app/scripts/ensure-secrets.sh ./ensure-secrets.sh
