@@ -7,6 +7,7 @@ import { claimSetupToken, simplefinRequest, SimplefinHttpError } from "@/lib/sim
 import { SimplefinAccountsResponseSchema, resolveInstitution } from "@/lib/simplefin/schemas";
 import { syncConnection } from "@/lib/simplefin/sync";
 import { fetchFaviconDataUri } from "@/lib/favicon";
+import { sanitizeMojibake } from "@/lib/text-utils";
 import { encrypt } from "@/lib/encryption";
 import { simplefinAmountToCents } from "@/lib/money";
 import { todayDateString } from "@/lib/date-utils";
@@ -182,7 +183,7 @@ export async function claimAndDiscoverAccountsDirect(
           institutionName,
           accounts: groupAccounts.map((account) => ({
             externalAccountId: account.id,
-            name: account.name,
+            name: sanitizeMojibake(account.name),
             currency: account.currency,
             currentBalanceCents: simplefinAmountToCents(account.balance),
             availableBalanceCents: account["available-balance"]
@@ -288,7 +289,7 @@ export async function confirmSimplefinAccountsDirect(
           const existing = existingLive ?? existingDeleted;
 
           const accountFields = {
-            name: account.name,
+            name: sanitizeMojibake(account.name),
             type: account.type,
             currentBalance: account.currentBalanceCents,
             availableBalance: account.availableBalanceCents,
