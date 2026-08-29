@@ -1,4 +1,4 @@
-import { eq, gte, lte, and, desc, inArray, isNull, sql } from "drizzle-orm";
+import { eq, gte, lte, lt, and, desc, inArray, isNull, sql } from "drizzle-orm";
 export { getInvestmentsSummary } from "./investments";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
@@ -146,38 +146,80 @@ export async function getNetWorthHistory(
   const assetIds = accountIds.filter(
     (id) => classifyAccountType(accountTypeMap.get(id) ?? "other") === "asset",
   );
-  const liabilityIds = accountIds.filter(
-    (id) => classifyAccountType(accountTypeMap.get(id) ?? "other") === "liability",
-  );
-
-  let result: NetWorthPoint[] = [];
+  // classifyAccountType is total over asset|liability, so anything not an
+  // asset is a liability — no separate liability list needed.
+  const result: NetWorthPoint[] = [];
   if (accountIds.length > 0) {
-    const inAssets = assetIds.length > 0 ? inArray(balanceHistory.accountId, assetIds) : sql`false`;
-    const inLiabilities =
-      liabilityIds.length > 0 ? inArray(balanceHistory.accountId, liabilityIds) : sql`false`;
+    const assetIdSet = new Set(assetIds);
+
+    // Last known balance per account, carried across dates. Snapshot coverage
+    // is uneven in practice — balance reconstruction fills depository accounts
+    // densely but leaves investment accounts with only occasional rows — so a
+    // date with no row for an account means "unchanged", never "worth zero".
+    // Summing only the rows present on each date silently zeroes those
+    // accounts and produces a wildly wrong series.
+    const lastBalanceByAccount = new Map<string, number>();
+
+    // Seed from the most recent balance *before* the window, so an account
+    // whose only snapshot predates dateFrom still contributes to every point.
+    if (dateFrom) {
+      const seeds = await db
+        .selectDistinctOn([balanceHistory.accountId], {
+          accountId: balanceHistory.accountId,
+          balance: balanceHistory.balance,
+        })
+        .from(balanceHistory)
+        .where(
+          and(
+            inArray(balanceHistory.accountId, accountIds),
+            lt(balanceHistory.date, dateFrom),
+          ),
+        )
+        .orderBy(balanceHistory.accountId, desc(balanceHistory.date));
+
+      for (const seed of seeds) {
+        lastBalanceByAccount.set(seed.accountId, seed.balance ?? 0);
+      }
+    }
 
     const conditions = [inArray(balanceHistory.accountId, accountIds)];
     if (dateFrom) {
       conditions.push(gte(balanceHistory.date, dateFrom));
     }
 
+    // Row volume here is accounts x snapshot-days, small enough that folding
+    // in JS is clearer than the SQL gap-fill equivalent.
     const rows = await db
       .select({
         date: balanceHistory.date,
-        assets: sql<number>`COALESCE(SUM(CASE WHEN ${inAssets} THEN ${balanceHistory.balance} ELSE 0 END), 0)`.mapWith(Number),
-        liabilities: sql<number>`COALESCE(SUM(CASE WHEN ${inLiabilities} THEN ${balanceHistory.balance} ELSE 0 END), 0)`.mapWith(Number),
+        accountId: balanceHistory.accountId,
+        balance: balanceHistory.balance,
       })
       .from(balanceHistory)
       .where(and(...conditions))
-      .groupBy(balanceHistory.date)
       .orderBy(balanceHistory.date);
 
-    result = rows.map(({ date, assets, liabilities }) => ({
-      date,
-      assets,
-      liabilities,
-      netWorth: assets - liabilities,
-    }));
+    const byDate = new Map<string, { accountId: string; balance: number }[]>();
+    for (const row of rows) {
+      const bucket = byDate.get(row.date) ?? [];
+      bucket.push({ accountId: row.accountId, balance: row.balance ?? 0 });
+      byDate.set(row.date, bucket);
+    }
+
+    for (const date of [...byDate.keys()].sort()) {
+      for (const row of byDate.get(date)!) {
+        lastBalanceByAccount.set(row.accountId, row.balance);
+      }
+
+      let assets = 0;
+      let liabilities = 0;
+      for (const [id, balance] of lastBalanceByAccount) {
+        if (assetIdSet.has(id)) assets += balance;
+        else liabilities += balance;
+      }
+
+      result.push({ date, assets, liabilities, netWorth: assets - liabilities });
+    }
   }
 
   // Synthetic today point from live currentBalance. Only emit it when at least
