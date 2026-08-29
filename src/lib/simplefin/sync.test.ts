@@ -178,6 +178,16 @@ describe("processHoldings", () => {
     expect(result[0].type).toBe("stock");
   });
 
+  it("classifies a SimpleFIN currency symbol as cash, not stock", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: "CUR:USD" })] })]);
+    expect(result[0].type).toBe("cash");
+  });
+
+  it("classifies a money-market sweep fund as cash, not stock", () => {
+    const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: "SPAXX" })] })]);
+    expect(result[0].type).toBe("cash");
+  });
+
   it("falls back to type other when there's no ticker at all", () => {
     const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: null })] })]);
     expect(result[0].type).toBe("other");

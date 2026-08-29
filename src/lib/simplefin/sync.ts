@@ -25,10 +25,25 @@ const KNOWN_ETF_SYMBOLS = new Set([
   "VOO", "VTI", "SPY", "IVV", "QQQ", "QQQM", "VXUS", "VUG", "VYM", "VEA", "VWO",
   "SCHD", "ARKK", "IWM", "DIA", "GLD", "SLV", "XLK", "XLF", "XLE", "XLV",
 ]);
+// Sweep/money-market positions. Without these they'd fall through to the
+// "stock" default and be charted as equity exposure, which is the opposite of
+// what they are.
+const KNOWN_CASH_SYMBOLS = new Set([
+  "SPAXX", "VMFXX", "SWVXX", "FDRXX", "VMRXX", "SPRXX", "FZFXX", "SNVXX", "SNSXX",
+]);
+
+/**
+ * SimpleFIN denotes a plain currency balance as `CUR:USD` and similar, rather
+ * than a security symbol.
+ */
+function isCurrencySymbol(ticker: string): boolean {
+  return ticker.startsWith("CUR:");
+}
 
 function inferHoldingType(symbol: string | null): HoldingRow["type"] {
   if (!symbol) return "other";
   const ticker = symbol.toUpperCase();
+  if (isCurrencySymbol(ticker) || KNOWN_CASH_SYMBOLS.has(ticker)) return "cash";
   if (KNOWN_CRYPTO_SYMBOLS.has(ticker)) return "crypto";
   if (KNOWN_BOND_SYMBOLS.has(ticker)) return "bond";
   if (KNOWN_ETF_SYMBOLS.has(ticker)) return "etf";
@@ -79,7 +94,7 @@ export interface HoldingRow {
   quantity: number;
   costBasis: number | null;
   currentValue: number;
-  type: "crypto" | "etf" | "bond" | "stock" | "other";
+  type: "crypto" | "etf" | "bond" | "stock" | "cash" | "other";
   currency: string;
 }
 
