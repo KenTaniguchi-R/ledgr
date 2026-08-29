@@ -22,9 +22,15 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Kept deliberately narrow. An earlier version excluded every path ending in a
+// static-looking extension (.json, .txt, .xml, …), which would have silently
+// exempted any future route such as /api/export/transactions.json from auth.
+// Files served out of `public/` live at the URL root — there is no `/public`
+// prefix to exclude — so name the handful of real ones instead. Anything else
+// public belongs in `publicPaths` above, which is covered by tests.
 export const config = {
-  // `public/` files are served at the URL root (not under a `/public` prefix), so
-  // excluding the literal segment "public" here matches nothing — exclude by
-  // static file extension instead.
-  matcher: ["/((?!_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|svg|json|txt|xml|webmanifest)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|icon-\\d+\\.png).*)"],
 };
+
+/** Exported for tests: the matcher above, as a RegExp over the pathname. */
+export const matcherPattern = new RegExp(`^${config.matcher[0]}$`);
