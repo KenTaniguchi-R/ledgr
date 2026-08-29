@@ -47,6 +47,16 @@ Claude: Based on your transactions, you spent $342.18 on dining out in April...
 - **CSV/OFX/QFX import & CSV export** — for accounts not supported by Plaid, and for getting your data out
 - **Self-hosted** — Docker Compose with PostgreSQL, your data never leaves your server
 
+<div align="center">
+<img src="docs/images/budgets.jpeg" alt="Ledgr budgets screen with per-category spending progress" width="800" />
+<br />
+<em>Monthly budgets by category, tracked against real spending</em>
+<br /><br />
+<img src="docs/images/reports.jpeg" alt="Ledgr spending report with category breakdown" width="800" />
+<br />
+<em>Spending, income, cash flow, trends, and net worth reports</em>
+</div>
+
 ## Quick Start
 
 Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
