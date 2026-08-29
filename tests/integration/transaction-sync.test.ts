@@ -391,6 +391,49 @@ describe("transaction sync integration", () => {
     expect(txns[0].amount).toBe(2500);
   });
 
+  it("preserves a user's manual transfer decision across a modified-transaction sync", async () => {
+    await setup();
+    await seedTestData(db);
+
+    const now = new Date();
+    await db.insert(transactions).values({
+      id: uuid(),
+      accountId: "acc-internal-checking",
+      householdId: HOUSEHOLD_ID,
+      externalId: TEST_TXN_IDS.modified1,
+      provider: "plaid",
+      date: "2026-05-01",
+      originalName: "AMAZON.COM OLD",
+      name: "Amazon",
+      amount: 1000,
+      normalizedAmount: -1000,
+      currency: "USD",
+      pending: false,
+      // The user said this is a transfer. The incoming modified payload has
+      // personal_finance_category: null, so PFC would derive isTransfer=false.
+      isTransfer: true,
+      transferSource: "manual",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    server.use(syncWithModifiedHandler);
+
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
+    expect(result.success).toBe(true);
+
+    const [row] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.externalId, TEST_TXN_IDS.modified1));
+
+    // The user's decision survives...
+    expect(row.isTransfer).toBe(true);
+    expect(row.transferSource).toBe("manual");
+    // ...while the rest of the row still updates normally.
+    expect(row.amount).toBe(2500);
+  });
+
   it("pending-to-posted transition soft-deletes pending row", async () => {
     await setup();
     await seedTestData(db);

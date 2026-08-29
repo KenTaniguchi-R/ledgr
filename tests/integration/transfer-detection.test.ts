@@ -40,6 +40,70 @@ describe("applyTransferDetection", () => {
     }
   });
 
+  it("never re-tags a pair the user explicitly rejected", async () => {
+    const { db, close } = await createTestDb();
+    try {
+      const { householdId } = await insertHousehold(db);
+      const { accountId: checkingId } = await insertAccount(db, householdId, { type: "checking" });
+      const { accountId: savingsId } = await insertAccount(db, householdId, { type: "savings" });
+
+      // A pair the detector would happily match, but which the user has
+      // already un-marked ("this is not a transfer").
+      const { transactionId: outflowId } = await insertTransaction(db, householdId, checkingId, {
+        date: "2026-05-10",
+        normalizedAmount: -50000,
+        amount: 50000,
+        transferSource: "manual_rejected",
+      });
+      const { transactionId: inflowId } = await insertTransaction(db, householdId, savingsId, {
+        date: "2026-05-10",
+        normalizedAmount: 50000,
+        amount: -50000,
+        transferSource: "manual_rejected",
+      });
+
+      const tagged = await applyTransferDetection(householdId, db);
+      expect(tagged).toBe(0);
+
+      const rows = await db.select().from(transactions).where(eq(transactions.householdId, householdId));
+      for (const id of [outflowId, inflowId]) {
+        const row = rows.find((r) => r.id === id)!;
+        expect(row.isTransfer).toBe(false);
+        expect(row.transferPairId).toBeNull();
+        expect(row.transferSource).toBe("manual_rejected");
+      }
+    } finally {
+      await close();
+    }
+  });
+
+  it("records transferSource 'auto' on pairs it tags itself", async () => {
+    const { db, close } = await createTestDb();
+    try {
+      const { householdId } = await insertHousehold(db);
+      const { accountId: checkingId } = await insertAccount(db, householdId, { type: "checking" });
+      const { accountId: savingsId } = await insertAccount(db, householdId, { type: "savings" });
+
+      await insertTransaction(db, householdId, checkingId, {
+        date: "2026-05-10",
+        normalizedAmount: -50000,
+        amount: 50000,
+      });
+      await insertTransaction(db, householdId, savingsId, {
+        date: "2026-05-10",
+        normalizedAmount: 50000,
+        amount: -50000,
+      });
+
+      expect(await applyTransferDetection(householdId, db)).toBe(1);
+
+      const rows = await db.select().from(transactions).where(eq(transactions.householdId, householdId));
+      expect(rows.every((r) => r.transferSource === "auto")).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
   it("is idempotent — a second call makes no further changes", async () => {
     const { db, close } = await createTestDb();
     try {
