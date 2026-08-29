@@ -19,6 +19,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Stryker leaves sandbox copies of the whole tree behind. Linting those
+    // repeats every finding once per sandbox and fails the run on code that
+    // is not ours to fix.
+    ".stryker-tmp/**",
   ]),
 ]);
 
