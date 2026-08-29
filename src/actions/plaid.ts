@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { Products, CountryCode } from "plaid";
 import { getPlaidClient } from "@/lib/plaid/client";
 import { encrypt, decrypt } from "@/lib/encryption";
-import { plaidAmountToCents } from "@/lib/money";
+import { plaidAmountToCents, plaidBalanceToCents } from "@/lib/money";
 import { mapPlaidAccountType, extractPlaidErrorCode, extractPlaidErrorMessage } from "@/lib/plaid/utils";
 import { todayDateString } from "@/lib/date-utils";
 import { getHouseholdId } from "@/lib/auth/session";
@@ -129,12 +129,15 @@ export async function exchangeAndStoreAccounts(
       }
 
       for (const acct of plaidAccounts) {
+        const accountType = mapPlaidAccountType(acct.type, acct.subtype ?? null);
         const accountFields = {
           name: acct.name,
           officialName: acct.official_name ?? null,
-          type: mapPlaidAccountType(acct.type, acct.subtype ?? null),
+          type: accountType,
           subtype: acct.subtype ?? null,
-          currentBalance: plaidAmountToCents(acct.balances.current ?? null),
+          // Plaid reports credit/loan balances positive when owed; Ledgr
+          // stores owed as negative. See db/schema/accounts.ts.
+          currentBalance: plaidBalanceToCents(acct.balances.current ?? null, accountType),
           availableBalance: plaidAmountToCents(acct.balances.available ?? null),
           creditLimit: plaidAmountToCents(acct.balances.limit ?? null),
           currency: acct.balances.iso_currency_code ?? "USD",

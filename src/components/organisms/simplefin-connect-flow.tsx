@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { inferAccountTypeFromName } from "@/lib/account-utils";
 import {
   Select,
   SelectContent,
@@ -95,7 +96,11 @@ export function SimplefinConnectFlow({ variant = "dropdown-item" }: SimplefinCon
             accounts.push({
               connectionId: connection.connectionId,
               ...account,
-              type: account.existingType ?? "checking",
+              // SimpleFIN sends no account type. Defaulting everything to
+              // "checking" filed credit cards as deposit accounts, so debt
+              // never registered — guess from the name and let the user
+              // correct it on this very screen.
+              type: account.existingType ?? inferAccountTypeFromName(account.name),
             });
           }
         }

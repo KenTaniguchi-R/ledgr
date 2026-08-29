@@ -8,6 +8,7 @@ import {
   simplefinAmountToCents,
   normalizeAmount,
   parseToCents,
+  plaidBalanceToCents,
 } from "./money";
 
 describe("money utilities", () => {
@@ -203,4 +204,43 @@ describe("money property-based tests", () => {
       }
     }
   );
+
+  describe("plaidBalanceToCents", () => {
+    it("flips Plaid's positive-when-owed balance for liability accounts", () => {
+      // Plaid: "For credit and loan accounts, a positive balance indicates
+      // amount owed." Ledgr stores owed as negative.
+      expect(plaidBalanceToCents(1048.93, "credit")).toBe(-104893);
+      expect(plaidBalanceToCents(8200, "loan")).toBe(-820000);
+    });
+
+    it("leaves asset balances untouched", () => {
+      expect(plaidBalanceToCents(1195.2, "checking")).toBe(119520);
+      expect(plaidBalanceToCents(12500, "savings")).toBe(1250000);
+      expect(plaidBalanceToCents(37351.62, "investment")).toBe(3735162);
+    });
+
+    it("keeps a lender-owes-you credit balance positive", () => {
+      // Negative in Plaid means the lender owes the holder, which is an asset.
+      expect(plaidBalanceToCents(-50, "credit")).toBe(5000);
+    });
+
+    it("never returns -0 for a zero liability balance", () => {
+      expect(Object.is(plaidBalanceToCents(0, "credit"), 0)).toBe(true);
+    });
+
+    it("passes null through", () => {
+      expect(plaidBalanceToCents(null, "credit")).toBeNull();
+      expect(plaidBalanceToCents(undefined, "checking")).toBeNull();
+    });
+
+    test.prop([fc.integer({ min: -9999999, max: 9999999 })])(
+      "net worth is the plain sum of normalized balances",
+      (cents) => {
+        const dollars = cents / 100;
+        const asset = plaidBalanceToCents(dollars, "checking")!;
+        const liability = plaidBalanceToCents(dollars, "credit")!;
+        expect(asset + liability).toBe(0);
+      }
+    );
+  });
 });

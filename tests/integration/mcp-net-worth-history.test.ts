@@ -40,12 +40,12 @@ describe("get_net_worth_history tool data path", () => {
     });
     const { accountId: creditId } = await insertAccount(db, householdId, {
       type: "credit",
-      currentBalance: 20000,
+      currentBalance: -20000,
     });
 
     const histDate = firstOfLastMonth();
     await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: histDate, balance: 70000 });
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: 15000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: -15000 });
 
     const points = await getNetWorthHistory(householdId, "3M", db);
     const wire = formatNetWorthHistory(points);

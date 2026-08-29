@@ -9,7 +9,7 @@ import {
   type PlaidTransaction,
   type PlaidRemovedTransaction,
 } from "./schemas";
-import { plaidAmountToCents, normalizeAmount } from "@/lib/money";
+import { plaidAmountToCents, plaidBalanceToCents, normalizeAmount } from "@/lib/money";
 import { decrypt } from "@/lib/encryption";
 import { getPlaidClient } from "./client";
 import {
@@ -257,7 +257,11 @@ async function applyToDb(
   return withHousehold(householdId, async (tx) => {
     // --- Build account lookup: plaid_account_id → internal account id ---
     const accountRows = await tx
-      .select({ id: accounts.id, externalAccountId: accounts.externalAccountId })
+      .select({
+        id: accounts.id,
+        externalAccountId: accounts.externalAccountId,
+        type: accounts.type,
+      })
       .from(accounts)
       .where(
         and(
@@ -268,7 +272,9 @@ async function applyToDb(
       );
 
     const plaidToInternal = new Map<string, string>();
+    const typeByInternalId = new Map<string, string>();
     for (const row of accountRows) {
+      typeByInternalId.set(row.id, row.type);
       if (row.externalAccountId) {
         plaidToInternal.set(row.externalAccountId, row.id);
       }
@@ -516,7 +522,12 @@ async function applyToDb(
 
       await tx.update(accounts)
         .set({
-          currentBalance: plaidAmountToCents(ab.balances.current),
+          // Plaid reports credit/loan balances positive when owed; Ledgr
+          // stores owed as negative. See db/schema/accounts.ts.
+          currentBalance: plaidBalanceToCents(
+            ab.balances.current,
+            typeByInternalId.get(internalId) ?? "other",
+          ),
           availableBalance: plaidAmountToCents(ab.balances.available),
           creditLimit: plaidAmountToCents(ab.balances.limit),
           updatedAt: now,

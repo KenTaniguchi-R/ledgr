@@ -26,8 +26,11 @@ export function formatNetWorthHistory(points: NetWorthPoint[]): NetWorthHistoryE
     date: p.date,
     assetsCents: p.assets,
     assetsDisplay: centsToDisplay(p.assets),
-    liabilitiesCents: p.liabilities,
-    liabilitiesDisplay: centsToDisplay(p.liabilities),
+    // Reported as a positive magnitude. Internally liabilities are stored
+    // negative (see db/schema/accounts.ts), but a field named "liabilities"
+    // handing an agent -$150 reads as a credit, not a debt.
+    liabilitiesCents: Math.abs(p.liabilities),
+    liabilitiesDisplay: centsToDisplay(Math.abs(p.liabilities)),
     netWorthCents: p.netWorth,
     netWorthDisplay: centsToDisplay(p.netWorth),
   }));

@@ -108,7 +108,9 @@ export async function getDashboardSummary(
   const monthlyExpenses = totals?.expenses ?? 0;
 
   return {
-    netWorth: totalAssets - totalLiabilities,
+    // Plain sum — liability balances are already stored negative, so
+    // subtracting them would add the debt. See schema/accounts.ts.
+    netWorth: totalAssets + totalLiabilities,
     monthlyIncome,
     monthlyExpenses,
     monthlyNet: monthlyIncome - monthlyExpenses,
@@ -218,7 +220,7 @@ export async function getNetWorthHistory(
         else liabilities += balance;
       }
 
-      result.push({ date, assets, liabilities, netWorth: assets - liabilities });
+      result.push({ date, assets, liabilities, netWorth: assets + liabilities });
     }
   }
 
@@ -248,7 +250,7 @@ export async function getNetWorthHistory(
     date: today,
     assets: todayAssets,
     liabilities: todayLiabilities,
-    netWorth: todayAssets - todayLiabilities,
+    netWorth: todayAssets + todayLiabilities,
   });
 
   return withoutToday;

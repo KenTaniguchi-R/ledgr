@@ -49,7 +49,7 @@ describe("getDashboardSummary", () => {
     });
     await insertAccount(db, householdId, {
       type: "credit",
-      currentBalance: 50000,
+      currentBalance: -50000,
     });
 
     const thisMonth = new Date().toISOString().slice(0, 7);
@@ -123,7 +123,7 @@ describe("getNetWorthHistory", () => {
     });
     const { accountId: creditId } = await insertAccount(db, householdId, {
       type: "credit",
-      currentBalance: 20000,
+      currentBalance: -20000,
     });
 
     // A historical date inside the 3M window but not today: first of last month.
@@ -136,7 +136,7 @@ describe("getNetWorthHistory", () => {
     })();
 
     await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: histDate, balance: 70000 });
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: 15000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: -15000 });
 
     const result = await getNetWorthHistory(householdId, "3M", db);
 
@@ -145,14 +145,14 @@ describe("getNetWorthHistory", () => {
     const historicalPoint = result.find((r) => r.date === histDate);
     expect(historicalPoint).toBeDefined();
     expect(historicalPoint!.assets).toBe(70000);
-    expect(historicalPoint!.liabilities).toBe(15000);
+    expect(historicalPoint!.liabilities).toBe(-15000);
     expect(historicalPoint!.netWorth).toBe(55000);
 
     const today = todayDateString();
     const todayPoint = result.find((r) => r.date === today);
     expect(todayPoint).toBeDefined();
     expect(todayPoint!.assets).toBe(80000);
-    expect(todayPoint!.liabilities).toBe(20000);
+    expect(todayPoint!.liabilities).toBe(-20000);
     expect(todayPoint!.netWorth).toBe(60000);
   });
 
@@ -172,15 +172,15 @@ describe("getNetWorthHistory", () => {
 
     await db.insert(balanceHistory).values({ id: uuid(), accountId: checkingId, date: histDate, balance: 40000 });
     await db.insert(balanceHistory).values({ id: uuid(), accountId: savingsId, date: histDate, balance: 60000 });
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: 25000 });
-    await db.insert(balanceHistory).values({ id: uuid(), accountId: loanId, date: histDate, balance: 5000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: creditId, date: histDate, balance: -25000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: loanId, date: histDate, balance: -5000 });
 
     const result = await getNetWorthHistory(householdId, "3M", db);
 
     const point = result.find((r) => r.date === histDate)!;
     expect(point).toBeDefined();
     expect(point.assets).toBe(100000); // checking + savings
-    expect(point.liabilities).toBe(30000); // credit + loan
+    expect(point.liabilities).toBe(-30000); // credit + loan, stored negative
     expect(point.netWorth).toBe(70000);
   });
 

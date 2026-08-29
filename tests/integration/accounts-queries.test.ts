@@ -83,17 +83,34 @@ describe("account queries", () => {
     expect(manualGroup!.accounts).toHaveLength(1);
   });
 
-  it("getAccountSummary computes assets - liabilities = net worth", async () => {
+  // Liability balances are stored negative (owed = negative), so net worth is
+  // the plain sum of every balance. See the currentBalance note in
+  // src/db/schema/accounts.ts.
+  it("getAccountSummary sums negative liability balances into net worth", async () => {
     const hh = await provisionHousehold("user-3", db);
 
     await insertAccount(db, hh, { name: "Checking", type: "checking", currentBalance: 500000 });
     await insertAccount(db, hh, { name: "Savings", type: "savings", currentBalance: 1000000 });
-    await insertAccount(db, hh, { name: "Credit Card", type: "credit", currentBalance: 50000 });
+    await insertAccount(db, hh, { name: "Credit Card", type: "credit", currentBalance: -50000 });
 
     const summary = await getAccountSummary(hh, db);
     expect(summary.totalAssets).toBe(1500000);
-    expect(summary.totalLiabilities).toBe(50000);
+    expect(summary.totalLiabilities).toBe(-50000);
     expect(summary.netWorth).toBe(1450000);
+  });
+
+  it("getAccountSummary subtracts debt rather than adding it", async () => {
+    // Regression for the inverted-sign bug: netWorth was assets - liabilities
+    // over negative-stored liabilities, which added the debt instead.
+    const hh = await provisionHousehold("user-3b", db);
+
+    await insertAccount(db, hh, { name: "Checking", type: "checking", currentBalance: 6170000 });
+    await insertAccount(db, hh, { name: "Everyday Card", type: "credit", currentBalance: -180000 });
+    await insertAccount(db, hh, { name: "Car Loan", type: "loan", currentBalance: -820000 });
+
+    const summary = await getAccountSummary(hh, db);
+    expect(summary.netWorth).toBe(5170000);
+    expect(summary.netWorth).toBeLessThan(summary.totalAssets);
   });
 
   it("getAccountSummary excludes null balances from sums", async () => {

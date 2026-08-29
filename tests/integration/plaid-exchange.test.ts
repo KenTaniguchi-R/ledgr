@@ -78,9 +78,21 @@ describe("plaid exchange flow", () => {
     expect(checking.type).toBe("checking");
 
     const credit = accts.find((a) => a.externalAccountId === "plaid-acc-credit")!;
-    expect(credit.currentBalance).toBe(45050);
+    // Plaid reports $450.50 owed as +45050; Ledgr stores owed as negative so
+    // net worth is the plain sum of balances. See db/schema/accounts.ts.
+    expect(credit.currentBalance).toBe(-45050);
+    // Credit limit is a capacity, not a debt — not sign-flipped.
     expect(credit.creditLimit).toBe(100000);
     expect(credit.type).toBe("credit");
+
+    // The same normalized value must reach balance_history, or the net-worth
+    // chart and the live figure would disagree by twice the debt.
+    const creditHistory = await db
+      .select()
+      .from(balanceHistory)
+      .where(eq(balanceHistory.accountId, credit.id));
+    expect(creditHistory).toHaveLength(1);
+    expect(creditHistory[0].balance).toBe(-45050);
   });
 
   it("stores null balances as null, not zero", async () => {

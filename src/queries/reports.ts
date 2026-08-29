@@ -392,7 +392,7 @@ export async function getReportNetWorthHistory(
     date,
     assets,
     liabilities,
-    netWorth: assets - liabilities,
+    netWorth: assets + liabilities,
   }));
 }
 
