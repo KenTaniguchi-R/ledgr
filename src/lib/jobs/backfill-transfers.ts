@@ -1,6 +1,7 @@
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { households } from "@/db/schema";
 import { applyTransferDetection } from "@/lib/transfer-detection";
+import { assertCanEnumerateHouseholds } from "@/lib/jobs/cross-household";
 
 /**
  * One-time operator job: runs applyTransferDetection for every household, so
@@ -14,6 +15,7 @@ import { applyTransferDetection } from "@/lib/transfer-detection";
  * internally per call).
  */
 export async function backfillTransfers(db: LedgrDb = defaultDb): Promise<{ households: number; tagged: number }> {
+  await assertCanEnumerateHouseholds(db);
   const allHouseholds = await db.select({ id: households.id }).from(households);
 
   let tagged = 0;

@@ -1,7 +1,8 @@
 import { v4 as uuid } from "uuid";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { applyTransferDetection } from "@/lib/transfer-detection";
+import { syncRecurringTransactions } from "./recurring";
 import type { PlaidApi } from "plaid";
 import {
   PlaidSyncResponseSchema,
@@ -358,6 +359,7 @@ async function applyToDb(
         pfcPrimary: row.pfcPrimary,
         pfcDetailed: row.pfcDetailed,
         isTransfer: row.isTransfer,
+        transferSource: row.isTransfer ? "pfc" : null,
         createdAt: now,
         updatedAt: now,
       });
@@ -408,7 +410,14 @@ async function applyToDb(
             pendingTransactionId: row.pendingTransactionId,
             pfcPrimary: row.pfcPrimary,
             pfcDetailed: row.pfcDetailed,
-            isTransfer: row.isTransfer,
+            // Plaid's PFC re-derives isTransfer on every modified row, which
+            // would otherwise silently revert a user's own transfer decision
+            // (and orphan any transferPairId). Keep manual decisions; let PFC
+            // refresh everything else.
+            isTransfer: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
+              THEN ${transactions.isTransfer} ELSE ${row.isTransfer} END`,
+            transferSource: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
+              THEN ${transactions.transferSource} ELSE ${row.isTransfer ? "pfc" : null} END`,
             updatedAt: now,
             // Preserve user's manual categorization and reviewed status
           })
@@ -432,6 +441,7 @@ async function applyToDb(
           pfcPrimary: row.pfcPrimary,
           pfcDetailed: row.pfcDetailed,
           isTransfer: row.isTransfer,
+          transferSource: row.isTransfer ? "pfc" : null,
           createdAt: now,
           updatedAt: now,
         });
@@ -655,6 +665,16 @@ async function doSync(
       await applyTransferDetection(householdId, db);
     } catch (transferError) {
       console.error("Transfer detection failed for item", JSON.stringify(itemId), transferError);
+    }
+
+    // Refresh recurring bills/income streams from Plaid's own recurring-
+    // transactions API (non-fatal). syncInstitution/doSync runs on every
+    // webhook-triggered sync and the daily safety-sync backstop, so this one
+    // wiring point keeps streams current without a separate scheduled task.
+    try {
+      await syncRecurringTransactions(itemId, householdId, accessToken, db);
+    } catch (recurringError) {
+      console.error("Recurring sync failed for item", JSON.stringify(itemId), recurringError);
     }
 
     // AI categorization and merchant/logo resolution — fire-and-forget, same

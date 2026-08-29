@@ -15,6 +15,7 @@
     "rotate-keys": "node --env-file-if-exists=.env --import tsx scripts/rotate-keys.ts",
     "backfill-clean-names": "node --env-file-if-exists=.env --import tsx scripts/backfill-clean-names.ts",
     "backfill-transfers": "node --env-file-if-exists=.env --import tsx scripts/backfill-transfers.ts",
+    "backfill-balances": "node --env-file-if-exists=.env --import tsx scripts/backfill-balances.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

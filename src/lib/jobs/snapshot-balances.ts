@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, balanceHistory } from "@/db/schema";
@@ -29,10 +29,15 @@ export async function snapshotBalances(dbInstance: LedgrDb = defaultDb): Promise
   }
 }
 
-/** Most recent balance_history date across every household, or null if there are no snapshots yet. */
-export async function getLastSnapshotDate(dbInstance: LedgrDb = defaultDb): Promise<string | null> {
-  const [row] = await dbInstance
-    .select({ maxDate: sql<string | null>`MAX(${balanceHistory.date})` })
-    .from(balanceHistory);
-  return row?.maxDate ?? null;
+/**
+ * Every distinct balance_history date across all households, ascending. The
+ * caller needs the whole series, not just the newest date, to tell a covered
+ * history apart from one with holes in it.
+ */
+export async function getSnapshotDates(dbInstance: LedgrDb = defaultDb): Promise<string[]> {
+  const rows = await dbInstance
+    .selectDistinct({ date: balanceHistory.date })
+    .from(balanceHistory)
+    .orderBy(balanceHistory.date);
+  return rows.map((r) => r.date);
 }

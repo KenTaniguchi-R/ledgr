@@ -3,6 +3,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, balanceHistory, transactions, households } from "@/db/schema";
 import { todayDateString } from "@/lib/date-utils";
 import { withHousehold } from "@/lib/household-context";
+import { assertCanEnumerateHouseholds } from "@/lib/jobs/cross-household";
 import { v4 as uuid } from "uuid";
 
 /**
@@ -23,6 +24,7 @@ import { v4 as uuid } from "uuid";
  * APP_DATABASE_URL role instead of the admin one (docs/rls-pilot.md).
  */
 export async function backfillAccountBalances(db: LedgrDb = defaultDb): Promise<void> {
+  await assertCanEnumerateHouseholds(db);
   const allHouseholds = await db.select({ id: households.id }).from(households);
   for (const { id: householdId } of allHouseholds) {
     await backfillForHousehold(householdId, db);

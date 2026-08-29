@@ -86,11 +86,19 @@ export async function updateTransactionFields(
     }
 
     if (fields.isTransfer === false && existing.transferPairId) {
+      // Record the rejection on both legs so auto-detection and Plaid's PFC
+      // tagging can't silently re-pair them on the next sync.
+      const rejected = {
+        isTransfer: false,
+        transferPairId: null,
+        transferSource: "manual_rejected" as const,
+        updatedAt: new Date(),
+      };
       await tx.update(transactions)
-        .set({ isTransfer: false, transferPairId: null, updatedAt: new Date() })
+        .set(rejected)
         .where(eq(transactions.id, existing.id));
       await tx.update(transactions)
-        .set({ isTransfer: false, transferPairId: null, updatedAt: new Date() })
+        .set(rejected)
         .where(eq(transactions.id, existing.transferPairId));
       if (Object.keys(fields).length === 1) return { success: true };
     }
@@ -99,7 +107,10 @@ export async function updateTransactionFields(
     if (fields.name !== undefined) updates.name = fields.name;
     if (fields.notes !== undefined) updates.notes = fields.notes;
     if (fields.date !== undefined) updates.date = fields.date;
-    if (fields.isTransfer !== undefined) updates.isTransfer = fields.isTransfer;
+    if (fields.isTransfer !== undefined) {
+      updates.isTransfer = fields.isTransfer;
+      updates.transferSource = fields.isTransfer ? "manual" : "manual_rejected";
+    }
 
     await tx.update(transactions)
       .set(updates)

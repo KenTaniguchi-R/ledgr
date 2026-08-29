@@ -12,6 +12,7 @@ import { classifyPollError } from "./utils";
 import { fetchFaviconDataUri } from "@/lib/favicon";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { applyTransferDetection } from "@/lib/transfer-detection";
+import { applyRecurringDetection } from "@/lib/simplefin/recurring";
 import { withHousehold } from "@/lib/household-context";
 
 // SimpleFIN brokerages don't send a security type the way Plaid does. These
@@ -24,10 +25,25 @@ const KNOWN_ETF_SYMBOLS = new Set([
   "VOO", "VTI", "SPY", "IVV", "QQQ", "QQQM", "VXUS", "VUG", "VYM", "VEA", "VWO",
   "SCHD", "ARKK", "IWM", "DIA", "GLD", "SLV", "XLK", "XLF", "XLE", "XLV",
 ]);
+// Sweep/money-market positions. Without these they'd fall through to the
+// "stock" default and be charted as equity exposure, which is the opposite of
+// what they are.
+const KNOWN_CASH_SYMBOLS = new Set([
+  "SPAXX", "VMFXX", "SWVXX", "FDRXX", "VMRXX", "SPRXX", "FZFXX", "SNVXX", "SNSXX",
+]);
+
+/**
+ * SimpleFIN denotes a plain currency balance as `CUR:USD` and similar, rather
+ * than a security symbol.
+ */
+function isCurrencySymbol(ticker: string): boolean {
+  return ticker.startsWith("CUR:");
+}
 
 function inferHoldingType(symbol: string | null): HoldingRow["type"] {
   if (!symbol) return "other";
   const ticker = symbol.toUpperCase();
+  if (isCurrencySymbol(ticker) || KNOWN_CASH_SYMBOLS.has(ticker)) return "cash";
   if (KNOWN_CRYPTO_SYMBOLS.has(ticker)) return "crypto";
   if (KNOWN_BOND_SYMBOLS.has(ticker)) return "bond";
   if (KNOWN_ETF_SYMBOLS.has(ticker)) return "etf";
@@ -78,7 +94,7 @@ export interface HoldingRow {
   quantity: number;
   costBasis: number | null;
   currentValue: number;
-  type: "crypto" | "etf" | "bond" | "stock" | "other";
+  type: "crypto" | "etf" | "bond" | "stock" | "cash" | "other";
   currency: string;
 }
 
@@ -500,6 +516,14 @@ async function doSync(
       await applyTransferDetection(householdId, db);
     } catch (transferError) {
       console.error("Transfer detection failed for connection", JSON.stringify(connectionId), transferError);
+    }
+
+    // Detect recurring bills/income from transaction patterns (non-fatal) —
+    // SimpleFIN has no recurring-transactions API of its own, unlike Plaid.
+    try {
+      await applyRecurringDetection(householdId, db);
+    } catch (recurringError) {
+      console.error("Recurring detection failed for connection", JSON.stringify(connectionId), recurringError);
     }
 
     // AI categorization and merchant/logo resolution — fire-and-forget, same
