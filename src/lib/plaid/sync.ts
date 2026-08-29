@@ -1,6 +1,7 @@
 import { v4 as uuid } from "uuid";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
+import { applyTransferDetection } from "@/lib/transfer-detection";
 import type { PlaidApi } from "plaid";
 import {
   PlaidSyncResponseSchema,
@@ -647,6 +648,13 @@ async function doSync(
       await categorizeSyncedTransactions(itemId, householdId, db);
     } catch (catError) {
       console.error("Categorization failed for item", JSON.stringify(itemId), catError);
+    }
+
+    // Detect self-transfers between the household's own accounts (non-fatal)
+    try {
+      await applyTransferDetection(householdId, db);
+    } catch (transferError) {
+      console.error("Transfer detection failed for item", JSON.stringify(itemId), transferError);
     }
 
     // AI categorization and merchant/logo resolution — fire-and-forget, same

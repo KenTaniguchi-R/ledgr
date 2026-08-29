@@ -11,6 +11,7 @@ import { SimplefinAccountsResponseSchema, resolveInstitution, type SimplefinAcco
 import { classifyPollError } from "./utils";
 import { fetchFaviconDataUri } from "@/lib/favicon";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
+import { applyTransferDetection } from "@/lib/transfer-detection";
 import { withHousehold } from "@/lib/household-context";
 
 // SimpleFIN brokerages don't send a security type the way Plaid does. These
@@ -492,6 +493,13 @@ async function doSync(
       await categorizeSyncedTransactions(connectionId, householdId, db);
     } catch (catError) {
       console.error("Categorization failed for connection", JSON.stringify(connectionId), catError);
+    }
+
+    // Detect self-transfers between the household's own accounts (non-fatal).
+    try {
+      await applyTransferDetection(householdId, db);
+    } catch (transferError) {
+      console.error("Transfer detection failed for connection", JSON.stringify(connectionId), transferError);
     }
 
     // AI categorization and merchant/logo resolution — fire-and-forget, same
