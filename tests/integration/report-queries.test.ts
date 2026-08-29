@@ -242,7 +242,7 @@ describe("getReportNetWorthHistory", () => {
 
     await insertBalance(accountId, "2026-04-01", 70000);
     await insertBalance(savingsId, "2026-04-01", 30000);
-    await insertBalance(creditId, "2026-04-01", 15000);
+    await insertBalance(creditId, "2026-04-01", -15000);
     await insertBalance(accountId, "2026-04-15", 80000);
 
     const { getReportNetWorthHistory } = await import("../../src/queries/reports");
@@ -252,7 +252,7 @@ describe("getReportNetWorthHistory", () => {
 
     const d1 = result.find((r) => r.date === "2026-04-01")!;
     expect(d1.assets).toBe(100000); // checking 70000 + savings 30000
-    expect(d1.liabilities).toBe(15000); // credit
+    expect(d1.liabilities).toBe(-15000); // credit, stored negative
     expect(d1.netWorth).toBe(85000);
 
     const d2 = result.find((r) => r.date === "2026-04-15")!;

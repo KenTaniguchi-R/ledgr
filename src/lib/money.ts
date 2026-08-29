@@ -1,3 +1,5 @@
+import { classifyAccountType } from "./account-utils";
+
 export function centsToDisplay(cents: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -32,6 +34,24 @@ export function normalizeAmount(amountCents: number, _accountType: string): numb
 export function plaidAmountToCents(plaidAmount: number | null | undefined): number | null {
   if (plaidAmount === null || plaidAmount === undefined) return null;
   return Math.round(plaidAmount * 100);
+}
+
+// Account *balance* normalization — distinct from plaidAmountToCents, which is
+// also used for transaction amounts and must not flip anything.
+//
+// Plaid docs, `balances.current`: "For credit and loan accounts, a positive
+// balance indicates amount owed; negative indicates lender owes account
+// holder." Ledgr stores owed as negative for every account type (see the
+// currentBalance note in db/schema/accounts.ts), so liabilities get flipped.
+export function plaidBalanceToCents(
+  plaidAmount: number | null | undefined,
+  accountType: string
+): number | null {
+  const cents = plaidAmountToCents(plaidAmount);
+  if (cents === null) return null;
+  if (classifyAccountType(accountType) !== "liability") return cents;
+  // Guard the JS -0 gotcha: -0 breaks strict equality checks downstream.
+  return cents === 0 ? 0 : -cents;
 }
 
 // SimpleFIN amounts are decimal strings, e.g. "-33293.43". Unlike Plaid's

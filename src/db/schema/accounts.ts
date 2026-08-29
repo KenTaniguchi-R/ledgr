@@ -29,7 +29,20 @@ export const accounts = pgTable(
     officialName: text("official_name"),
     type: text("type", { enum: ACCOUNT_TYPES }).notNull(),
     subtype: text("subtype"),
+    // Signed cents, and the sign is load-bearing: money owed is ALWAYS
+    // negative, for every account type. That makes net worth the plain sum of
+    // this column, so a mis-typed account can never invert it.
+    //
+    // Connectors disagree, so both are normalized on the way in:
+    //   SimpleFIN — already reports liabilities negative; passes through.
+    //   Plaid     — reports credit/loan `balances.current` POSITIVE when owed
+    //               ("a positive balance indicates amount owed"), so it is
+    //               flipped by plaidBalanceToCents() at every ingest site.
+    //
+    // balance_history.balance carries the same convention.
     currentBalance: integer("current_balance"),
+    // Not sign-normalized: for a credit account Plaid reports this as available
+    // *credit*, which is spending capacity rather than a debt.
     availableBalance: integer("available_balance"),
     creditLimit: integer("credit_limit"),
     currency: text("currency").default("USD"),

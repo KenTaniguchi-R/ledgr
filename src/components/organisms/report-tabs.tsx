@@ -5,7 +5,7 @@ import { PieChart, ArrowLeftRight, Waypoints, TrendingUp, LineChart } from "luci
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import type { SpendingRow, IncomeExpenseRow, CategoryTrendRow, IncomeExpenseCategoryRow, SafeToSpendResult } from "@/queries/reports";
-import type { NetWorthPoint } from "@/queries/dashboard";
+import type { NetWorthSeriesPoint } from "@/queries/dashboard";
 import type { SankeyNode, SankeyLink } from "@/components/organisms/sankey-chart";
 
 // Each report panel pulls in recharts (or d3-sankey). Load only the active
@@ -40,7 +40,7 @@ interface ReportTabsProps {
   incomeExpenseData?: IncomeExpenseRow[];
   incomeExpenseCategoryData?: IncomeExpenseCategoryRow[];
   trendsData?: CategoryTrendRow[];
-  netWorthData?: NetWorthPoint[];
+  netWorthData?: NetWorthSeriesPoint[];
   sankeyNodes?: SankeyNode[];
   sankeyLinks?: SankeyLink[];
   cashFlowBarData?: IncomeExpenseRow[];

@@ -134,7 +134,11 @@ export async function getAccountSummary(
 
   return {
     totalAssets,
+    // Negative, because owed money is stored negative. Callers that display a
+    // debt magnitude take Math.abs().
     totalLiabilities,
-    netWorth: totalAssets - totalLiabilities,
+    // Plain sum, not `assets - liabilities`: the signs already carry the
+    // direction. Subtracting a negative liability would ADD the debt.
+    netWorth: totalAssets + totalLiabilities,
   };
 }

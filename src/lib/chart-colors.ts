@@ -19,3 +19,8 @@ export const EXPENSE_COLOR = "var(--destructive)";
 export const SPENDING_COLOR = "var(--chart-neutral)";
 export const PRIMARY_COLOR = "var(--primary)";
 export const POSITIVE_COLOR = "var(--positive)";
+
+// Used for a series stretch the data does not fully support — see
+// lib/net-worth-coverage.ts. Deliberately not a status hue: the point is that
+// the line is *not authoritative*, not that something is wrong.
+export const UNCOVERED_COLOR = "var(--muted-foreground)";

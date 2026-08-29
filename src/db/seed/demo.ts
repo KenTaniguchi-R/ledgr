@@ -412,9 +412,12 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
 
       for (let ti = 0; ti < txnTemplates.length; ti++) {
         const tmpl = txnTemplates[ti];
-        // Deterministic: use modulo arithmetic to decide if transaction happens this day
+        // Deterministic: use modulo arithmetic to decide if transaction happens this day.
+        // hash advances by 1 each day (31 % 30), so it visits every value in [0, 30)
+        // exactly once per 30-day window — firing when hash < frequency yields
+        // `frequency` occurrences per month.
         const hash = (dayOffset * 31 + ti * 7) % 30;
-        const threshold = Math.round(30 / tmpl.frequency);
+        const threshold = tmpl.frequency;
         if (hash >= threshold) continue;
 
         const amtVariation = sineVariation(txnIndex, 13, Math.round(tmpl.amountBase * 0.3));
@@ -499,12 +502,27 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
         updatedAt: now,
       });
 
+    // Limits track the generated spend (see txnTemplates / monthlyFixed) so the
+    // budget covers roughly all of it rather than leaving most of the month in
+    // "Everything Else". Groceries is deliberately set below trend so the
+    // over-budget state is represented too.
     const budgetCategoryLimits: { category: string; limit: number }[] = [
-      { category: "Groceries", limit: 60000 },
-      { category: "Restaurants", limit: 25000 },
-      { category: "Subscriptions", limit: 10000 },
-      { category: "Gas", limit: 20000 },
-      { category: "Coffee Shops", limit: 8000 },
+      { category: "Rent/Mortgage", limit: 225000 },
+      { category: "Car Payment", limit: 45000 },
+      { category: "Groceries", limit: 58000 },
+      { category: "Home Goods", limit: 24000 },
+      { category: "Gas", limit: 18000 },
+      { category: "Electronics", limit: 15000 },
+      { category: "Electric", limit: 13000 },
+      { category: "Public Transit", limit: 10000 },
+      { category: "Internet", limit: 9500 },
+      { category: "Phone", limit: 9000 },
+      { category: "Clothing", limit: 9000 },
+      { category: "Restaurants", limit: 7000 },
+      { category: "Coffee Shops", limit: 6000 },
+      { category: "Pharmacy", limit: 3000 },
+      { category: "Subscriptions", limit: 3000 },
+      { category: "Fitness", limit: 2500 },
     ];
 
     await tx.insert(budgetCategories)

@@ -3,10 +3,10 @@
 import { Wallet, TrendingUp } from "lucide-react";
 import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
-import type { NetWorthPoint } from "@/queries/dashboard";
+import type { NetWorthSeriesPoint } from "@/queries/dashboard";
 
 interface ReportNetWorthProps {
-  data: NetWorthPoint[];
+  data: NetWorthSeriesPoint[];
 }
 
 export function ReportNetWorth({ data }: ReportNetWorthProps) {

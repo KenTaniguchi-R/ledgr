@@ -53,8 +53,9 @@ export function registerAccountTools(server: McpServer, householdId: string) {
       return jsonResult({
         totalAssetsCents: s.totalAssets,
         totalAssetsDisplay: centsToDisplay(s.totalAssets),
-        totalLiabilitiesCents: s.totalLiabilities,
-        totalLiabilitiesDisplay: centsToDisplay(s.totalLiabilities),
+        // Positive magnitude — see the note in mcp/tools/dashboard.ts.
+        totalLiabilitiesCents: Math.abs(s.totalLiabilities),
+        totalLiabilitiesDisplay: centsToDisplay(Math.abs(s.totalLiabilities)),
         netWorthCents: s.netWorth,
         netWorthDisplay: centsToDisplay(s.netWorth),
       });

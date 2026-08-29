@@ -108,7 +108,9 @@ export async function getDashboardSummary(
   const monthlyExpenses = totals?.expenses ?? 0;
 
   return {
-    netWorth: totalAssets - totalLiabilities,
+    // Plain sum — liability balances are already stored negative, so
+    // subtracting them would add the debt. See schema/accounts.ts.
+    netWorth: totalAssets + totalLiabilities,
     monthlyIncome,
     monthlyExpenses,
     monthlyNet: monthlyIncome - monthlyExpenses,
@@ -117,11 +119,29 @@ export async function getDashboardSummary(
 
 // ─── getNetWorthHistory ─────────────────────────────────────────────────────
 
-export interface NetWorthPoint {
+/**
+ * A net-worth series point without coverage information. The reports series
+ * (getReportNetWorthHistory) produces this shape; it has the same leading-gap
+ * exposure as the dashboard, but reporting coverage there is separate work.
+ */
+export interface NetWorthSeriesPoint {
   date: string;
   assets: number;
   liabilities: number;
   netWorth: number;
+}
+
+export interface NetWorthPoint extends NetWorthSeriesPoint {
+  /**
+   * How many tracked accounts had a known balance on this date, out of
+   * totalAccounts. Carry-forward fills gaps *between* snapshots, but an account
+   * whose first-ever snapshot lands mid-window contributes $0 to every earlier
+   * point — there is nothing to carry backward. Where covered < total this
+   * figure is a partial sum, not net worth, and callers must not present it (or
+   * a delta computed across it) as though it were.
+   */
+  coveredAccounts: number;
+  totalAccounts: number;
 }
 
 export async function getNetWorthHistory(
@@ -218,7 +238,16 @@ export async function getNetWorthHistory(
         else liabilities += balance;
       }
 
-      result.push({ date, assets, liabilities, netWorth: assets - liabilities });
+      result.push({
+        date,
+        assets,
+        liabilities,
+        netWorth: assets + liabilities,
+        // lastBalanceByAccount only ever gains keys, so its size is exactly the
+        // number of accounts we have *any* balance for as of this date.
+        coveredAccounts: lastBalanceByAccount.size,
+        totalAccounts: accountIds.length,
+      });
     }
   }
 
@@ -248,7 +277,11 @@ export async function getNetWorthHistory(
     date: today,
     assets: todayAssets,
     liabilities: todayLiabilities,
-    netWorth: todayAssets - todayLiabilities,
+    netWorth: todayAssets + todayLiabilities,
+    // Today reads live balances, so coverage is simply how many accounts
+    // report one. An account with a null balance is still not covered.
+    coveredAccounts: accountsWithBalance.length,
+    totalAccounts: allAccounts.length,
   });
 
   return withoutToday;
