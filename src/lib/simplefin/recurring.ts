@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, inArray, notInArray } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, recurringTransactions } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -127,7 +127,11 @@ export function detectRecurringGroups(candidates: RecurringCandidate[], today: s
  * rows have no plaidStreamId, so an existing row is matched by
  * (accountId, name) among rows where plaidStreamId IS NULL. Idempotent: a
  * repeat call with no new transactions updates existing rows to the same
- * values rather than duplicating them. Returns the number of groups applied.
+ * values rather than duplicating them.
+ *
+ * Each detected stream's transactions are back-linked via
+ * recurringTransactionId, and any SimpleFIN-sourced stream this pass did not
+ * re-detect is deactivated. Returns the number of groups applied.
  */
 export async function applyRecurringDetection(householdId: string, db: LedgrDb = defaultDb): Promise<number> {
   return withHousehold(
@@ -156,6 +160,7 @@ export async function applyRecurringDetection(householdId: string, db: LedgrDb =
 
       const groups = detectRecurringGroups(rows, todayDateString());
       const now = new Date();
+      const upsertedIds: string[] = [];
 
       for (const group of groups) {
         const [existing] = await tx
@@ -186,18 +191,53 @@ export async function applyRecurringDetection(householdId: string, db: LedgrDb =
           updatedAt: now,
         };
 
+        let recurringId: string;
         if (existing) {
+          recurringId = existing.id;
           await tx.update(recurringTransactions).set(fields).where(eq(recurringTransactions.id, existing.id));
         } else {
+          recurringId = uuid();
           await tx.insert(recurringTransactions).values({
-            id: uuid(),
+            id: recurringId,
             householdId,
             plaidStreamId: null,
             createdAt: now,
             ...fields,
           });
         }
+        upsertedIds.push(recurringId);
+
+        // Back-link the occurrences, matching what the Plaid path does with
+        // stream.transaction_ids. One batched UPDATE per stream.
+        if (group.occurrenceIds.length > 0) {
+          await tx.update(transactions)
+            .set({ recurringTransactionId: recurringId, updatedAt: now })
+            .where(
+              and(
+                inArray(transactions.id, group.occurrenceIds),
+                eq(transactions.householdId, householdId),
+              ),
+            );
+        }
       }
+
+      // Retire anything this pass didn't re-detect, mirroring the Plaid path's
+      // seenStreamIds sweep. Scoped to SimpleFIN-sourced rows so Plaid's
+      // streams — which the other path owns — are never touched. This also
+      // collects rows orphaned by `accountId onDelete: "set null"`, which can
+      // no longer be matched by (accountId, name) and would otherwise
+      // accumulate as active duplicates beside each re-detected stream.
+      const sweepConditions = [
+        eq(recurringTransactions.householdId, householdId),
+        isNull(recurringTransactions.plaidStreamId),
+        eq(recurringTransactions.isActive, true),
+      ];
+      if (upsertedIds.length > 0) {
+        sweepConditions.push(notInArray(recurringTransactions.id, upsertedIds));
+      }
+      await tx.update(recurringTransactions)
+        .set({ isActive: false, updatedAt: now })
+        .where(and(...sweepConditions));
 
       return groups.length;
     },
