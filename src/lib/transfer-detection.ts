@@ -1,4 +1,4 @@
-import { eq, isNull } from "drizzle-orm";
+import { eq, isNull, ne, or } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
@@ -102,6 +102,14 @@ export async function applyTransferDetection(
             eq(transactions.isTransfer, false),
             isNull(transactions.transferPairId),
             eq(transactions.pending, false),
+            // A user who un-marked a transfer must not have it silently
+            // re-paired on the next sync. NULL means "never decided", so it
+            // has to be spelled out — `!= 'manual_rejected'` alone is NULL
+            // (and therefore falsy) for those rows.
+            or(
+              isNull(transactions.transferSource),
+              ne(transactions.transferSource, "manual_rejected"),
+            ),
           ),
         );
 
@@ -109,10 +117,10 @@ export async function applyTransferDetection(
 
       for (const pair of pairs) {
         await tx.update(transactions)
-          .set({ isTransfer: true, transferPairId: pair.inflowId, updatedAt: new Date() })
+          .set({ isTransfer: true, transferPairId: pair.inflowId, transferSource: "auto", updatedAt: new Date() })
           .where(eq(transactions.id, pair.outflowId));
         await tx.update(transactions)
-          .set({ isTransfer: true, transferPairId: pair.outflowId, updatedAt: new Date() })
+          .set({ isTransfer: true, transferPairId: pair.outflowId, transferSource: "auto", updatedAt: new Date() })
           .where(eq(transactions.id, pair.inflowId));
       }
 

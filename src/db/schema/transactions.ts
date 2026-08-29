@@ -42,6 +42,12 @@ export const transactions = pgTable(
     notes: text("notes"),
     tags: text("tags"),
     isTransfer: boolean("is_transfer").default(false),
+    // Provenance for isTransfer/transferPairId, mirroring categorySource:
+    // manual and manual_rejected are user decisions and must never be
+    // overwritten by the lower tiers (pfc at ingestion, auto pair-detection).
+    transferSource: text("transfer_source", {
+      enum: ["pfc", "auto", "manual", "manual_rejected"],
+    }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

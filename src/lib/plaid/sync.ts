@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { applyTransferDetection } from "@/lib/transfer-detection";
 import { syncRecurringTransactions } from "./recurring";
@@ -359,6 +359,7 @@ async function applyToDb(
         pfcPrimary: row.pfcPrimary,
         pfcDetailed: row.pfcDetailed,
         isTransfer: row.isTransfer,
+        transferSource: row.isTransfer ? "pfc" : null,
         createdAt: now,
         updatedAt: now,
       });
@@ -409,7 +410,14 @@ async function applyToDb(
             pendingTransactionId: row.pendingTransactionId,
             pfcPrimary: row.pfcPrimary,
             pfcDetailed: row.pfcDetailed,
-            isTransfer: row.isTransfer,
+            // Plaid's PFC re-derives isTransfer on every modified row, which
+            // would otherwise silently revert a user's own transfer decision
+            // (and orphan any transferPairId). Keep manual decisions; let PFC
+            // refresh everything else.
+            isTransfer: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
+              THEN ${transactions.isTransfer} ELSE ${row.isTransfer} END`,
+            transferSource: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
+              THEN ${transactions.transferSource} ELSE ${row.isTransfer ? "pfc" : null} END`,
             updatedAt: now,
             // Preserve user's manual categorization and reviewed status
           })
@@ -433,6 +441,7 @@ async function applyToDb(
           pfcPrimary: row.pfcPrimary,
           pfcDetailed: row.pfcDetailed,
           isTransfer: row.isTransfer,
+          transferSource: row.isTransfer ? "pfc" : null,
           createdAt: now,
           updatedAt: now,
         });
