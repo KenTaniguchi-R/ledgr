@@ -1,7 +1,8 @@
+import { v4 as uuid } from "uuid";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createTestDb } from "./setup";
 import { insertHousehold, insertAccount } from "./helpers";
-import { snapshotBalances } from "@/lib/jobs/snapshot-balances";
+import { snapshotBalances, getLastSnapshotDate } from "@/lib/jobs/snapshot-balances";
 import { balanceHistory } from "@/db/schema";
 import type { LedgrDb } from "@/db";
 
@@ -66,5 +67,35 @@ describe("snapshotBalances", () => {
     } finally {
       await close3();
     }
+  });
+});
+
+describe("getLastSnapshotDate", () => {
+  let db: LedgrDb;
+  let close: () => Promise<void>;
+
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
+  });
+
+  afterAll(async () => {
+    await close();
+  });
+
+  it("returns null when there are no snapshots at all", async () => {
+    expect(await getLastSnapshotDate(db)).toBeNull();
+  });
+
+  it("returns the most recent date across all households", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId, { currentBalance: 1000 });
+
+    await db.insert(balanceHistory).values([
+      { id: uuid(), accountId, date: "2026-01-01", balance: 900 },
+      { id: uuid(), accountId, date: "2026-03-15", balance: 1000 },
+      { id: uuid(), accountId, date: "2026-02-10", balance: 950 },
+    ]);
+
+    expect(await getLastSnapshotDate(db)).toBe("2026-03-15");
   });
 });

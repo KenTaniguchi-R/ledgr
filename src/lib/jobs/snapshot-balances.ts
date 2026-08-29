@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { accounts, balanceHistory } from "@/db/schema";
@@ -27,4 +27,12 @@ export async function snapshotBalances(dbInstance: LedgrDb = defaultDb): Promise
       .values({ id: uuid(), accountId: account.id, date, balance: account.currentBalance })
       .onConflictDoNothing({ target: [balanceHistory.accountId, balanceHistory.date] });
   }
+}
+
+/** Most recent balance_history date across every household, or null if there are no snapshots yet. */
+export async function getLastSnapshotDate(dbInstance: LedgrDb = defaultDb): Promise<string | null> {
+  const [row] = await dbInstance
+    .select({ maxDate: sql<string | null>`MAX(${balanceHistory.date})` })
+    .from(balanceHistory);
+  return row?.maxDate ?? null;
 }
