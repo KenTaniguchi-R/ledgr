@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
-const publicPaths = ["/login", "/signup", "/api/auth", "/api/health", "/api/plaid/oauth-return", "/api/plaid/webhook", "/.well-known", "/api/mcp"];
+const publicPaths = ["/login", "/signup", "/api/auth", "/api/health", "/api/plaid/oauth-return", "/api/plaid/webhook", "/.well-known", "/api/mcp", "/manifest.json", "/robots.txt"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -23,5 +23,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+  // `public/` files are served at the URL root (not under a `/public` prefix), so
+  // excluding the literal segment "public" here matches nothing — exclude by
+  // static file extension instead.
+  matcher: ["/((?!_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|svg|json|txt|xml|webmanifest)$).*)"],
 };
