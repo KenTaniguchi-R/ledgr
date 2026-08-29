@@ -13,10 +13,25 @@ import { fetchFaviconDataUri } from "@/lib/favicon";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { withHousehold } from "@/lib/household-context";
 
-// SimpleFIN brokerages don't send a security type the way Plaid does — this
-// is just enough to distinguish crypto (relevant for allocation charts) from
-// everything else, which falls back to "other".
+// SimpleFIN brokerages don't send a security type the way Plaid does. These
+// static lists cover the tickers common enough to be worth a dedicated
+// allocation bucket; anything else with a ticker is assumed to be an
+// individual stock, and anything with no ticker at all falls back to "other".
 const KNOWN_CRYPTO_SYMBOLS = new Set(["BTC", "ETH", "SOL", "DOGE", "LTC", "BCH", "ADA", "XRP", "USDC", "USDT"]);
+const KNOWN_BOND_SYMBOLS = new Set(["BND", "AGG", "TLT", "IEF", "SHY", "LQD", "HYG", "MUB", "BNDX", "VCIT", "VCSH"]);
+const KNOWN_ETF_SYMBOLS = new Set([
+  "VOO", "VTI", "SPY", "IVV", "QQQ", "QQQM", "VXUS", "VUG", "VYM", "VEA", "VWO",
+  "SCHD", "ARKK", "IWM", "DIA", "GLD", "SLV", "XLK", "XLF", "XLE", "XLV",
+]);
+
+function inferHoldingType(symbol: string | null): HoldingRow["type"] {
+  if (!symbol) return "other";
+  const ticker = symbol.toUpperCase();
+  if (KNOWN_CRYPTO_SYMBOLS.has(ticker)) return "crypto";
+  if (KNOWN_BOND_SYMBOLS.has(ticker)) return "bond";
+  if (KNOWN_ETF_SYMBOLS.has(ticker)) return "etf";
+  return "stock";
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,7 +77,7 @@ export interface HoldingRow {
   quantity: number;
   costBasis: number | null;
   currentValue: number;
-  type: "crypto" | "other";
+  type: "crypto" | "etf" | "bond" | "stock" | "other";
   currency: string;
 }
 
@@ -158,7 +173,7 @@ export function processHoldings(simplefinAccounts: SimplefinAccount[]): HoldingR
         quantity,
         costBasis: resolveCostBasisCents(holding, quantity),
         currentValue: currentValue ?? 0,
-        type: symbol && KNOWN_CRYPTO_SYMBOLS.has(symbol.toUpperCase()) ? "crypto" : "other",
+        type: inferHoldingType(symbol),
         currency: holding.currency?.trim() || account.currency,
       });
     }
