@@ -23,10 +23,14 @@ jobs:
         with:
           version: 11.5.2
 
+      # No `cache: pnpm` on purpose. The runner is self-hosted, so the pnpm
+      # store already persists in $HOME between jobs — actions/cache would
+      # round-trip a tarball over the network for zero benefit. Measured cost
+      # when it was enabled: up to 79s in the post-job cache save, longer than
+      # the test step it was meant to speed up.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
@@ -34,21 +38,60 @@ jobs:
 
       - run: pnpm lint
 
-      # Integration tests start Postgres via testcontainers; Docker is
-      # preinstalled on ubuntu-latest. No secrets required.
+      # Integration tests start Postgres via testcontainers; Docker runs on the
+      # self-hosted runner. No secrets required.
       - run: pnpm test
+
+  # Cheap gate on a GitHub-hosted runner (free + unlimited concurrency on this
+  # public repo) so a PR that changes no mutatable source never occupies a
+  # self-hosted slot. The single macmini runner pool is the scarce resource —
+  # queueing, not compute, dominates PR wall-clock — so trading ~20s of hosted
+  # latency for a freed slot is worth it. Shares scripts/mutate-diff.sh with the
+  # run itself, so the gate and the run agree on what "mutatable" means.
+  mutation-gate:
+    name: mutation gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      should-run: ${{ steps.check.outputs.should-run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          FILES=$(bash scripts/mutate-diff.sh --list-only "$BASE_SHA" "$HEAD_SHA")
+          if [ -n "$FILES" ]; then
+            echo "should-run=true" >> "$GITHUB_OUTPUT"
+            echo "Mutatable source changed — mutation job will run:"
+            echo "$FILES" | awk '{print "  " $0}'
+          else
+            echo "should-run=false" >> "$GITHUB_OUTPUT"
+            echo "No mutatable source changed — skipping the mutation job."
+          fi
 
   mutation:
     name: mutation (diff)
     runs-on: [self-hosted, macmini]
+    needs: mutation-gate
     # Self-hosted runner: never execute a fork PR's code here — only PRs from
-    # this same repo (see the test job's comment for why).
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # this same repo (see the test job's comment for why). The gate job carries
+    # the same guard, so this is belt-and-braces: a fork PR skips the gate, and
+    # a skipped gate yields an empty output that fails this check too. Kept
+    # explicit so the protection is visible in the job it protects.
+    if: >-
+      needs.mutation-gate.outputs.should-run == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     # Diff-scoped: only the source files changed in the PR are mutated, so runs
-    # take minutes instead of a full sweep. Non-blocking (reports only): Stryker
-    # currently runs just the unit suite, so files covered mainly by integration
-    # tests score artificially low — a blocking gate would fail legitimate PRs.
-    # Flip to blocking once the mutation harness also runs the integration suite.
+    # take minutes instead of a full cold sweep. Non-blocking (reports only):
+    # Stryker currently runs just the unit suite, so files covered mainly by
+    # integration tests score artificially low — a blocking gate would fail
+    # legitimate PRs. Flip to blocking once the mutation harness also runs the
+    # integration suite.
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -59,10 +102,10 @@ jobs:
         with:
           version: 11.5.2
 
+      # No `cache: pnpm` — see the test job for why.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
