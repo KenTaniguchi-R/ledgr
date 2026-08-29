@@ -4,6 +4,7 @@ import { runTask } from "./runner";
 import { runNightlySnapshot } from "./tasks/nightly-snapshot";
 import { runDailySafetySync } from "./tasks/daily-safety-sync";
 import { runDailySimplefinSync } from "./tasks/daily-simplefin-sync";
+import { checkBalanceHistoryGap } from "./tasks/startup-backfill-check";
 
 let started = false;
 let jobs: Array<ReturnType<typeof cron.schedule>> = [];
@@ -28,6 +29,10 @@ export function startScheduler(): void {
     started = true;
     return;
   }
+
+  // One-shot, not scheduled: catches up on any gap left by downtime through
+  // the nightly snapshot window before the first cron tick ever fires.
+  void runTask("startup-backfill-check", () => checkBalanceHistoryGap());
 
   jobs.push(
     cron.schedule(config.snapshotCron, () =>
