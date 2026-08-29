@@ -12,6 +12,7 @@ import { classifyPollError } from "./utils";
 import { fetchFaviconDataUri } from "@/lib/favicon";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { applyTransferDetection } from "@/lib/transfer-detection";
+import { applyRecurringDetection } from "@/lib/simplefin/recurring";
 import { withHousehold } from "@/lib/household-context";
 
 // SimpleFIN brokerages don't send a security type the way Plaid does. These
@@ -500,6 +501,14 @@ async function doSync(
       await applyTransferDetection(householdId, db);
     } catch (transferError) {
       console.error("Transfer detection failed for connection", JSON.stringify(connectionId), transferError);
+    }
+
+    // Detect recurring bills/income from transaction patterns (non-fatal) —
+    // SimpleFIN has no recurring-transactions API of its own, unlike Plaid.
+    try {
+      await applyRecurringDetection(householdId, db);
+    } catch (recurringError) {
+      console.error("Recurring detection failed for connection", JSON.stringify(connectionId), recurringError);
     }
 
     // AI categorization and merchant/logo resolution — fire-and-forget, same

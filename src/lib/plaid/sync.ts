@@ -2,6 +2,7 @@ import { v4 as uuid } from "uuid";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { applyTransferDetection } from "@/lib/transfer-detection";
+import { syncRecurringTransactions } from "./recurring";
 import type { PlaidApi } from "plaid";
 import {
   PlaidSyncResponseSchema,
@@ -655,6 +656,16 @@ async function doSync(
       await applyTransferDetection(householdId, db);
     } catch (transferError) {
       console.error("Transfer detection failed for item", JSON.stringify(itemId), transferError);
+    }
+
+    // Refresh recurring bills/income streams from Plaid's own recurring-
+    // transactions API (non-fatal). syncInstitution/doSync runs on every
+    // webhook-triggered sync and the daily safety-sync backstop, so this one
+    // wiring point keeps streams current without a separate scheduled task.
+    try {
+      await syncRecurringTransactions(itemId, householdId, accessToken, db);
+    } catch (recurringError) {
+      console.error("Recurring sync failed for item", JSON.stringify(itemId), recurringError);
     }
 
     // AI categorization and merchant/logo resolution — fire-and-forget, same
