@@ -5,7 +5,7 @@ import type { NetWorthPoint } from "@/queries/dashboard";
 describe("formatNetWorthHistory", () => {
   test("maps each point to cents plus display values for assets, liabilities, and net worth", () => {
     const points: NetWorthPoint[] = [
-      { date: "2026-06-01", assets: 1_000_00, liabilities: 250_00, netWorth: 750_00 },
+      { date: "2026-06-01", assets: 1_000_00, liabilities: 250_00, netWorth: 750_00, coveredAccounts: 2, totalAccounts: 2 },
     ];
 
     expect(formatNetWorthHistory(points)).toEqual([
@@ -23,8 +23,8 @@ describe("formatNetWorthHistory", () => {
 
   test("preserves order and handles negative net worth", () => {
     const points: NetWorthPoint[] = [
-      { date: "2026-05-01", assets: 100_00, liabilities: 400_00, netWorth: -300_00 },
-      { date: "2026-06-01", assets: 500_00, liabilities: 100_00, netWorth: 400_00 },
+      { date: "2026-05-01", assets: 100_00, liabilities: 400_00, netWorth: -300_00, coveredAccounts: 2, totalAccounts: 2 },
+      { date: "2026-06-01", assets: 500_00, liabilities: 100_00, netWorth: 400_00, coveredAccounts: 2, totalAccounts: 2 },
     ];
 
     const result = formatNetWorthHistory(points);

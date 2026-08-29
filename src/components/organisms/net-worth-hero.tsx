@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
 import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { centsToDisplay } from "@/lib/money";
-import { trendDelta } from "@/lib/stat-delta";
+import { formatDateShort } from "@/lib/date-utils";
+import { coverageBoundary, coveredTrendDelta } from "@/lib/net-worth-coverage";
 import { cn } from "@/lib/utils";
 import type { NetWorthPoint } from "@/queries/dashboard";
 
@@ -27,7 +28,11 @@ export function NetWorthHero({ netWorth, initialHistory, initialRange = "6M" }: 
   const [history, setHistory] = useState(initialHistory);
   const [isLoading, startTransition] = useTransition();
 
-  const delta = trendDelta(history.map((p) => p.netWorth));
+  // Measured across the fully covered span only. A delta from a partial
+  // baseline reports accounts appearing, not money arriving — that is what
+  // produced the "+2430.7% past 6 months" this replaces.
+  const delta = coveredTrendDelta(history);
+  const coverage = coverageBoundary(history);
   const [dollars, cents] = centsToDisplay(netWorth).split(".");
 
   function handleRangeChange(next: string) {
@@ -54,16 +59,34 @@ export function NetWorthHero({ netWorth, initialHistory, initialRange = "6M" }: 
               <span
                 className={cn(
                   "text-sm font-semibold rounded-full px-2.5 py-0.5 whitespace-nowrap",
-                  delta.diff >= 0
-                    ? "text-positive bg-positive/10"
-                    : "text-destructive bg-destructive/10",
+                  delta.diff === 0
+                    ? "text-muted-foreground bg-muted"
+                    : delta.diff > 0
+                      ? "text-positive bg-positive/10"
+                      : "text-destructive bg-destructive/10",
                 )}
               >
-                {delta.diff >= 0 ? "↑" : "↓"} {centsToDisplay(Math.abs(delta.diff))}
-                {delta.pct !== null && ` (${Math.abs(delta.pct).toFixed(1)}%)`}{" "}
+                {/* An arrow on a zero diff points somewhere the number doesn't. */}
+                {delta.diff === 0 ? (
+                  "No change"
+                ) : (
+                  <>
+                    {delta.diff > 0 ? "↑" : "↓"} {centsToDisplay(Math.abs(delta.diff))}
+                    {delta.pct !== null && ` (${Math.abs(delta.pct).toFixed(1)}%)`}
+                  </>
+                )}{" "}
                 <span className="font-medium opacity-75">
-                  {RANGE_LABELS[range] ?? range.toLowerCase()}
+                  {coverage.hasPartial
+                    ? `since ${formatDateShort(coverage.date ?? "")}`
+                    : (RANGE_LABELS[range] ?? range.toLowerCase())}
                 </span>
+              </span>
+            )}
+            {!delta && coverage.hasPartial && (
+              <span className="text-sm font-medium rounded-full px-2.5 py-0.5 whitespace-nowrap text-muted-foreground bg-muted">
+                {coverage.date
+                  ? `full history since ${formatDateShort(coverage.date)}`
+                  : "history incomplete"}
               </span>
             )}
           </div>
@@ -74,9 +97,30 @@ export function NetWorthHero({ netWorth, initialHistory, initialRange = "6M" }: 
         <NetWorthAreaChart
           mode="single"
           seriesName="Net worth"
-          data={history.map((p) => ({ date: p.date, value: p.netWorth }))}
+          data={history.map((p) => ({
+            date: p.date,
+            value: p.netWorth,
+            coveredAccounts: p.coveredAccounts,
+            totalAccounts: p.totalAccounts,
+          }))}
         />
       </div>
+      {coverage.hasPartial && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span
+            aria-hidden
+            className="inline-block h-0 w-5 shrink-0 border-t-2 border-dashed border-current"
+          />
+          <span>
+            Dashed: {coverage.minCovered === coverage.maxPartialCovered
+              ? coverage.minCovered
+              : `${coverage.minCovered}–${coverage.maxPartialCovered}`}{" "}
+            of {coverage.totalAccounts} accounts had balance history
+            {coverage.date ? ` before ${formatDateShort(coverage.date)}` : ""}, so it is not
+            yet net worth.
+          </span>
+        </p>
+      )}
     </section>
   );
 }

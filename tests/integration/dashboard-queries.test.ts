@@ -516,3 +516,88 @@ describe("household isolation", () => {
     expect(recent.length).toBe(0);
   });
 });
+
+describe("getNetWorthHistory coverage reporting", () => {
+  // An account whose first-ever snapshot falls inside the window contributes
+  // $0 to every earlier point — carry-forward has nothing to carry backward.
+  // The series must say so rather than passing a partial sum off as net worth.
+  it("reports how many accounts each point actually covers", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId: cardId } = await insertAccount(db, householdId, {
+      type: "credit",
+      currentBalance: -20000,
+    });
+    const { accountId: brokerageId } = await insertAccount(db, householdId, {
+      type: "investment",
+      currentBalance: 500000,
+    });
+
+    const early = (() => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 2);
+      return d.toISOString().slice(0, 10);
+    })();
+    const late = (() => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    // Only the card has history at `early`; the brokerage first appears at `late`.
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: cardId, date: early, balance: -15000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId: brokerageId, date: late, balance: 400000 });
+
+    const result = await getNetWorthHistory(householdId, "3M", db);
+
+    const earlyPoint = result.find((p) => p.date === early)!;
+    expect(earlyPoint.coveredAccounts).toBe(1);
+    expect(earlyPoint.totalAccounts).toBe(2);
+
+    const latePoint = result.find((p) => p.date === late)!;
+    expect(latePoint.coveredAccounts).toBe(2);
+    expect(latePoint.totalAccounts).toBe(2);
+  });
+
+  it("marks the synthetic today point by how many accounts carry a balance", async () => {
+    const { householdId } = await insertHousehold(db);
+    await insertAccount(db, householdId, { type: "checking", currentBalance: 100000 });
+    await insertAccount(db, householdId, { type: "investment", currentBalance: null });
+
+    const result = await getNetWorthHistory(householdId, "3M", db);
+    const today = result[result.length - 1];
+
+    expect(today.coveredAccounts).toBe(1);
+    expect(today.totalAccounts).toBe(2);
+  });
+
+  it("counts an account seeded from before the window as covered throughout", async () => {
+    const { householdId } = await insertHousehold(db);
+    const { accountId } = await insertAccount(db, householdId, {
+      type: "checking",
+      currentBalance: 100000,
+    });
+
+    // Snapshot predates the 1M window entirely.
+    const old = (() => {
+      const d = new Date();
+      d.setUTCMonth(d.getUTCMonth() - 6);
+      return d.toISOString().slice(0, 10);
+    })();
+    const inWindow = (() => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - 5);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    await db.insert(balanceHistory).values({ id: uuid(), accountId, date: old, balance: 90000 });
+    await db.insert(balanceHistory).values({ id: uuid(), accountId, date: inWindow, balance: 95000 });
+
+    const result = await getNetWorthHistory(householdId, "1M", db);
+    for (const point of result) {
+      expect(point.coveredAccounts).toBe(1);
+      expect(point.totalAccounts).toBe(1);
+    }
+  });
+});
