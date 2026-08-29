@@ -1,0 +1,6 @@
+# Custom labels for the self-hosted runner pool (an M4 Mac mini). Declaring
+# them here lets `actionlint .github/workflows/*.yml` run clean locally instead
+# of flagging every `runs-on: [self-hosted, macmini]` as an unknown label.
+self-hosted-runner:
+  labels:
+    - macmini

@@ -23,10 +23,14 @@ jobs:
         with:
           version: 11.5.2
 
+      # No `cache: pnpm` on purpose. The runner is self-hosted, so the pnpm
+      # store already persists in $HOME between jobs — actions/cache would
+      # round-trip a tarball over the network for zero benefit. Measured cost
+      # when it was enabled: up to 79s in the post-job cache save, longer than
+      # the test step it was meant to speed up.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
@@ -34,21 +38,28 @@ jobs:
 
       - run: pnpm lint
 
-      # Integration tests start Postgres via testcontainers; Docker is
-      # preinstalled on ubuntu-latest. No secrets required.
+      # Integration tests start Postgres via testcontainers; Docker runs on the
+      # self-hosted runner. No secrets required.
       - run: pnpm test
 
   mutation:
     name: mutation (diff)
     runs-on: [self-hosted, macmini]
+    # Runs only after `test` releases its runner. Mutation is non-blocking, but
+    # a wide diff can keep Stryker busy for 30+ min (observed on a 9-file diff),
+    # and while it held the runner the *blocking* typecheck/lint/test jobs of
+    # every other PR queued behind a job nobody gates on. Ordering it after test
+    # keeps the blocking checks first without giving up the self-hosted runner.
+    needs: test
     # Self-hosted runner: never execute a fork PR's code here — only PRs from
     # this same repo (see the test job's comment for why).
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     # Diff-scoped: only the source files changed in the PR are mutated, so runs
-    # take minutes instead of a full sweep. Non-blocking (reports only): Stryker
-    # currently runs just the unit suite, so files covered mainly by integration
-    # tests score artificially low — a blocking gate would fail legitimate PRs.
-    # Flip to blocking once the mutation harness also runs the integration suite.
+    # take minutes instead of a full cold sweep. Non-blocking (reports only):
+    # Stryker currently runs just the unit suite, so files covered mainly by
+    # integration tests score artificially low — a blocking gate would fail
+    # legitimate PRs. Flip to blocking once the mutation harness also runs the
+    # integration suite.
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -59,10 +70,10 @@ jobs:
         with:
           version: 11.5.2
 
+      # No `cache: pnpm` — see the test job for why.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
