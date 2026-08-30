@@ -67,7 +67,7 @@ describe("import pipeline integration", () => {
           originalName: row.originalName,
           name: row.name,
           amount: row.amount,
-          normalizedAmount: normalizeAmount(row.amount, "checking"),
+          normalizedAmount: normalizeAmount(row.amount),
           externalId: row.externalId,
         });
       }

@@ -149,8 +149,6 @@ export function processBatch(
   added: PlaidTransaction[],
   modified: PlaidTransaction[],
   removed: PlaidRemovedTransaction[],
-  householdId: string,
-  accountTypeMap: Map<string, string>,
 ): ProcessedBatch {
   // Build merchant upserts (deduplicated by normalized name)
   const merchantMap = new Map<string, MerchantUpsert>();
@@ -177,8 +175,7 @@ export function processBatch(
 
   function toRow(txn: PlaidTransaction): TransactionRow {
     const amountCents = plaidAmountToCents(txn.amount)!;
-    const accountType = accountTypeMap.get(txn.account_id) ?? "other";
-    const normalizedAmt = normalizeAmount(amountCents, accountType);
+    const normalizedAmt = normalizeAmount(amountCents);
     return {
       externalId: txn.transaction_id,
       plaidAccountId: txn.account_id,
@@ -596,9 +593,9 @@ async function doSync(
   const now = new Date();
 
   try {
-    // Read bank_connections row + build accountTypeMap. Kept as its own
-    // short-lived transaction — not held open across the Plaid API round
-    // trip (with retries) that follows.
+    // Read the bank_connections row. Kept as its own short-lived
+    // transaction — not held open across the Plaid API round trip (with
+    // retries) that follows.
     const initial = await withHousehold(householdId, async (tx) => {
       const [row] = await tx
         .select()
@@ -610,32 +607,13 @@ async function doSync(
 
       if (!row) return null;
 
-      const accountRows = await tx
-        .select({
-          externalAccountId: accounts.externalAccountId,
-          type: accounts.type,
-        })
-        .from(accounts)
-        .where(
-          and(
-            eq(accounts.householdId, householdId),
-            eq(accounts.bankConnectionId, itemId),
-            isNull(accounts.deletedAt),
-          ),
-        );
-
-      const map = new Map<string, string>();
-      for (const r of accountRows) {
-        if (r.externalAccountId) map.set(r.externalAccountId, r.type);
-      }
-
-      return { item: row, accountTypeMap: map };
+      return { item: row };
     }, db);
 
     if (!initial) {
       return { success: false, error: `Plaid item ${itemId} not found` };
     }
-    const { item, accountTypeMap } = initial;
+    const { item } = initial;
 
     // Decrypt access token
     const accessToken = decrypt(item.credential);
@@ -650,8 +628,6 @@ async function doSync(
       fetchResult.added,
       fetchResult.modified,
       fetchResult.removed,
-      householdId,
-      accountTypeMap,
     );
 
     // Apply to DB

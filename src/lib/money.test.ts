@@ -56,39 +56,22 @@ describe("money utilities", () => {
   });
 
   describe("normalizeAmount", () => {
-    it("flips sign for checking expense (positive → negative)", () => {
-      expect(normalizeAmount(1250, "checking")).toBe(-1250);
+    // Normalization is account-type independent: Plaid uses one sign
+    // convention across every account type, so a credit-card expense and a
+    // checking expense normalize identically. That used to be asserted once
+    // per account type; the function no longer takes a type at all, so the
+    // cases below cover the three behaviours that actually differ.
+    it("flips an expense positive → negative", () => {
+      expect(normalizeAmount(1250)).toBe(-1250);
     });
-    it("flips sign for checking income (negative → positive)", () => {
-      expect(normalizeAmount(-5000, "checking")).toBe(5000);
+    it("flips income negative → positive", () => {
+      expect(normalizeAmount(-5000)).toBe(5000);
     });
-    it("flips sign for credit card expense (positive → negative)", () => {
-      expect(normalizeAmount(5000, "credit")).toBe(-5000);
-    });
-    it("flips sign for credit card payment (negative → positive)", () => {
-      expect(normalizeAmount(-20000, "credit")).toBe(20000);
-    });
-    it("flips sign for investment accounts", () => {
-      expect(normalizeAmount(100000, "investment")).toBe(-100000);
-    });
-    it("flips sign for depository accounts", () => {
-      expect(normalizeAmount(1250, "depository")).toBe(-1250);
-    });
-    it("returns 0 (not -0) for zero amount on checking", () => {
-      expect(Object.is(normalizeAmount(0, "checking"), -0)).toBe(false);
-      expect(normalizeAmount(0, "checking")).toBe(0);
-    });
-    it("returns 0 (not -0) for zero amount on credit", () => {
-      expect(Object.is(normalizeAmount(0, "credit"), -0)).toBe(false);
-    });
-    it("flips sign for other account types", () => {
-      expect(normalizeAmount(1250, "other")).toBe(-1250);
-    });
-    it("flips sign for savings", () => {
-      expect(normalizeAmount(1250, "savings")).toBe(-1250);
-    });
-    it("flips sign for loan", () => {
-      expect(normalizeAmount(-5000, "loan")).toBe(5000);
+    it("returns 0, not -0, for a zero amount", () => {
+      // -0 breaks equality comparisons downstream; see the -0 gotcha in
+      // CLAUDE.md.
+      expect(normalizeAmount(0)).toBe(0);
+      expect(Object.is(normalizeAmount(0), -0)).toBe(false);
     });
   });
 
@@ -187,21 +170,17 @@ describe("money property-based tests", () => {
   );
 
   test.prop([fc.integer({ min: -9999999, max: 9999999 })])(
-    "normalizeAmount flips sign for all account types",
+    "normalizeAmount flips sign for any amount",
     (amount) => {
-      for (const type of ["checking", "savings", "credit", "loan", "investment", "other"]) {
-        expect(normalizeAmount(amount, type)).toBe(amount === 0 ? 0 : -amount);
-      }
+      expect(normalizeAmount(amount)).toBe(amount === 0 ? 0 : -amount);
     }
   );
   test.prop([fc.integer({ min: -9999999, max: 9999999 })])(
-    "normalizeAmount sign symmetry for all account types",
+    "normalizeAmount is sign-symmetric",
     (amount) => {
-      for (const type of ["checking", "credit", "loan"]) {
-        const left = normalizeAmount(amount, type);
-        const right = -normalizeAmount(-amount, type);
-        expect(left).toBe(amount === 0 ? 0 : right);
-      }
+      const left = normalizeAmount(amount);
+      const right = -normalizeAmount(-amount);
+      expect(left).toBe(amount === 0 ? 0 : right);
     }
   );
 
