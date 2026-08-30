@@ -21,6 +21,27 @@ export function centsToCompact(cents: number): string {
   return `${sign}$${Math.round(abs)}`;
 }
 
+/**
+ * Axis tick formatter chosen from how wide the plotted values actually are.
+ *
+ * `centsToCompact` rounds to one decimal of a thousand — $100 of resolution —
+ * so a chart whose values span less than that renders every tick with the same
+ * text. That happens whenever the visible window is short: a household whose
+ * balance history starts a couple of days ago got four ticks all reading
+ * "$52.9K".
+ */
+export function axisTickFormatter(valuesInCents: number[]): (cents: number) => string {
+  if (valuesInCents.length === 0) return centsToCompact;
+
+  const spread = Math.max(...valuesInCents) - Math.min(...valuesInCents);
+  if (spread >= 10_000) return centsToCompact;
+
+  // Narrow domain: whole dollars with separators, distinguishable without the
+  // noise of cents on an axis.
+  return (cents: number) =>
+    `${cents < 0 ? "-" : ""}$${Math.round(Math.abs(cents) / 100).toLocaleString("en-US")}`;
+}
+
 function trimZero(s: string): string {
   return s.endsWith(".0") ? s.slice(0, -2) : s;
 }

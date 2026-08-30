@@ -8,6 +8,7 @@ import {
   getRecentTransactions,
   getInvestmentsSummary,
   getLatestActivityMonth,
+  getFullCoverageSince,
 } from "@/queries/dashboard";
 import { getAccountsByInstitution } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
@@ -16,6 +17,7 @@ import { getTransactionSummary } from "@/queries/transactions";
 import { getCurrentMonth, shiftMonth, formatMonthLong } from "@/lib/date-utils";
 import { uncategorizedShare } from "@/lib/uncategorized-share";
 import { budgetPace } from "@/lib/budget-pace";
+import { rangeSupport } from "@/lib/net-worth-range";
 import { ReviewNudge } from "@/components/molecules/review-nudge";
 import { getLayoutForUser } from "@/queries/dashboard-layout";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
@@ -33,15 +35,25 @@ export default async function DashboardPage() {
   // widget's initial month must match what getMonthlySpending resolved to, so a
   // returning user whose latest data is from an earlier month doesn't open on an
   // empty current month.
-  const latestActivityMonth = await withHousehold(householdId, (tx) => getLatestActivityMonth(householdId, tx));
+  const [latestActivityMonth, fullCoverageSince] = await Promise.all([
+    withHousehold(householdId, (tx) => getLatestActivityMonth(householdId, tx)),
+    getFullCoverageSince(householdId),
+  ]);
   const spendingMonth = latestActivityMonth ?? getCurrentMonth();
   const prevMonth = shiftMonth(spendingMonth, -1);
+
+  // Load the range the hero will actually open on. Hard-coding 6M meant a
+  // household whose history starts recently got six months of chart to hold a
+  // couple of days of net worth — almost all of it hatched. See
+  // lib/net-worth-range.
+  const heroRange =
+    rangeSupport(fullCoverageSince, new Date()).find((r) => r.recommended)?.range ?? "1M";
 
   const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, accountGroups, budgetData, upcomingBills, investmentsData, savedLayout, unreviewedSummary] =
     await Promise.all([
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, spendingMonth, tx)),
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, prevMonth, tx)),
-      getNetWorthHistory(householdId, "6M"),
+      getNetWorthHistory(householdId, heroRange === "All" ? "all" : heroRange),
       withHousehold(householdId, (tx) => getMonthlySpending(householdId, spendingMonth, tx)),
       withHousehold(householdId, (tx) => getCashFlow(householdId, 6, tx)),
       withHousehold(householdId, (tx) => getRecentTransactions(householdId, 5, tx)),
@@ -112,7 +124,12 @@ export default async function DashboardPage() {
         share={uncategorizedShare(monthlySpending)}
         monthLabel={formatMonthLong(spendingMonth)}
       />
-      <NetWorthHero netWorth={summary.netWorth} initialHistory={netWorthHistory} />
+      <NetWorthHero
+        netWorth={summary.netWorth}
+        initialHistory={netWorthHistory}
+        initialRange={heroRange}
+        fullCoverageSince={fullCoverageSince}
+      />
       <DashboardStatRow
         summary={summary}
         prevSummary={prevSummary}

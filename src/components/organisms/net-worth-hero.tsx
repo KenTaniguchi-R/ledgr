@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
 import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { centsToDisplay } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
 import { coverageBoundary, coveredTrendDelta } from "@/lib/net-worth-coverage";
+import { rangeSupport, RANGES } from "@/lib/net-worth-range";
 import { cn } from "@/lib/utils";
 import type { NetWorthPoint } from "@/queries/dashboard";
 
@@ -21,18 +22,54 @@ interface NetWorthHeroProps {
   netWorth: number;
   initialHistory: NetWorthPoint[];
   initialRange?: string;
+  /**
+   * Date from which every account has a known balance, or null when history is
+   * complete. Drives which ranges the control offers — see lib/net-worth-range.
+   */
+  fullCoverageSince?: string | null;
 }
 
-export function NetWorthHero({ netWorth, initialHistory, initialRange = "6M" }: NetWorthHeroProps) {
-  const [range, setRange] = useState(initialRange);
+export function NetWorthHero({
+  netWorth,
+  initialHistory,
+  initialRange,
+  fullCoverageSince = null,
+}: NetWorthHeroProps) {
+  // Availability is fixed for a given household, so it is computed once rather
+  // than per render. `asOf` only needs day precision here.
+  const support = useMemo(
+    () => rangeSupport(fullCoverageSince, new Date()),
+    [fullCoverageSince],
+  );
+
+  // Open on the widest range the data can actually answer. When nothing
+  // qualifies — coverage began within the last month — fall back to the
+  // narrowest, which still renders its uncovered stretch dashed and hatched.
+  const defaultRange =
+    initialRange ?? support.find((r) => r.recommended)?.range ?? RANGES[0];
+
+  const [range, setRange] = useState<string>(defaultRange);
   const [history, setHistory] = useState(initialHistory);
   const [isLoading, startTransition] = useTransition();
+
+  // When coverage began too recently for even the narrowest range, plotting the
+  // window anyway spends almost the whole chart on a stretch that is not net
+  // worth. Show the covered span instead — the pre-coverage points are dropped
+  // rather than silently un-marked, so nothing partial is ever drawn unmarked,
+  // and the note below still says what is missing.
+  const noRangeFits = !support.some((r) => r.supported);
+  const fullBoundary = coverageBoundary(history);
+  const trimmed =
+    noRangeFits && fullBoundary.hasPartial && fullBoundary.index > 0
+      ? history.slice(fullBoundary.index)
+      : history;
 
   // Measured across the fully covered span only. A delta from a partial
   // baseline reports accounts appearing, not money arriving — that is what
   // produced the "+2430.7% past 6 months" this replaces.
   const delta = coveredTrendDelta(history);
-  const coverage = coverageBoundary(history);
+  const coverage = coverageBoundary(trimmed);
+  const trimmedTo = trimmed !== history ? fullBoundary : null;
   const [dollars, cents] = centsToDisplay(netWorth).split(".");
 
   function handleRangeChange(next: string) {
@@ -91,13 +128,13 @@ export function NetWorthHero({ netWorth, initialHistory, initialRange = "6M" }: 
             )}
           </div>
         </div>
-        <DateRangeSelector value={range} onChange={handleRangeChange} />
+        <DateRangeSelector value={range} onChange={handleRangeChange} support={support} />
       </div>
       <div className={cn("h-56 mt-3 transition-opacity", isLoading && "opacity-50")}>
         <NetWorthAreaChart
           mode="single"
           seriesName="Net worth"
-          data={history.map((p) => ({
+          data={trimmed.map((p) => ({
             date: p.date,
             value: p.netWorth,
             coveredAccounts: p.coveredAccounts,
@@ -105,6 +142,16 @@ export function NetWorthHero({ netWorth, initialHistory, initialRange = "6M" }: 
           }))}
         />
       </div>
+      {trimmedTo && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Showing full history from {formatDateShort(trimmedTo.date ?? "")}. Earlier dates are
+          omitted because only {trimmedTo.minCovered === trimmedTo.maxPartialCovered
+            ? trimmedTo.minCovered
+            : `${trimmedTo.minCovered}–${trimmedTo.maxPartialCovered}`}{" "}
+          of {trimmedTo.totalAccounts} accounts had balance history then, so those totals are not
+          net worth. Longer ranges unlock as history accumulates.
+        </p>
+      )}
       {coverage.hasPartial && (
         <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span
