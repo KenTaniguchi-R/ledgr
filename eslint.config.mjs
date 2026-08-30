@@ -23,6 +23,12 @@ const eslintConfig = defineConfig([
     // repeats every finding once per sandbox and fails the run on code that
     // is not ours to fix.
     ".stryker-tmp/**",
+    // Claude Code checks agent worktrees out here — full copies of the repo,
+    // ignored by git via .git/info/exclude. Same problem as .stryker-tmp:
+    // every finding repeats once per worktree, and the noise buries real ones.
+    // CI starts from a clean checkout, so this is invisible there and constant
+    // locally, which is the worst way round.
+    ".claude/worktrees/**",
   ]),
 ]);
 
