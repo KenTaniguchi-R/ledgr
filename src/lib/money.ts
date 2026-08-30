@@ -25,9 +25,11 @@ function trimZero(s: string): string {
   return s.endsWith(".0") ? s.slice(0, -2) : s;
 }
 
-// Plaid convention: positive = money out, negative = money in (all account types).
-// We flip universally so: negative = expense, positive = income.
-export function normalizeAmount(amountCents: number, _accountType: string): number {
+// Plaid convention: positive = money out, negative = money in, for every
+// account type alike. We flip universally so: negative = expense, positive =
+// income. Deliberately takes no account type -- normalization does not depend
+// on one, and a parameter implying otherwise is misleading.
+export function normalizeAmount(amountCents: number): number {
   return amountCents === 0 ? 0 : -amountCents;
 }
 

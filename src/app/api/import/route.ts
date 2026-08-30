@@ -183,7 +183,7 @@ export async function POST(request: Request) {
             originalName: row.originalName,
             name: row.name,
             amount: row.amount,
-            normalizedAmount: normalizeAmount(row.amount, account.type),
+            normalizedAmount: normalizeAmount(row.amount),
             externalId: row.externalId,
           });
       }

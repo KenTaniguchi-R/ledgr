@@ -20,20 +20,12 @@ function makeTxn(overrides: Partial<PlaidTransaction> = {}): PlaidTransaction {
   };
 }
 
-const accountTypeMap = new Map([
-  ["acc-checking", "checking"],
-  ["acc-credit", "credit"],
-  ["acc-investment", "investment"],
-]);
-
 describe("processBatch", () => {
   it("converts Plaid float amounts to integer cents", () => {
     const result = processBatch(
       [makeTxn({ amount: 12.5 })],
       [],
       [],
-      "hh-1",
-      accountTypeMap,
     );
 
     expect(result.inserts[0].amount).toBe(1250);
@@ -44,8 +36,6 @@ describe("processBatch", () => {
       [makeTxn({ account_id: "acc-checking", amount: 12.5 })],
       [],
       [],
-      "hh-1",
-      accountTypeMap,
     );
 
     // checking is depository-type → sign flips: 1250 → -1250
@@ -57,8 +47,6 @@ describe("processBatch", () => {
       [makeTxn({ account_id: "acc-credit", amount: 12.5 })],
       [],
       [],
-      "hh-1",
-      accountTypeMap,
     );
 
     // credit → sign flipped: 1250 → -1250 (expense)
@@ -70,8 +58,6 @@ describe("processBatch", () => {
       [makeTxn({ merchant_name: "WHOLE FOODS MARKET" })],
       [],
       [],
-      "hh-1",
-      accountTypeMap,
     );
 
     expect(result.merchantUpserts).toHaveLength(1);
@@ -86,8 +72,6 @@ describe("processBatch", () => {
       [makeTxn({ merchant_name: null })],
       [],
       [],
-      "hh-1",
-      accountTypeMap,
     );
 
     expect(result.merchantUpserts).toHaveLength(0);
@@ -104,8 +88,6 @@ describe("processBatch", () => {
       ],
       [],
       [],
-      "hh-1",
-      accountTypeMap,
     );
 
     expect(result.pendingToRemove).toContain("txn-pending-old");
@@ -118,7 +100,7 @@ describe("processBatch", () => {
       name: "UPDATED NAME",
     });
 
-    const result = processBatch([], [modified], [], "hh-1", accountTypeMap);
+    const result = processBatch([], [modified], []);
 
     expect(result.inserts).toHaveLength(0);
     expect(result.upserts).toHaveLength(1);
@@ -144,8 +126,6 @@ describe("processBatch", () => {
       ],
       [],
       [],
-      "hh-1",
-      accountTypeMap,
     );
 
     expect(result.merchantUpserts).toHaveLength(1);
