@@ -116,6 +116,8 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
           <InvestmentsWidget
             totalValue={data.investmentsData.totalValue}
             dayChange={data.investmentsData.dayChange}
+            holdingCount={data.investmentsData.holdingCount}
+            topHoldings={data.investmentsData.topHoldings}
           />
         ) : (
           <WidgetPlaceholder
