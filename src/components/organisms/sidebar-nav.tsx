@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Tags,
   LayoutDashboard,
   Building2,
   ArrowLeftRight,
@@ -50,6 +51,7 @@ const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
     items: [
       { href: "/accounts", label: "Accounts", icon: Building2 },
       { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { href: "/rules", label: "Rules", icon: Tags },
       { href: "/investments", label: "Investments", icon: TrendingUp },
     ],
   },
