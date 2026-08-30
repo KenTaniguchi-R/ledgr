@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { BalanceDisplay } from "@/components/atoms/balance-display";
+import { formatRelativeTime } from "@/lib/relative-time";
+import { groupAccountsByType } from "@/lib/group-accounts-by-type";
 import { AccountCard } from "@/components/molecules/account-card";
 import { InstitutionHeader } from "@/components/molecules/institution-header";
 import { PlaidLinkFlow } from "./plaid-link-flow";
@@ -17,6 +21,8 @@ import { disconnectSimplefinConnection } from "@/actions/simplefin";
 import type { InstitutionGroup, AccountRow } from "@/queries/accounts";
 import type { SyncStatus } from "@/components/atoms/sync-status-badge";
 
+type GroupBy = "type" | "institution";
+
 interface SyncState {
   status: SyncStatus;
   error?: string;
@@ -27,6 +33,7 @@ interface AccountListProps {
 }
 
 export function AccountList({ groups }: AccountListProps) {
+  const [groupBy, setGroupBy] = useState<GroupBy>("type");
   const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
   const [syncStates, setSyncStates] = useState<Map<string, SyncState>>(new Map());
   const [reAuthingConnectionId, setReAuthingConnectionId] = useState<string | null>(null);
@@ -36,6 +43,35 @@ export function AccountList({ groups }: AccountListProps) {
   const connectionIds = groups
     .map((g) => g.connectionId)
     .filter((id): id is string => id !== null);
+
+  // Flattened once, carrying the institution down so a type-grouped row can
+  // still say which bank an account sits at.
+  const typeGroups = useMemo(
+    () =>
+      groupAccountsByType(
+        groups.flatMap((g) =>
+          g.accounts.map((a) => ({ ...a, institutionName: g.institutionName })),
+        ),
+      ),
+    [groups],
+  );
+
+  // The toolbar reports one figure for the whole page, so it takes the most
+  // recent sync rather than an arbitrary connection's.
+  const freshestSync = useMemo(() => {
+    const times = groups
+      .map((g) => g.lastSyncedAt)
+      .filter((d): d is Date => d != null)
+      .map((d) => new Date(d).getTime());
+    return times.length > 0 ? new Date(Math.max(...times)) : null;
+  }, [groups]);
+
+  const handleGroupByChange = useCallback((value: string[]) => {
+    // Base UI hands back an empty array when the active item is clicked again;
+    // ignoring it keeps one grouping always selected.
+    const next = value[0];
+    if (next === "type" || next === "institution") setGroupBy(next);
+  }, []);
 
   const handleSync = useCallback(async (connectionId: string) => {
     setSyncStates((prev) => {
@@ -101,8 +137,32 @@ export function AccountList({ groups }: AccountListProps) {
 
   return (
     <>
-      {connectionIds.length > 0 && (
-        <div className="flex justify-end">
+      {/* One toolbar row: the grouping choice and the sync action, anchored to
+          each other instead of floating in the gap above the first card. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <ToggleGroup
+          value={[groupBy]}
+          onValueChange={handleGroupByChange}
+          variant="outline"
+          spacing={1}
+          size="sm"
+          aria-label="Group accounts by"
+        >
+          <ToggleGroupItem
+            value="type"
+            className="aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary"
+          >
+            By type
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="institution"
+            className="aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary"
+          >
+            By institution
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        {connectionIds.length > 0 && (
           <Button
             variant="ghost"
             size="sm"
@@ -110,11 +170,41 @@ export function AccountList({ groups }: AccountListProps) {
             disabled={isSyncing || reAuthingConnectionId !== null}
           >
             <RefreshCw className="size-3.5 mr-1" />
-            Sync All
+            Sync all
+            {freshestSync && (
+              <span className="ml-1 font-normal text-muted-foreground">
+                · {formatRelativeTime(freshestSync)}
+              </span>
+            )}
           </Button>
+        )}
+      </div>
+
+      {groupBy === "type" && (
+        <div className="space-y-4">
+          {typeGroups.map((group) => (
+            <Card key={group.key} className="gap-0 py-0 overflow-hidden">
+              <div className="flex items-center justify-between bg-muted px-4 py-2.5">
+                <h3 className="text-sm font-semibold">{group.label}</h3>
+                <BalanceDisplay amount={group.subtotal} size="sm" className="font-semibold" />
+              </div>
+              <Separator />
+              <div>
+                {group.accounts.map((account) => (
+                  <AccountCard
+                    key={account.id}
+                    account={account}
+                    institutionName={account.institutionName}
+                    onEdit={setEditingAccount}
+                  />
+                ))}
+              </div>
+            </Card>
+          ))}
         </div>
       )}
 
+      {groupBy === "institution" && (
       <div className="space-y-6">
         {groups.map((group) => {
           const state = getSyncState(group.connectionId);
@@ -170,6 +260,7 @@ export function AccountList({ groups }: AccountListProps) {
           );
         })}
       </div>
+      )}
 
       <EditAccountDialog
         account={editingAccount}
