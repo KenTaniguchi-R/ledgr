@@ -54,6 +54,44 @@ describe("categorizeSyncedTransactions", () => {
     expect(row!.categoryId).toBe(categoryId);
   });
 
+  it("applies several distinct (category, source) pairs in one pass", async () => {
+    // categorizeSyncedTransactions groups assignments by a composite
+    // `categoryId \0 source` key so each distinct pair becomes one UPDATE.
+    // If that key collided, transactions would be written to the wrong
+    // category or stamped with the wrong source. Exercise it with two
+    // categories reached through two different tiers in a single call.
+    const { groupId } = await insertCategoryGroup(db, householdId, { name: "Mixed" });
+    const { categoryId: ruleCategory } = await insertCategory(db, householdId, groupId, { name: "Coffee" });
+    const { categoryId: merchantCategory } = await insertCategory(db, householdId, groupId, { name: "Hardware" });
+
+    await insertCategoryRule(db, householdId, ruleCategory, {
+      matchField: "name",
+      matchPattern: "blue bottle",
+    });
+    // The merchant-default tier resolves through transaction.merchantId, not
+    // by name, so the category assignment is the only field that matters here.
+    const { merchantId } = await insertMerchant(db, householdId, {
+      name: "Ace Hardware",
+      categoryId: merchantCategory,
+    });
+
+    const viaRule = await insertTransaction(db, householdId, accountId, { name: "Blue Bottle Coffee" });
+    const viaMerchant = await insertTransaction(db, householdId, accountId, {
+      name: "ACE HARDWARE 41",
+      merchantId,
+    });
+
+    await categorizeSyncedTransactions(plaidItemId, householdId, db);
+
+    const [ruleRow] = await db.select().from(transactions).where(eq(transactions.id, viaRule.transactionId));
+    const [merchantRow] = await db.select().from(transactions).where(eq(transactions.id, viaMerchant.transactionId));
+
+    expect(ruleRow!.categoryId).toBe(ruleCategory);
+    expect(ruleRow!.categorySource).toBe("rule");
+    expect(merchantRow!.categoryId).toBe(merchantCategory);
+    expect(merchantRow!.categorySource).toBe("merchant_default");
+  });
+
   it("respects rule priority — higher wins", async () => {
     const { groupId } = await insertCategoryGroup(db, householdId, { name: "Drinks" });
     const { categoryId: catLow } = await insertCategory(db, householdId, groupId, { name: "Dining" });
