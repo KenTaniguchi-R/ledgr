@@ -8,16 +8,19 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { categoryRules, categories } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { authorizeAction } from "@/lib/auth/authorize-action";
+import { normalizeRulePattern } from "@/lib/categorization/rule-pattern";
 
 type ActionResult = { success: true } | { error: string };
 
-// The engine matches with `target.includes(pattern)`, so an empty pattern is
-// true for every transaction and one blank rule would swallow the entire feed.
-// Trim first, then require something left over.
+// Pattern validity lives in normalizeRulePattern, which explains why an empty
+// pattern is dangerous and is unit-tested without a database.
 const ruleInputSchema = z.object({
   categoryId: z.string().min(1),
   matchField: z.enum(["name", "merchant"]),
-  matchPattern: z.string().transform((s) => s.trim()).pipe(z.string().min(1).max(200)),
+  matchPattern: z
+    .string()
+    .transform(normalizeRulePattern)
+    .refine((p): p is string => p !== null, { message: "Enter a pattern to match on." }),
   priority: z.number().int().min(0).max(999),
 });
 
