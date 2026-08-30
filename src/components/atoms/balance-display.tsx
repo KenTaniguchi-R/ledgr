@@ -5,6 +5,7 @@ interface BalanceDisplayProps {
   amount: number | null;
   currency?: string;
   size?: "sm" | "md" | "lg";
+  className?: string;
 }
 
 const sizeClasses = {
@@ -17,10 +18,11 @@ export function BalanceDisplay({
   amount,
   currency = "USD",
   size = "md",
+  className,
 }: BalanceDisplayProps) {
   if (amount === null) {
     return (
-      <span className={cn("text-muted-foreground", sizeClasses[size])}>
+      <span className={cn("text-muted-foreground", sizeClasses[size], className)}>
         —
       </span>
     );
@@ -30,7 +32,8 @@ export function BalanceDisplay({
     <span
       className={cn(
         sizeClasses[size],
-        amount < 0 && "text-destructive"
+        amount < 0 && "text-destructive",
+        className
       )}
     >
       {centsToDisplay(amount, currency)}

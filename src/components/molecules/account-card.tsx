@@ -10,20 +10,29 @@ import type { AccountRow } from "@/queries/accounts";
 
 interface AccountCardProps {
   account: AccountRow;
+  /**
+   * Shown when the list is grouped by type, where the institution is the one
+   * piece of context the grouping takes away. Omitted under institution
+   * grouping, which already states it in the card header.
+   */
+  institutionName?: string;
   onEdit: (account: AccountRow) => void;
 }
 
-export function AccountCard({ account, onEdit }: AccountCardProps) {
+export function AccountCard({ account, institutionName, onEdit }: AccountCardProps) {
   return (
     <div className="group/card flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
         <AccountTypeIcon type={account.type as AccountType} />
         <div className="min-w-0">
           <span className="text-sm font-medium truncate block">{accountDisplayName(account.name)}</span>
-          {account.officialName && account.officialName !== account.name && (
-            <p className="text-xs text-muted-foreground truncate">
-              {account.officialName}
-            </p>
+          {institutionName ? (
+            <p className="text-xs text-muted-foreground truncate">{institutionName}</p>
+          ) : (
+            account.officialName &&
+            account.officialName !== account.name && (
+              <p className="text-xs text-muted-foreground truncate">{account.officialName}</p>
+            )
           )}
         </div>
       </div>

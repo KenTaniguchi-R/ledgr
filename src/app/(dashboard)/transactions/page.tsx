@@ -30,9 +30,10 @@ export default async function TransactionsPage({
     withHousehold(householdId, (tx) => getTransactions(householdId, filters, undefined, undefined, tx)),
     getCategories(householdId),
     getAccounts(householdId),
-    hasAnyFilters
-      ? withHousehold(householdId, (tx) => getTransactionSummary(householdId, filters, tx))
-      : Promise.resolve(null),
+    // Always summarised, not only when a filter is applied. The unfiltered view
+    // is the one people land on, and it was the only view of the ledger with no
+    // arithmetic on it at all — per-day subtotals, and nothing for the whole.
+    withHousehold(householdId, (tx) => getTransactionSummary(householdId, filters, tx)),
     withHousehold(householdId, (tx) => getTransactionSummary(householdId, { reviewed: false }, tx)),
   ]);
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
