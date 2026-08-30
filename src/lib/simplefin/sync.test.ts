@@ -173,9 +173,19 @@ describe("processHoldings", () => {
     expect(result[0].type).toBe("bond");
   });
 
-  it("falls back to type stock for an unrecognized ticker", () => {
+  it("falls back to type other, not stock, for an unrecognized ticker", () => {
     const result = processHoldings([makeAccount({ holdings: [makeHolding({ symbol: "NVDA" })] })]);
-    expect(result[0].type).toBe("stock");
+    expect(result[0].type).toBe("other");
+  });
+
+  it("does not chart an unlisted ETF as equity", () => {
+    // IBIT is a spot-bitcoin ETF absent from KNOWN_ETF_SYMBOLS. Guessing
+    // "stock" inflated the equity slice of the allocation chart; "other"
+    // reports the uncertainty instead of misstating it.
+    const result = processHoldings([
+      makeAccount({ holdings: [makeHolding({ symbol: "IBIT", description: "iShares Bitcoin Trust" })] }),
+    ]);
+    expect(result[0].type).toBe("other");
   });
 
   it("classifies a SimpleFIN currency symbol as cash, not stock", () => {
