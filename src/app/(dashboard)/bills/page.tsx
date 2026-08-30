@@ -1,5 +1,6 @@
 import { getHouseholdId } from "@/lib/auth/session";
 import { getUpcomingBills, getRecurringSummary } from "@/queries/recurring";
+import { getCategories } from "@/queries/categories";
 import { centsToDisplay } from "@/lib/money";
 import { BillList } from "@/components/organisms/bill-list";
 import { BillSearch } from "@/components/molecules/bill-search";
@@ -12,9 +13,10 @@ export default async function BillsPage({
 }) {
   const householdId = await getHouseholdId();
   const params = await searchParams;
-  const [bills, summary] = await Promise.all([
+  const [bills, summary, categoryGroups] = await Promise.all([
     getUpcomingBills(householdId, { search: params.q }),
     getRecurringSummary(householdId),
+    getCategories(householdId),
   ]);
 
   return (
@@ -39,7 +41,7 @@ export default async function BillsPage({
         {bills.length > 0 && <BillSearch />}
       </div>
 
-      {bills.length === 0 ? <BillEmptyState /> : <BillList bills={bills} />}
+      {bills.length === 0 ? <BillEmptyState /> : <BillList bills={bills} categoryGroups={categoryGroups} />}
     </div>
   );
 }

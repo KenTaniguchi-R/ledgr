@@ -6,6 +6,7 @@ import type { BillRow as BillRowType } from "@/queries/recurring";
 
 interface BillRowProps {
   bill: BillRowType;
+  onSelect: () => void;
 }
 
 export const BILL_ROW_GRID =
@@ -19,9 +20,16 @@ const FREQUENCY_LABELS: Record<string, string> = {
   yearly: "Yearly",
 };
 
-export function BillRow({ bill }: BillRowProps) {
+export function BillRow({ bill, onSelect }: BillRowProps) {
   return (
-    <div className={`${BILL_ROW_GRID} h-10 px-3 text-sm border-b border-border/50`}>
+    // A real <button>, not a div with a click handler: bills were previously
+    // inert, and keyboard users need to reach the editor too.
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-label={`Edit ${bill.name}`}
+      className={`${BILL_ROW_GRID} h-10 w-full px-3 text-left text-sm border-b border-border/50 hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2`}
+    >
       <span className="font-medium truncate">{bill.name}</span>
       <span className="text-muted-foreground truncate text-xs">
         {categoryLabel(bill.categoryName)}
@@ -41,6 +49,6 @@ export function BillRow({ bill }: BillRowProps) {
       <span className="flex justify-end">
         <BillStatusIndicator status={bill.status} relativeDateLabel={bill.relativeDateLabel} />
       </span>
-    </div>
+    </button>
   );
 }
