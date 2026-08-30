@@ -12,7 +12,10 @@ import {
 import { getAccounts } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { getUpcomingBills } from "@/queries/recurring";
-import { getCurrentMonth, shiftMonth } from "@/lib/date-utils";
+import { getTransactionSummary } from "@/queries/transactions";
+import { getCurrentMonth, shiftMonth, formatMonthLong } from "@/lib/date-utils";
+import { uncategorizedShare } from "@/lib/uncategorized-share";
+import { ReviewNudge } from "@/components/molecules/review-nudge";
 import { getLayoutForUser } from "@/queries/dashboard-layout";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
 import { getSession } from "@/lib/auth/session";
@@ -33,7 +36,7 @@ export default async function DashboardPage() {
   const spendingMonth = latestActivityMonth ?? getCurrentMonth();
   const prevMonth = shiftMonth(spendingMonth, -1);
 
-  const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
+  const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout, unreviewedSummary] =
     await Promise.all([
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, spendingMonth, tx)),
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, prevMonth, tx)),
@@ -46,6 +49,7 @@ export default async function DashboardPage() {
       getUpcomingBills(householdId, { limit: 5 }),
       getInvestmentsSummary(householdId),
       session ? getLayoutForUser(session.user.id) : null,
+      withHousehold(householdId, (tx) => getTransactionSummary(householdId, { reviewed: false }, tx)),
     ]);
 
   const accounts = allAccounts
@@ -68,6 +72,11 @@ export default async function DashboardPage() {
   return (
     <div>
       <h1 className="sr-only">Dashboard</h1>
+      <ReviewNudge
+        unreviewedCount={unreviewedSummary.count}
+        share={uncategorizedShare(monthlySpending)}
+        monthLabel={formatMonthLong(spendingMonth)}
+      />
       <NetWorthHero netWorth={summary.netWorth} initialHistory={netWorthHistory} />
       <DashboardStatRow
         summary={summary}

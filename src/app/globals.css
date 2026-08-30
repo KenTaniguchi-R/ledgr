@@ -27,6 +27,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-chart-neutral: var(--chart-neutral);
+  --color-warning: var(--warning);
   --color-positive: var(--positive);
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -71,6 +72,7 @@
   --accent-foreground: oklch(0.205 0.01 75);
   --destructive: oklch(0.577 0.245 27.325);
   --positive: oklch(0.508 0.118 165.61);
+  --warning: oklch(0.62 0.128 72);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -116,6 +118,7 @@
   --accent-foreground: oklch(0.94 0.005 75);
   --destructive: oklch(0.704 0.191 22.216);
   --positive: oklch(0.765 0.177 163.22);
+  --warning: oklch(0.80 0.13 78);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
