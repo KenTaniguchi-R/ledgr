@@ -60,6 +60,37 @@ describe("cleanTransactionName", () => {
     expect(cleanTransactionName("Payment to Twitterapi.io $13.33")).not.toContain("$");
   });
 
+  it("leaves a separator where a mid-string price clause was removed", () => {
+    // The clause sat at the end in the cases above, so replacing it with "" or
+    // " " looked identical. Mid-string, the difference is a mangled word.
+    expect(cleanTransactionName("Netflix for $9.99 each Subscription")).toBe(
+      "Netflix Subscription",
+    );
+  });
+
+  it("leaves a separator where a mid-string currency amount was removed", () => {
+    expect(cleanTransactionName("Spotify $9.99 Premium")).toBe("Spotify Premium");
+  });
+
+  it("removes an amount written with a space after the symbol", () => {
+    expect(cleanTransactionName("Hulu $ 12.99 Plan")).toBe("Hulu Plan");
+  });
+
+  it.each([["€", "24,90"], ["£", "7.99"], ["¥", "980"]])(
+    "removes a %s amount the same way",
+    (symbol, value) => {
+      expect(cleanTransactionName(`Acme ${symbol}${value} Monthly`)).toBe("Acme Monthly");
+    },
+  );
+
+  it("removes a price clause that omits the currency symbol", () => {
+    // The symbol is optional in the pattern on purpose -- not every feed
+    // includes one -- so pin that rather than leave it to look accidental.
+    expect(cleanTransactionName("buy 2 shares of VOO for 412.10 each")).toBe(
+      "buy shares of VOO",
+    );
+  });
+
   it("keeps a currency symbol that is part of a name", () => {
     // A$AP is a name, not an amount — only amounts should disappear.
     expect(cleanTransactionName("A$AP Records")).toContain("A$AP");
