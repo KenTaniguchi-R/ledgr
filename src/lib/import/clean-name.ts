@@ -27,6 +27,15 @@ const TYPE_PREFIXES: { pattern: RegExp; label?: string }[] = [
 
 function stripNoise(s: string): string {
   return s
+    // Brokerage order text ("buy 4.1371 shares of QQQM for $290.06 each")
+    // states a per-unit price that changes with every order, so it is not part
+    // of the payee's identity. Remove the clause whole: stripping only its
+    // digits left "for $ each" stranded in the display name.
+    .replace(/\s+for\s+[$€£¥]?[\d.,]+\s+each\b/gi, " ")
+    // Currency amounts go as one token, symbol included. The digit rules below
+    // would otherwise leave a bare "$" behind. Requires a digit after the
+    // symbol, so a symbol inside a name (A$AP) is untouched.
+    .replace(/(?<![A-Za-z0-9])[$€£¥]\s?[\d.,]+/g, " ")
     .replace(/\S*:\S*/g, " ") // colon fields: HH:MMa times, ID:xxx, PAY ID:xxx
     .replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\d{1,2}\b/gi, " ") // May11
     .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, " ") // 04/12, 04/12/26

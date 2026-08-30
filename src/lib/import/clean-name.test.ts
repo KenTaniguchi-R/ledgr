@@ -41,6 +41,30 @@ describe("cleanTransactionName", () => {
     },
   );
 
+  it("drops a per-unit price clause instead of leaving a dangling currency symbol", () => {
+    // Brokerage order text states a price that varies per order, so it is not
+    // part of the payee's identity. Stripping only the digits used to leave
+    // "buy shares of Qqqm for $ each" on the dashboard.
+    expect(cleanTransactionName("buy 4.1371 shares of QQQM for $290.06 each")).toBe(
+      "buy shares of Qqqm",
+    );
+  });
+
+  it("handles a sell order the same way", () => {
+    expect(cleanTransactionName("sell 0.5 shares of VOO for $412.10 each")).toBe(
+      "sell shares of VOO",
+    );
+  });
+
+  it("removes a currency amount whole, never leaving a bare symbol", () => {
+    expect(cleanTransactionName("Payment to Twitterapi.io $13.33")).not.toContain("$");
+  });
+
+  it("keeps a currency symbol that is part of a name", () => {
+    // A$AP is a name, not an amount — only amounts should disappear.
+    expect(cleanTransactionName("A$AP Records")).toContain("A$AP");
+  });
+
   it("never returns an empty string, even for pure boilerplate", () => {
     expect(cleanTransactionName("")).toBe("");
     expect(cleanTransactionName("   0000 1234   ").length).toBeGreaterThan(0);
