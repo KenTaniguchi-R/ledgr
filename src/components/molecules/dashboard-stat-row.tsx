@@ -3,12 +3,19 @@ import { pctChange, savingsRatePct } from "@/lib/stat-delta";
 import { formatMonthShort } from "@/lib/date-utils";
 import { StatStrip } from "@/components/molecules/stat-strip";
 import type { DashboardSummary } from "@/queries/dashboard";
+import type { BudgetPace } from "@/lib/budget-pace";
 
 interface DashboardStatRowProps {
   summary: DashboardSummary;
   prevSummary: DashboardSummary;
   month: string;
   prevMonth: string;
+  /**
+   * Budget position for `month`, or null when the household has not set one.
+   * Must be for the same month the tile reports — comparing August's spend to
+   * September's budget would be worse than not showing a budget at all.
+   */
+  pace: BudgetPace | null;
 }
 
 interface StatChange {
@@ -27,7 +34,7 @@ function pctChangeText(current: number, previous: number, vsLabel: string, upIsG
   };
 }
 
-export function DashboardStatRow({ summary, prevSummary, month, prevMonth }: DashboardStatRowProps) {
+export function DashboardStatRow({ summary, prevSummary, month, prevMonth, pace }: DashboardStatRowProps) {
   const monthLabel = formatMonthShort(month);
   const vsLabel = `vs ${formatMonthShort(prevMonth)}`;
 
@@ -59,11 +66,29 @@ export function DashboardStatRow({ summary, prevSummary, month, prevMonth }: Das
           value: centsToDisplay(summary.monthlyIncome),
           change: pctChangeText(summary.monthlyIncome, prevSummary.monthlyIncome, vsLabel, true),
         },
-        {
-          label: `Spending · ${monthLabel}`,
-          value: centsToDisplay(summary.monthlyExpenses),
-          change: pctChangeText(summary.monthlyExpenses, prevSummary.monthlyExpenses, vsLabel, false),
-        },
+        pace
+          ? {
+              // Answers "how much is left" rather than "how does this compare
+              // to last month". The month-over-month figure stays as the
+              // secondary line so nothing is lost.
+              label: `Spending · ${monthLabel}`,
+              value: `${centsToDisplay(Math.abs(pace.remaining))} ${pace.exceeded ? "over" : "left"}`,
+              valueClassName: pace.exceeded ? "text-destructive" : undefined,
+              rail: {
+                // Clamped so an overrun does not overflow the track; the
+                // percentage beneath still reports the true figure.
+                pct: Math.min(pace.pctUsed, 100),
+                exceeded: pace.exceeded,
+              },
+              // Days elapsed, not a verdict on pace — see lib/budget-pace.ts.
+              footnote: `${centsToDisplay(pace.spent)} of ${centsToDisplay(pace.budgeted)} · ${pace.daysElapsed} of ${pace.daysInMonth} days`,
+            }
+          : {
+              label: `Spending · ${monthLabel}`,
+              value: centsToDisplay(summary.monthlyExpenses),
+              change: pctChangeText(summary.monthlyExpenses, prevSummary.monthlyExpenses, vsLabel, false),
+              footnoteHref: { label: "Set a budget", href: "/budgets" },
+            },
         {
           label: `Net saved · ${monthLabel}`,
           value: centsToDisplay(summary.monthlyNet),

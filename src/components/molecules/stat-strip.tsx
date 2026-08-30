@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export interface StatStripItem {
@@ -9,6 +10,17 @@ export interface StatStripItem {
     /** Whether the change moves the user's finances the right way. */
     good: boolean;
   };
+  /**
+   * Progress against a target. Deliberately neutral until exceeded: a green bar
+   * is the app congratulating you and a red one is scolding you, and a ledger
+   * does neither. Colour arrives only on an overrun, which is a fact rather
+   * than a verdict.
+   */
+  rail?: { pct: number; exceeded: boolean };
+  /** Plain supporting figures, shown instead of `change`. */
+  footnote?: string;
+  /** Offered when the tile needs configuration before it can say more. */
+  footnoteHref?: { label: string; href: string };
 }
 
 interface StatStripProps {
@@ -40,6 +52,28 @@ export function StatStrip({ items, className, ariaLabel }: StatStripProps) {
           <p className={cn("text-xl font-semibold tracking-tight tabular-nums mt-0.5", item.valueClassName)}>
             {item.value}
           </p>
+          {item.rail && (
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  item.rail.exceeded ? "bg-destructive" : "bg-muted-foreground/50",
+                )}
+                style={{ width: `${Math.max(0, Math.min(item.rail.pct, 100))}%` }}
+              />
+            </div>
+          )}
+          {item.footnote && (
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums">{item.footnote}</p>
+          )}
+          {item.footnoteHref && (
+            <Link
+              href={item.footnoteHref.href}
+              className="mt-0.5 inline-block text-xs text-primary hover:underline"
+            >
+              {item.footnoteHref.label}
+            </Link>
+          )}
           {item.change && (
             <p
               className={cn(

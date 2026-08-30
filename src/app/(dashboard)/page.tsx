@@ -15,6 +15,7 @@ import { getUpcomingBills } from "@/queries/recurring";
 import { getTransactionSummary } from "@/queries/transactions";
 import { getCurrentMonth, shiftMonth, formatMonthLong } from "@/lib/date-utils";
 import { uncategorizedShare } from "@/lib/uncategorized-share";
+import { budgetPace } from "@/lib/budget-pace";
 import { ReviewNudge } from "@/components/molecules/review-nudge";
 import { getLayoutForUser } from "@/queries/dashboard-layout";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
@@ -70,6 +71,23 @@ export default async function DashboardPage() {
       })),
   );
 
+  // The Spending tile reports `spendingMonth`, which is the latest month with
+  // activity and is not always the current one. `budgetData` is fetched for the
+  // current month for the budget widget, so it can only anchor the tile when
+  // the two agree — otherwise the tile would measure August's spend against
+  // September's budget, which is worse than showing no budget at all.
+  const spendingMonthBudget =
+    spendingMonth === getCurrentMonth()
+      ? budgetData
+      : await withHousehold(householdId, (tx) => getBudgetForMonth(householdId, spendingMonth, tx));
+
+  const pace = budgetPace({
+    totalBudgeted: spendingMonthBudget?.summary.totalBudgeted ?? 0,
+    totalSpent: summary.monthlyExpenses,
+    month: spendingMonth,
+    asOf: new Date(),
+  });
+
   const layout = savedLayout ?? getDefaultLayout();
 
   const data: DashboardData = {
@@ -100,6 +118,7 @@ export default async function DashboardPage() {
         prevSummary={prevSummary}
         month={spendingMonth}
         prevMonth={prevMonth}
+        pace={pace}
       />
       <DashboardGridLoader layout={layout} data={data} />
     </div>
