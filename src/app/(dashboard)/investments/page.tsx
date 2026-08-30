@@ -4,6 +4,7 @@ import {
   getPortfolioSummary,
   getPortfolioHistory,
   getAssetAllocation,
+  getAccountReconciliation,
   getHoldings,
   getInvestmentTransactions,
   type InvestmentFilters,
@@ -48,10 +49,11 @@ export default async function InvestmentsPage({
   const accountsPromise = getAccounts(householdId);
   const accIds = await getInvestmentAccountIds(householdId);
 
-  const [summary, history, allocation, holdings, transactions] = await Promise.all([
+  const [summary, history, allocation, reconciliation, holdings, transactions] = await Promise.all([
     getPortfolioSummary(householdId, undefined, undefined, accIds),
     getPortfolioHistory(householdId, { dateFrom: dateFrom ?? dateTo, dateTo }, undefined, accIds),
     getAssetAllocation(householdId, undefined, accIds),
+    getAccountReconciliation(householdId, undefined, accIds),
     tab === "holdings"
       ? getHoldings(householdId, view, accountId, undefined, accIds)
       : Promise.resolve(null),
@@ -72,6 +74,7 @@ export default async function InvestmentsPage({
         summary={summary}
         history={history}
         allocation={allocation}
+        reconciliation={reconciliation}
         holdings={holdings}
         transactions={
           transactions
