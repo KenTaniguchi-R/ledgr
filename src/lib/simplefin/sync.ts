@@ -17,8 +17,8 @@ import { withHousehold } from "@/lib/household-context";
 
 // SimpleFIN brokerages don't send a security type the way Plaid does. These
 // static lists cover the tickers common enough to be worth a dedicated
-// allocation bucket; anything else with a ticker is assumed to be an
-// individual stock, and anything with no ticker at all falls back to "other".
+// allocation bucket. Anything we cannot place -- an unlisted ticker, or no
+// ticker at all -- falls back to "other" rather than being guessed at.
 const KNOWN_CRYPTO_SYMBOLS = new Set(["BTC", "ETH", "SOL", "DOGE", "LTC", "BCH", "ADA", "XRP", "USDC", "USDT"]);
 const KNOWN_BOND_SYMBOLS = new Set(["BND", "AGG", "TLT", "IEF", "SHY", "LQD", "HYG", "MUB", "BNDX", "VCIT", "VCSH"]);
 const KNOWN_ETF_SYMBOLS = new Set([
@@ -26,8 +26,8 @@ const KNOWN_ETF_SYMBOLS = new Set([
   "SCHD", "ARKK", "IWM", "DIA", "GLD", "SLV", "XLK", "XLF", "XLE", "XLV",
 ]);
 // Sweep/money-market positions. Without these they'd fall through to the
-// "stock" default and be charted as equity exposure, which is the opposite of
-// what they are.
+// "other" default and sit in the unclassified bucket, when they are in fact
+// known cash and belong in the cash slice.
 const KNOWN_CASH_SYMBOLS = new Set([
   "SPAXX", "VMFXX", "SWVXX", "FDRXX", "VMRXX", "SPRXX", "FZFXX", "SNVXX", "SNSXX",
 ]);
@@ -47,7 +47,10 @@ function inferHoldingType(symbol: string | null): HoldingRow["type"] {
   if (KNOWN_CRYPTO_SYMBOLS.has(ticker)) return "crypto";
   if (KNOWN_BOND_SYMBOLS.has(ticker)) return "bond";
   if (KNOWN_ETF_SYMBOLS.has(ticker)) return "etf";
-  return "stock";
+  // Unrecognized ticker. The allowlists above cannot cover the long tail, so
+  // guessing "stock" turns an unknown into a confident misclassification --
+  // IBIT (a spot-bitcoin ETF) was charted as equity. "other" is honest.
+  return "other";
 }
 
 // ---------------------------------------------------------------------------
