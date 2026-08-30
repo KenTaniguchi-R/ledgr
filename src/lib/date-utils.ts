@@ -147,3 +147,27 @@ export function relativeDateLabel(dateStr: string): string {
   if (diffDays <= 7) return `in ${diffDays} days`;
   return target.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+
+/**
+ * Label the span of dates an account's transactions cover, e.g.
+ * "Feb 11 – May 11, 2026". Used on disconnected accounts in the Reports
+ * filter, where the span is what distinguishes a superseded account from a
+ * duplicated one — the old account stops where its replacement begins.
+ *
+ * The year is stated once when the span sits inside a single year, and on
+ * both ends when it crosses one, so the range is never ambiguous.
+ */
+export function formatTxnSpan(from: string, to: string): string {
+  const fromDate = new Date(from + "T00:00:00");
+  const toDate = new Date(to + "T00:00:00");
+  const md = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const mdy = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  if (from === to) return mdy(fromDate);
+  if (fromDate.getFullYear() !== toDate.getFullYear()) {
+    return `${mdy(fromDate)} – ${mdy(toDate)}`;
+  }
+  return `${md(fromDate)} – ${mdy(toDate)}`;
+}

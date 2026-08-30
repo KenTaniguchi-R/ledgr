@@ -6,8 +6,10 @@ import {
   getAccounts,
   getAccountsByInstitution,
   getAccountSummary,
+  getReportFilterAccounts,
 } from "@/queries/accounts";
 import { accounts, bankConnections } from "@/db/schema";
+import { insertTransaction } from "./helpers";
 import type { LedgrDb } from "@/db";
 
 describe("account queries", () => {
@@ -62,6 +64,75 @@ describe("account queries", () => {
     const result = await getAccounts(hh, db);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Active");
+  });
+
+  describe("getReportFilterAccounts", () => {
+    it("returns disconnected accounts alongside live ones, flagged", async () => {
+      const hh = await provisionHousehold("user-filter-1", db);
+      await insertAccount(db, hh, { name: "Live Checking" });
+      await insertAccount(db, hh, { name: "Old Checking", deletedAt: new Date("2026-05-20") });
+
+      const result = await getReportFilterAccounts(hh, db);
+
+      expect(result.map((a) => a.name).sort()).toEqual(["Live Checking", "Old Checking"]);
+      expect(result.find((a) => a.name === "Live Checking")!.disconnected).toBe(false);
+      expect(result.find((a) => a.name === "Old Checking")!.disconnected).toBe(true);
+    });
+
+    it("sorts live accounts ahead of disconnected ones", async () => {
+      const hh = await provisionHousehold("user-filter-2", db);
+      // "Zeta" sorts last alphabetically but is live, so it must still come
+      // before the disconnected "Alpha" -- the popover renders in this order.
+      await insertAccount(db, hh, { name: "Alpha", deletedAt: new Date("2026-05-20") });
+      await insertAccount(db, hh, { name: "Zeta" });
+
+      const result = await getReportFilterAccounts(hh, db);
+
+      expect(result.map((a) => a.name)).toEqual(["Zeta", "Alpha"]);
+    });
+
+    it("reports the transaction date range of a disconnected account", async () => {
+      const hh = await provisionHousehold("user-filter-3", db);
+      const accountId = await insertAccount(db, hh, {
+        name: "Old Checking",
+        deletedAt: new Date("2026-05-20"),
+      });
+      await insertTransaction(db, hh, accountId, { date: "2026-02-11" });
+      await insertTransaction(db, hh, accountId, { date: "2026-05-11" });
+      await insertTransaction(db, hh, accountId, { date: "2026-03-02" });
+
+      const [account] = await getReportFilterAccounts(hh, db);
+
+      expect(account.txnCount).toBe(3);
+      expect(account.firstTxnDate).toBe("2026-02-11");
+      expect(account.lastTxnDate).toBe("2026-05-11");
+    });
+
+    it("reports a zero count and null range for an account with no transactions", async () => {
+      const hh = await provisionHousehold("user-filter-4", db);
+      await insertAccount(db, hh, { name: "Empty" });
+
+      const [account] = await getReportFilterAccounts(hh, db);
+
+      expect(account.txnCount).toBe(0);
+      expect(account.firstTxnDate).toBeNull();
+      expect(account.lastTxnDate).toBeNull();
+    });
+
+    it("does not leak accounts or counts across households", async () => {
+      const mine = await provisionHousehold("user-filter-5", db);
+      const theirs = await provisionHousehold("user-filter-6", db);
+      const accountId = await insertAccount(db, mine, { name: "Mine" });
+      await insertTransaction(db, mine, accountId, { date: "2026-04-01" });
+      const otherId = await insertAccount(db, theirs, { name: "Theirs" });
+      await insertTransaction(db, theirs, otherId, { date: "2026-04-02" });
+
+      const result = await getReportFilterAccounts(mine, db);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("Mine");
+      expect(result[0].txnCount).toBe(1);
+    });
   });
 
   it("getAccountsByInstitution groups Plaid accounts under institution, manual under 'Manual Accounts'", async () => {

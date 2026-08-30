@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, afterEach } from "vitest";
 import { test as fcTest } from "@fast-check/vitest";
 import { fc } from "@fast-check/vitest";
-import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel, todayDateString } from "./date-utils";
+import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel, formatTxnSpan, todayDateString } from "./date-utils";
 
 describe("todayDateString", () => {
   afterEach(() => {
@@ -120,5 +120,19 @@ describe("comparisonLabel", () => {
     expect(result).toMatch(/^vs /);
     expect(result).toContain("Jan");
     expect(result).toContain("Mar");
+  });
+});
+
+describe("formatTxnSpan", () => {
+  test("formats a span inside one year without repeating the year", () => {
+    expect(formatTxnSpan("2026-02-11", "2026-05-11")).toBe("Feb 11 – May 11, 2026");
+  });
+
+  test("shows both years when the span crosses a year boundary", () => {
+    expect(formatTxnSpan("2025-11-20", "2026-01-08")).toBe("Nov 20, 2025 – Jan 8, 2026");
+  });
+
+  test("collapses a single-day span to one date", () => {
+    expect(formatTxnSpan("2026-03-04", "2026-03-04")).toBe("Mar 4, 2026");
   });
 });

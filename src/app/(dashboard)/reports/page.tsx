@@ -1,7 +1,7 @@
 import { getHouseholdId } from "@/lib/auth/session";
 import { withHousehold } from "@/lib/household-context";
 import { getCategories } from "@/queries/categories";
-import { getAccounts } from "@/queries/accounts";
+import { getReportFilterAccounts } from "@/queries/accounts";
 import {
   getSpendingByCategory,
   getIncomeVsExpense,
@@ -64,7 +64,7 @@ export default async function ReportsPage({
   // they run concurrently with the tab-specific query below.
   const sharedPromise = Promise.all([
     getCategories(householdId),
-    getAccounts(householdId),
+    getReportFilterAccounts(householdId),
     getSavedReportsByHousehold(householdId),
   ]);
 
@@ -114,15 +114,14 @@ export default async function ReportsPage({
   const currentMonth = getCurrentMonth();
   const isCurrentMonth = dateFrom <= `${currentMonth}-01` && dateTo >= `${currentMonth}-01`;
 
-  const [allCategories, allAccounts, savedReports] = await sharedPromise;
-  const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
+  const [allCategories, filterAccounts, savedReports] = await sharedPromise;
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
 
       <div className="flex items-start justify-between gap-2">
-        <ReportFilterBar accounts={accountOptions} categories={allCategories} />
+        <ReportFilterBar accounts={filterAccounts} categories={allCategories} />
         <SavedReportPicker reports={savedReports} activeTab={tab} />
       </div>
 
