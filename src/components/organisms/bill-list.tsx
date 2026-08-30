@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BillRow, BILL_ROW_GRID } from "@/components/molecules/bill-row";
+import { BillRow } from "@/components/molecules/bill-row";
 import { BillDetailSheet } from "@/components/organisms/bill-detail-sheet";
 import type { BillRow as BillRowType } from "@/queries/recurring";
 import type { CategoryGroup } from "@/queries/categories";
@@ -16,18 +16,38 @@ export function BillList({ bills, categoryGroups }: BillListProps) {
 
   return (
     <div>
-      <div
-        className={`${BILL_ROW_GRID} h-8 px-3 text-xs font-medium text-muted-foreground border-b`}
-      >
-        <span>Name</span>
-        <span>Category</span>
-        <span className="text-right">Amount</span>
-        <span>Frequency</span>
-        <span className="text-right">Status</span>
+      {/* The columns need roughly 560px to stay legible. Previously they were
+          fixed widths with no breakpoint and no scroll container, so the whole
+          page scrolled sideways on a phone (body scrollWidth 592 at 390px).
+          Scrolling inside this container is the pattern Investments uses. */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead>
+            <tr className="border-b text-xs font-medium text-muted-foreground">
+              <th scope="col" className="px-3 py-2 text-left font-medium">
+                Name
+              </th>
+              <th scope="col" className="px-3 py-2 text-left font-medium">
+                Category
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                Amount
+              </th>
+              <th scope="col" className="px-3 py-2 text-left font-medium">
+                Frequency
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {bills.map((bill) => (
+              <BillRow key={bill.id} bill={bill} onSelect={() => setSelected(bill)} />
+            ))}
+          </tbody>
+        </table>
       </div>
-      {bills.map((bill) => (
-        <BillRow key={bill.id} bill={bill} onSelect={() => setSelected(bill)} />
-      ))}
 
       {/* Keyed so opening another bill remounts the sheet and its form
           re-seeds, rather than syncing props into state from an effect. */}

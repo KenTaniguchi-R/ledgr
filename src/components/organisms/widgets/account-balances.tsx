@@ -32,21 +32,43 @@ export function AccountBalancesWidget({ data }: AccountBalancesWidgetProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 space-y-1 overflow-y-auto">
-        {data.map((account) => (
-          <div key={account.id} className="flex items-center justify-between py-1.5 px-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <EntityAvatar
-                logoBase64={account.logoBase64}
-                name={account.institutionName}
-                primaryColor={account.primaryColor}
-                size="sm"
-              />
-              <span className="text-sm truncate">{accountDisplayName(account.name)}</span>
-            </div>
-            <BalanceDisplay amount={account.currentBalance} currency={account.currency ?? "USD"} size="sm" />
-          </div>
-        ))}
+      {/* Account and balance are a real two-column table. The widget shows no
+          visible headers, so they are screen-reader only -- without them the
+          balances read as an undifferentiated run of numbers. */}
+      <div className="flex-1 overflow-y-auto">
+        <table className="w-full">
+          <caption className="sr-only">Account balances</caption>
+          <thead className="sr-only">
+            <tr>
+              <th scope="col">Account</th>
+              <th scope="col">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((account) => (
+              <tr key={account.id}>
+                <td className="px-1 py-1.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <EntityAvatar
+                      logoBase64={account.logoBase64}
+                      name={account.institutionName}
+                      primaryColor={account.primaryColor}
+                      size="sm"
+                    />
+                    <span className="truncate text-sm">{accountDisplayName(account.name)}</span>
+                  </div>
+                </td>
+                <td className="px-1 py-1.5 text-right">
+                  <BalanceDisplay
+                    amount={account.currentBalance}
+                    currency={account.currency ?? "USD"}
+                    size="sm"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <Link
         href="/accounts"
