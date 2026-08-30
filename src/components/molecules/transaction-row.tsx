@@ -1,5 +1,6 @@
 "use client";
 
+import { accountDisplayName } from "@/lib/account-name";
 import { memo, useCallback } from "react";
 import { Clock } from "lucide-react";
 import { AmountDisplay } from "@/components/atoms/amount-display";
@@ -96,7 +97,7 @@ export const TransactionRow = memo(function TransactionRow({
             </span>
           )}
           <span className="hidden sm:inline text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate">
-            {txn.accountName}
+            {txn.accountName && accountDisplayName(txn.accountName)}
           </span>
         </div>
       </div>

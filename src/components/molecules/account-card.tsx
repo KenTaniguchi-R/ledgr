@@ -1,5 +1,6 @@
 "use client";
 
+import { accountDisplayName } from "@/lib/account-name";
 import { Button } from "@/components/ui/button";
 import { AccountTypeIcon } from "@/components/atoms/account-type-icon";
 import { BalanceDisplay } from "@/components/atoms/balance-display";
@@ -18,7 +19,7 @@ export function AccountCard({ account, onEdit }: AccountCardProps) {
       <div className="flex items-center gap-3 min-w-0">
         <AccountTypeIcon type={account.type as AccountType} />
         <div className="min-w-0">
-          <span className="text-sm font-medium truncate block">{account.name}</span>
+          <span className="text-sm font-medium truncate block">{accountDisplayName(account.name)}</span>
           {account.officialName && account.officialName !== account.name && (
             <p className="text-xs text-muted-foreground truncate">
               {account.officialName}
@@ -33,7 +34,7 @@ export function AccountCard({ account, onEdit }: AccountCardProps) {
           size="sm"
           className="sm:opacity-0 sm:group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity h-7 w-7 p-0"
           onClick={() => onEdit(account)}
-          aria-label={`Edit ${account.name}`}
+          aria-label={`Edit ${accountDisplayName(account.name)}`}
         >
           <Pencil className="size-3.5" />
         </Button>

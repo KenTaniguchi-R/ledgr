@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { accountDisplayName } from "@/lib/account-name";
 import { AccountTypeIcon } from "@/components/atoms/account-type-icon";
 import { BalanceDisplay } from "@/components/atoms/balance-display";
 import type { AccountType } from "@/db/schema/accounts";
@@ -33,7 +34,7 @@ export function AccountBalancesWidget({ data }: AccountBalancesWidgetProps) {
           <div key={account.id} className="flex items-center justify-between py-1.5 px-1">
             <div className="flex items-center gap-2 min-w-0">
               <AccountTypeIcon type={account.type} />
-              <span className="text-sm truncate">{account.name}</span>
+              <span className="text-sm truncate">{accountDisplayName(account.name)}</span>
             </div>
             <BalanceDisplay amount={account.currentBalance} currency={account.currency ?? "USD"} size="sm" />
           </div>

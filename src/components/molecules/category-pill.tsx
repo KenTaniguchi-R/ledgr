@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useActionTransition } from "@/hooks/use-action-transition";
 import { updateTransactionCategory } from "@/actions/transactions";
 import { updateMerchantDefaultCategory } from "@/actions/merchants";
+import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty } from "@/components/ui/command";
@@ -118,22 +119,35 @@ export function CategoryPill({
             <button
               disabled={disabled || isPending}
               className={cn(
-                "max-w-[140px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                "group max-w-[140px] cursor-pointer rounded-full disabled:cursor-not-allowed disabled:opacity-50",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                 isPending && "opacity-50",
               )}
             />
           }
         >
-          <Badge variant="outline" className="text-xs truncate">
-            {(() => {
-              const { text, variant } = categoryPillLabel(categoryName, isTransfer);
-              if (variant === "category") return text;
-              return (
-                <span className={cn("text-muted-foreground", variant === "uncategorized" && "italic")}>
-                  {text}
-                </span>
-              );
-            })()}
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-xs gap-1 transition-colors",
+              // The affordance is in the resting state, not on hover — a control
+              // that only looks interactive once you find it with a pointer is
+              // invisible to anyone who doesn't explore by hovering.
+              !disabled && "group-hover:border-foreground/30 group-hover:bg-accent",
+            )}
+          >
+            <span className="truncate">
+              {(() => {
+                const { text, variant } = categoryPillLabel(categoryName, isTransfer);
+                if (variant === "category") return text;
+                return (
+                  <span className={cn("text-muted-foreground", variant === "uncategorized" && "italic")}>
+                    {text}
+                  </span>
+                );
+              })()}
+            </span>
+            {!disabled && <ChevronDown aria-hidden className="size-3 shrink-0 opacity-50" />}
           </Badge>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[220px] p-0">
