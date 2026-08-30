@@ -46,7 +46,13 @@ export function uncategorizedShare(rows: SpendingSlice[]): UncategorizedShare | 
   }
 
   // Nothing uncategorized, or an empty month: no problem to report.
-  if (amount <= 0 || total <= 0) return null;
+  //
+  // This also rules out a zero denominator below without a second check.
+  // Negative rows returned early, so every row is >= 0 and `total` is a sum
+  // that includes `amount` — meaning `amount > 0` implies `total > 0`. A
+  // `total <= 0` guard here would be unreachable, which is exactly what
+  // mutation testing flagged: negating it changed no behaviour.
+  if (amount <= 0) return null;
 
   return {
     amount,
