@@ -11,7 +11,7 @@ import {
   type DatePresetOption,
 } from "@/components/molecules/date-range-popover";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
-import { rangeToDateBounds, formatDateShort } from "@/lib/date-utils";
+import { rangeToDateBounds, formatDateShort, formatTxnSpan } from "@/lib/date-utils";
 import type { CategoryGroup } from "@/queries/categories";
 
 // Reports keeps its own preset ids (mapped to rangeToDateBounds + the server's
@@ -27,6 +27,10 @@ const REPORT_DATE_OPTIONS: DatePresetOption[] = [
 interface AccountOption {
   id: string;
   name: string;
+  /** Soft-deleted: the connection was removed, but its transactions remain. */
+  disconnected: boolean;
+  firstTxnDate: string | null;
+  lastTxnDate: string | null;
 }
 
 interface ReportFilterBarProps {
@@ -40,6 +44,8 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const selectedAccountIds = searchParams.get("accounts")?.split(",").filter(Boolean) ?? [];
+  const activeAccounts = accounts.filter((a) => !a.disconnected);
+  const disconnectedAccounts = accounts.filter((a) => a.disconnected);
   const selectedCategoryIds = searchParams.get("categories")?.split(",").filter(Boolean) ?? [];
 
   const fromParam = searchParams.get("from");
@@ -107,8 +113,8 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
             <CommandInput placeholder="Search accounts..." className="h-8" />
             <CommandList>
               <CommandEmpty>No accounts found.</CommandEmpty>
-              <CommandGroup>
-                {accounts.map((a) => (
+              <CommandGroup heading="Active">
+                {activeAccounts.map((a) => (
                   <CommandItem key={a.id} onSelect={() => toggleAccount(a.id)}>
                     <Checkbox
                       checked={selectedAccountIds.includes(a.id)}
@@ -118,6 +124,28 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
                   </CommandItem>
                 ))}
               </CommandGroup>
+              {disconnectedAccounts.length > 0 && (
+                <CommandGroup heading="Disconnected">
+                  {disconnectedAccounts.map((a) => (
+                    <CommandItem key={a.id} onSelect={() => toggleAccount(a.id)}>
+                      <Checkbox
+                        checked={selectedAccountIds.includes(a.id)}
+                        className="mr-2"
+                      />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate text-muted-foreground">{a.name}</span>
+                        {/* The span is what tells a superseded account apart from
+                            a duplicated one — it stops where its replacement starts. */}
+                        {a.firstTxnDate && a.lastTxnDate && (
+                          <span className="text-[10px] tabular-nums text-muted-foreground/70">
+                            {formatTxnSpan(a.firstTxnDate, a.lastTxnDate)}
+                          </span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
             </CommandList>
           </Command>
         </PopoverContent>

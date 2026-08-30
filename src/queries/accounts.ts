@@ -1,8 +1,8 @@
-import { inArray } from "drizzle-orm";
+import { inArray, and, eq, sql } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
-import { accounts, bankConnections, institutionLogos, ACCOUNT_TYPES, type ConnectionStatus, type BankProvider } from "@/db/schema";
+import { accounts, bankConnections, institutionLogos, transactions, ACCOUNT_TYPES, type ConnectionStatus, type BankProvider } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, countRows } from "@/lib/query-helpers";
 import { classifyAccountType } from "@/lib/account-utils";
 
 export async function getAccounts(householdId: string, db: LedgrDb = defaultDb) {
@@ -141,4 +141,75 @@ export async function getAccountSummary(
     // direction. Subtracting a negative liability would ADD the debt.
     netWorth: totalAssets + totalLiabilities,
   };
+}
+
+export interface ReportFilterAccount {
+  id: string;
+  name: string;
+  disconnected: boolean;
+  txnCount: number;
+  firstTxnDate: string | null;
+  lastTxnDate: string | null;
+}
+
+/**
+ * Accounts for the Reports filter bar — live accounts AND soft-deleted ones.
+ *
+ * Disconnecting an account leaves its transactions live and still counted in
+ * every aggregate (see #87). Building the filter from `notDeleted(accounts)`
+ * alone meant those transactions had no entry to filter by and no way to be
+ * drilled into: silent inclusion with no control. The history is real spending,
+ * so it stays in the totals; this query is what makes it visible and tickable.
+ *
+ * The per-account transaction span is what distinguishes a superseded account
+ * from a duplicated one, so the popover can show that the old account stops
+ * where its replacement begins.
+ */
+export async function getReportFilterAccounts(
+  householdId: string,
+  db: LedgrDb = defaultDb,
+): Promise<ReportFilterAccount[]> {
+  const scoped = scopedQuery(householdId, db);
+
+  const rows = await db
+    .select({
+      id: accounts.id,
+      name: accounts.name,
+      deletedAt: accounts.deletedAt,
+      txnCount: countRows(),
+      firstTxnDate: sql<string | null>`MIN(${transactions.date})`,
+      lastTxnDate: sql<string | null>`MAX(${transactions.date})`,
+    })
+    .from(accounts)
+    // LEFT JOIN so an account with no transactions still appears, and the
+    // household predicate is repeated on the joined side: scopedQuery only
+    // constrains the driving table.
+    .leftJoin(
+      transactions,
+      and(
+        eq(transactions.accountId, accounts.id),
+        eq(transactions.householdId, householdId),
+        notDeleted(transactions),
+      ),
+    )
+    .where(scoped.where(accounts))
+    .groupBy(accounts.id, accounts.name, accounts.deletedAt);
+
+  return rows
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      disconnected: r.deletedAt !== null,
+      // count(*) over a LEFT JOIN counts the null-filled row, so an account
+      // with no transactions would report 1 rather than 0.
+      txnCount: r.firstTxnDate === null ? 0 : Number(r.txnCount),
+      firstTxnDate: r.firstTxnDate,
+      lastTxnDate: r.lastTxnDate,
+    }))
+    .sort((a, b) => {
+      // Live accounts first — the popover renders in this order, and a
+      // disconnected account should never outrank one the user still holds.
+      if (a.disconnected !== b.disconnected) return a.disconnected ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
 }
