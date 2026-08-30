@@ -9,10 +9,13 @@ import {
   getInvestmentsSummary,
   getLatestActivityMonth,
 } from "@/queries/dashboard";
-import { getAccounts } from "@/queries/accounts";
+import { getAccountsByInstitution } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { getUpcomingBills } from "@/queries/recurring";
-import { getCurrentMonth, shiftMonth } from "@/lib/date-utils";
+import { getTransactionSummary } from "@/queries/transactions";
+import { getCurrentMonth, shiftMonth, formatMonthLong } from "@/lib/date-utils";
+import { uncategorizedShare } from "@/lib/uncategorized-share";
+import { ReviewNudge } from "@/components/molecules/review-nudge";
 import { getLayoutForUser } from "@/queries/dashboard-layout";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
 import { getSession } from "@/lib/auth/session";
@@ -33,7 +36,7 @@ export default async function DashboardPage() {
   const spendingMonth = latestActivityMonth ?? getCurrentMonth();
   const prevMonth = shiftMonth(spendingMonth, -1);
 
-  const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, allAccounts, budgetData, upcomingBills, investmentsData, savedLayout] =
+  const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, accountGroups, budgetData, upcomingBills, investmentsData, savedLayout, unreviewedSummary] =
     await Promise.all([
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, spendingMonth, tx)),
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, prevMonth, tx)),
@@ -41,16 +44,31 @@ export default async function DashboardPage() {
       withHousehold(householdId, (tx) => getMonthlySpending(householdId, spendingMonth, tx)),
       withHousehold(householdId, (tx) => getCashFlow(householdId, 6, tx)),
       withHousehold(householdId, (tx) => getRecentTransactions(householdId, 5, tx)),
-      getAccounts(householdId),
+      getAccountsByInstitution(householdId),
       withHousehold(householdId, (tx) => getBudgetForMonth(householdId, getCurrentMonth(), tx)),
       getUpcomingBills(householdId, { limit: 5 }),
       getInvestmentsSummary(householdId),
       session ? getLayoutForUser(session.user.id) : null,
+      withHousehold(householdId, (tx) => getTransactionSummary(householdId, { reviewed: false }, tx)),
     ]);
 
-  const accounts = allAccounts
-    .filter((a) => !a.isHidden)
-    .map((a) => ({ id: a.id, name: a.name, type: a.type, currentBalance: a.currentBalance, currency: a.currency }));
+  // Flattened from the institution grouping so the balances widget can show the
+  // same bank marks the accounts page does, rather than falling back to generic
+  // type glyphs for accounts it has a logo for.
+  const accounts = accountGroups.flatMap((group) =>
+    group.accounts
+      .filter((a) => !a.isHidden)
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        currentBalance: a.currentBalance,
+        currency: a.currency,
+        institutionName: group.institutionName,
+        logoBase64: group.logoBase64,
+        primaryColor: group.primaryColor,
+      })),
+  );
 
   const layout = savedLayout ?? getDefaultLayout();
 
@@ -67,7 +85,15 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="sr-only">Dashboard</h1>
+      {/* Was sr-only. A screen-reader-only title means sighted users navigate a
+          page whose name they cannot see, and it left the page opening on an
+          unlabelled number. */}
+      <h1 className="mb-4 text-2xl font-semibold tracking-tight">Dashboard</h1>
+      <ReviewNudge
+        unreviewedCount={unreviewedSummary.count}
+        share={uncategorizedShare(monthlySpending)}
+        monthLabel={formatMonthLong(spendingMonth)}
+      />
       <NetWorthHero netWorth={summary.netWorth} initialHistory={netWorthHistory} />
       <DashboardStatRow
         summary={summary}

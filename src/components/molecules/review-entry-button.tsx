@@ -23,8 +23,8 @@ export function ReviewEntryButton({ unreviewedCount }: ReviewEntryButtonProps) {
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleClick}>
-      Review ({unreviewedCount})
+    <Button size="sm" onClick={handleClick}>
+      Review {unreviewedCount.toLocaleString()}
     </Button>
   );
 }

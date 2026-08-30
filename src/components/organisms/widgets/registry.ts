@@ -25,7 +25,7 @@ export const DASHBOARD_WIDGETS: WidgetConfig[] = [
   { id: "recent-txns", title: "Recent Transactions", defaultHeight: 2 },
   { id: "budgets", title: "Budget Progress", defaultHeight: 1 },
   { id: "bills", title: "Upcoming Bills", defaultHeight: 2 },
-  { id: "investments", title: "Investments", defaultHeight: 1 },
+  { id: "investments", title: "Investments", defaultHeight: 2 },
 ];
 
 // Widgets that used to live in the grid but now render as fixed page sections

@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth/session";
 import { getMcpSettings } from "@/queries/mcp-settings";
 import { McpSettingsForm } from "@/components/organisms/mcp-settings-form";
 import { DemoModeToggle } from "@/components/molecules/demo-mode-toggle";
+import { AppearanceToggle } from "@/components/molecules/appearance-toggle";
 import { PasskeysManager } from "@/components/organisms/passkeys-manager";
 import { DangerZone } from "@/components/organisms/danger-zone";
 import { isDemoMode } from "@/lib/demo-mode";
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
           Configure integrations and access controls.
         </p>
       </div>
+      <AppearanceToggle />
       <DemoModeToggle initialEnabled={demoEnabled} />
       <PasskeysManager />
       <McpSettingsForm

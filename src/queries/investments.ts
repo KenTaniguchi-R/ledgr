@@ -39,6 +39,22 @@ export interface InvestmentHoldingRow {
   accountId?: string;
 }
 
+export interface InvestmentsSummaryHolding {
+  ticker: string | null;
+  securityName: string;
+  currentValue: number;
+  gainLossPercent: number | null;
+  /** Share of total portfolio value, 0-100. */
+  share: number;
+}
+
+export interface InvestmentsSummary {
+  totalValue: number;
+  dayChange: number | null;
+  holdingCount: number;
+  topHoldings: InvestmentsSummaryHolding[];
+}
+
 export interface InvTxnRow {
   id: string;
   date: string;
@@ -346,7 +362,27 @@ export async function getInvestmentTransactions(
 export async function getInvestmentsSummary(
   householdId: string,
   db: LedgrDb = defaultDb,
-): Promise<{ totalValue: number; dayChange: number | null }> {
-  const summary = await getPortfolioSummary(householdId, db);
-  return { totalValue: summary.totalValue, dayChange: summary.dayChange };
+): Promise<InvestmentsSummary> {
+  const [summary, holdings] = await Promise.all([
+    getPortfolioSummary(householdId, db),
+    getHoldings(householdId, "consolidated", undefined, db),
+  ]);
+
+  // getHoldings returns consolidated positions already ordered by value, so the
+  // dashboard widget just takes the head of the list. Anything past the top few
+  // does not fit the cell and belongs on /investments.
+  const topHoldings = holdings.slice(0, 3).map((h) => ({
+    ticker: h.ticker,
+    securityName: h.securityName,
+    currentValue: h.currentValue,
+    gainLossPercent: h.gainLossPercent,
+    share: summary.totalValue > 0 ? (h.currentValue / summary.totalValue) * 100 : 0,
+  }));
+
+  return {
+    totalValue: summary.totalValue,
+    dayChange: summary.dayChange,
+    holdingCount: holdings.length,
+    topHoldings,
+  };
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { AccountTypeIcon } from "@/components/atoms/account-type-icon";
+import { accountDisplayName } from "@/lib/account-name";
+import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { BalanceDisplay } from "@/components/atoms/balance-display";
 import type { AccountType } from "@/db/schema/accounts";
 
@@ -11,6 +12,9 @@ interface AccountBalanceRow {
   type: AccountType;
   currentBalance: number | null;
   currency: string | null;
+  institutionName: string;
+  logoBase64: string | null;
+  primaryColor: string | null;
 }
 
 interface AccountBalancesWidgetProps {
@@ -32,8 +36,13 @@ export function AccountBalancesWidget({ data }: AccountBalancesWidgetProps) {
         {data.map((account) => (
           <div key={account.id} className="flex items-center justify-between py-1.5 px-1">
             <div className="flex items-center gap-2 min-w-0">
-              <AccountTypeIcon type={account.type} />
-              <span className="text-sm truncate">{account.name}</span>
+              <EntityAvatar
+                logoBase64={account.logoBase64}
+                name={account.institutionName}
+                primaryColor={account.primaryColor}
+                size="sm"
+              />
+              <span className="text-sm truncate">{accountDisplayName(account.name)}</span>
             </div>
             <BalanceDisplay amount={account.currentBalance} currency={account.currency ?? "USD"} size="sm" />
           </div>

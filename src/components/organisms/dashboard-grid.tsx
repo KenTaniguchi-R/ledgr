@@ -28,7 +28,16 @@ export interface DashboardData {
   spendingMonth: string;
   cashFlow: CashFlowRow[];
   recentTransactions: TransactionRow[];
-  accounts: { id: string; name: string; type: AccountType; currentBalance: number | null; currency: string | null }[];
+  accounts: {
+    id: string;
+    name: string;
+    type: AccountType;
+    currentBalance: number | null;
+    currency: string | null;
+    institutionName: string;
+    logoBase64: string | null;
+    primaryColor: string | null;
+  }[];
   budgetData?: BudgetMonth;
   upcomingBills: BillRow[];
   investmentsData?: Awaited<ReturnType<typeof getInvestmentsSummary>>;
@@ -107,6 +116,8 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
           <InvestmentsWidget
             totalValue={data.investmentsData.totalValue}
             dayChange={data.investmentsData.dayChange}
+            holdingCount={data.investmentsData.holdingCount}
+            topHoldings={data.investmentsData.topHoldings}
           />
         ) : (
           <WidgetPlaceholder

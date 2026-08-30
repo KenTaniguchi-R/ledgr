@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { THEME_INIT } from "@/lib/theme";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -36,7 +37,16 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Runs before first paint so the stored theme is applied without a
+            flash of the wrong one. Inline and blocking on purpose — deferring
+            it is what produces the flash. */}
+        <script
+          dangerouslySetInnerHTML={{ __html: THEME_INIT }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
