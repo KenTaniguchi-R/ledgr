@@ -22,6 +22,16 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           version: 11.5.2
+          # Self-hosted runners share one $HOME, so the default install path
+          # (~/setup-pnpm/node_modules) is shared by every job on the box. Two
+          # jobs from different refs starting together race on it and leave it
+          # half-removed, after which every later job fails at setup — first as
+          # `ENOTEMPTY ... rmdir`, then permanently as `self-installer exits
+          # with code 254`, before a single test runs.
+          #
+          # `standalone` fetches a self-contained pnpm binary instead, skipping
+          # the node_modules layout that races. See #125.
+          standalone: true
 
       # No `cache: pnpm` on purpose. The runner is self-hosted, so the pnpm
       # store already persists in $HOME between jobs — actions/cache would
@@ -69,6 +79,16 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           version: 11.5.2
+          # Self-hosted runners share one $HOME, so the default install path
+          # (~/setup-pnpm/node_modules) is shared by every job on the box. Two
+          # jobs from different refs starting together race on it and leave it
+          # half-removed, after which every later job fails at setup — first as
+          # `ENOTEMPTY ... rmdir`, then permanently as `self-installer exits
+          # with code 254`, before a single test runs.
+          #
+          # `standalone` fetches a self-contained pnpm binary instead, skipping
+          # the node_modules layout that races. See #125.
+          standalone: true
 
       # No `cache: pnpm` — see the test job for why.
       - uses: actions/setup-node@v7
