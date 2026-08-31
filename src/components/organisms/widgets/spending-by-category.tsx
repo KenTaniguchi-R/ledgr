@@ -42,11 +42,11 @@ export function SpendingByCategory({ data, currentMonth, onMonthChange, isLoadin
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="size-6" onClick={() => onMonthChange(shiftMonth(currentMonth, -1))}>
+          <Button variant="ghost" size="icon" className="size-6" aria-label="Previous month" onClick={() => onMonthChange(shiftMonth(currentMonth, -1))}>
             <ChevronLeft className="size-4" />
           </Button>
           <span className="text-sm font-medium min-w-[140px] text-center">{formatMonthLong(currentMonth)}</span>
-          <Button variant="ghost" size="icon" className="size-6" onClick={() => onMonthChange(shiftMonth(currentMonth, 1))}>
+          <Button variant="ghost" size="icon" className="size-6" aria-label="Next month" onClick={() => onMonthChange(shiftMonth(currentMonth, 1))}>
             <ChevronRight className="size-4" />
           </Button>
         </div>

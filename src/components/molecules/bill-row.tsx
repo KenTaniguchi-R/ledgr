@@ -9,9 +9,6 @@ interface BillRowProps {
   onSelect: () => void;
 }
 
-export const BILL_ROW_GRID =
-  "grid grid-cols-[minmax(0,1fr)_140px_110px_100px_150px] items-center gap-x-4";
-
 const FREQUENCY_LABELS: Record<string, string> = {
   weekly: "Weekly",
   biweekly: "Biweekly",
@@ -22,33 +19,48 @@ const FREQUENCY_LABELS: Record<string, string> = {
 
 export function BillRow({ bill, onSelect }: BillRowProps) {
   return (
-    // A real <button>, not a div with a click handler: bills were previously
-    // inert, and keyboard users need to reach the editor too.
-    <button
-      type="button"
+    // The whole row is clickable for pointer users, but the accessible control
+    // is the real <button> in the name cell: a click handler on <tr> alone is
+    // unreachable by keyboard, and wrapping the row in a <button> would
+    // destroy the table semantics screen readers need to pair cells with
+    // their column headers.
+    <tr
       onClick={onSelect}
-      aria-label={`Edit ${bill.name}`}
-      className={`${BILL_ROW_GRID} h-10 w-full px-3 text-left text-sm border-b border-border/50 hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2`}
+      className="cursor-pointer border-b border-border/50 last:border-b-0 hover:bg-accent"
     >
-      <span className="font-medium truncate">{bill.name}</span>
-      <span className="text-muted-foreground truncate text-xs">
+      <td className="px-3 py-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+          aria-label={`Edit ${bill.name}`}
+          className="max-w-full truncate rounded text-left font-medium hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+        >
+          {bill.name}
+        </button>
+      </td>
+      <td className="max-w-[160px] truncate px-3 py-2 text-xs text-muted-foreground">
         {categoryLabel(bill.categoryName)}
-      </span>
-      <span className="text-right">
+      </td>
+      <td className="px-3 py-2 text-right">
         {bill.averageAmount !== null && (
           <AmountDisplay amount={bill.averageAmount} absolute />
         )}
-      </span>
-      <span>
+      </td>
+      <td className="px-3 py-2">
         {bill.frequency && (
           <Badge variant="outline" className="text-xs font-normal">
             {FREQUENCY_LABELS[bill.frequency] ?? bill.frequency}
           </Badge>
         )}
-      </span>
-      <span className="flex justify-end">
-        <BillStatusIndicator status={bill.status} relativeDateLabel={bill.relativeDateLabel} />
-      </span>
-    </button>
+      </td>
+      <td className="px-3 py-2">
+        <span className="flex justify-end">
+          <BillStatusIndicator status={bill.status} relativeDateLabel={bill.relativeDateLabel} />
+        </span>
+      </td>
+    </tr>
   );
 }
