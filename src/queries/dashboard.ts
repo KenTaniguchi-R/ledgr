@@ -403,3 +403,50 @@ export async function getRecentTransactions(
     hasSplits: false,
   }));
 }
+
+/**
+ * The date from which every tracked account has a known balance, or null when
+ * no account is missing early history.
+ *
+ * Net worth is only net worth once every account contributes. Carry-forward
+ * fills gaps *between* an account's snapshots, but an account whose first-ever
+ * snapshot lands mid-window contributes $0 to every earlier point — so full
+ * coverage begins on the day the *last* account got its first snapshot.
+ *
+ * Computed as an aggregate rather than by reconstructing the series: the range
+ * control needs this on every dashboard load, and building a full-history
+ * series just to read its first covered date would be far more work than
+ * MAX(MIN(date)).
+ */
+export async function getFullCoverageSince(
+  householdId: string,
+  db: LedgrDb = defaultDb,
+): Promise<string | null> {
+  const scoped = scopedQuery(householdId, db);
+
+  const liveAccounts = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(scoped.where(accounts, notDeleted(accounts)));
+
+  if (liveAccounts.length === 0) return null;
+  const ids = liveAccounts.map((a) => a.id);
+
+  const firsts = await db
+    .select({
+      accountId: balanceHistory.accountId,
+      firstDate: sql<string>`MIN(${balanceHistory.date})`,
+    })
+    .from(balanceHistory)
+    .where(inArray(balanceHistory.accountId, ids))
+    .groupBy(balanceHistory.accountId);
+
+  // An account with no history at all is never covered, so no date makes the
+  // series complete. Say so rather than reporting a date that is not true.
+  if (firsts.length < ids.length) return null;
+
+  return firsts.reduce<string | null>(
+    (latest, row) => (latest === null || row.firstDate > latest ? row.firstDate : latest),
+    null,
+  );
+}

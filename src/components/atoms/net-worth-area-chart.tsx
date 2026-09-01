@@ -12,7 +12,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
-import { centsToDisplay, centsToCompact } from "@/lib/money";
+import { centsToDisplay, centsToCompact, axisTickFormatter } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
 import { INCOME_COLOR, EXPENSE_COLOR, POSITIVE_COLOR, UNCOVERED_COLOR } from "@/lib/chart-colors";
 import { coverageBoundary } from "@/lib/net-worth-coverage";
@@ -74,6 +74,7 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
   if (mode === "single") {
     const points = data as SinglePoint[];
     const boundary = coverageBoundary(points.map((p) => ({ ...p, netWorth: p.value })));
+    const formatTick = axisTickFormatter(points.map((p) => p.value));
 
     // Split the series at the boundary so the stretch that isn't yet net worth
     // renders as a muted dashed line instead of a confident solid one. The
@@ -108,9 +109,9 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
           <CartesianGrid vertical={false} stroke="var(--border)" />
           <XAxis dataKey="date" tickFormatter={formatDateShort} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={48} />
           <YAxis
-            tickFormatter={centsToCompact}
+            tickFormatter={formatTick}
             tick={AXIS_TICK}
-            width={52}
+            width={68}
             axisLine={false}
             tickLine={false}
             tickCount={4}
