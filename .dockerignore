@@ -16,3 +16,5 @@ react-dashboard
 test-results
 playwright-report
 coverage
+src/**/*.test.ts
+src/**/*.test.tsx
