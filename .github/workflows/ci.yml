@@ -22,19 +22,26 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           version: 11.5.2
-          # Self-hosted runners share one $HOME, so the default install path
-          # (~/setup-pnpm/node_modules) is shared by every job on the box. Two
-          # jobs from different refs starting together race on it and leave it
-          # half-removed, after which every later job fails at setup — first as
-          # `ENOTEMPTY ... rmdir`, then permanently as `self-installer exits
-          # with code 254`, before a single test runs.
+          # Self-hosted runners share one $HOME, and the action clears its
+          # install dir before writing to it. With the default ~/setup-pnpm that
+          # `rmdir` is shared by every job on the box, so two jobs from
+          # different refs starting together race and leave it half-removed —
+          # `ENOTEMPTY ... rmdir .../store/v11/files/03` — after which later
+          # jobs fail at setup or, once store files are gone, at `pnpm install`
+          # with ERR_PNPM_ENOENT. All of it before a single test runs.
           #
-          # `standalone` fetches a self-contained pnpm binary instead, skipping
-          # the node_modules layout that races. See #125.
+          # The workflow's concurrency group is keyed on github.ref, so it
+          # serialises one branch and does nothing across branches — exactly the
+          # case that collides.
+          #
+          # runner.temp is per-job and cleaned up by the runner, so there is no
+          # shared directory left to race on. `standalone` additionally avoids
+          # building the node_modules layout. See #125.
+          dest: ${{ runner.temp }}/setup-pnpm
           standalone: true
 
       # No `cache: pnpm` on purpose. The runner is self-hosted, so the pnpm
-      # store already persists in $HOME between jobs — actions/cache would
+      # store already persists in $HOME between jobs (see --store-dir below) — actions/cache would
       # round-trip a tarball over the network for zero benefit. Measured cost
       # when it was enabled: up to 79s in the post-job cache save, longer than
       # the test step it was meant to speed up.
@@ -42,7 +49,13 @@ jobs:
         with:
           node-version: 24
 
-      - run: pnpm install --frozen-lockfile
+      # --store-dir keeps the package cache on a stable path. The install dir
+      # above is per-job and disposable; the store must not be, or every job
+      # re-downloads ~1100 packages. A shared content-addressed store is
+      # pnpm's normal mode and is safe for concurrent readers — it was only
+      # fragile here because it happened to sit inside the directory the
+      # action clears.
+      - run: pnpm install --frozen-lockfile --store-dir ~/.pnpm-store
 
       - run: pnpm typecheck
 
@@ -79,15 +92,22 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           version: 11.5.2
-          # Self-hosted runners share one $HOME, so the default install path
-          # (~/setup-pnpm/node_modules) is shared by every job on the box. Two
-          # jobs from different refs starting together race on it and leave it
-          # half-removed, after which every later job fails at setup — first as
-          # `ENOTEMPTY ... rmdir`, then permanently as `self-installer exits
-          # with code 254`, before a single test runs.
+          # Self-hosted runners share one $HOME, and the action clears its
+          # install dir before writing to it. With the default ~/setup-pnpm that
+          # `rmdir` is shared by every job on the box, so two jobs from
+          # different refs starting together race and leave it half-removed —
+          # `ENOTEMPTY ... rmdir .../store/v11/files/03` — after which later
+          # jobs fail at setup or, once store files are gone, at `pnpm install`
+          # with ERR_PNPM_ENOENT. All of it before a single test runs.
           #
-          # `standalone` fetches a self-contained pnpm binary instead, skipping
-          # the node_modules layout that races. See #125.
+          # The workflow's concurrency group is keyed on github.ref, so it
+          # serialises one branch and does nothing across branches — exactly the
+          # case that collides.
+          #
+          # runner.temp is per-job and cleaned up by the runner, so there is no
+          # shared directory left to race on. `standalone` additionally avoids
+          # building the node_modules layout. See #125.
+          dest: ${{ runner.temp }}/setup-pnpm
           standalone: true
 
       # No `cache: pnpm` — see the test job for why.
@@ -95,7 +115,13 @@ jobs:
         with:
           node-version: 24
 
-      - run: pnpm install --frozen-lockfile
+      # --store-dir keeps the package cache on a stable path. The install dir
+      # above is per-job and disposable; the store must not be, or every job
+      # re-downloads ~1100 packages. A shared content-addressed store is
+      # pnpm's normal mode and is safe for concurrent readers — it was only
+      # fragile here because it happened to sit inside the directory the
+      # action clears.
+      - run: pnpm install --frozen-lockfile --store-dir ~/.pnpm-store
 
       - name: Mutation test changed files
         env:
