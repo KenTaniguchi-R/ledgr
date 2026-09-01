@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Fingerprint } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
+import { authErrorMessage } from "@/lib/auth/error-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,7 +65,8 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
       });
 
       if (error) {
-        setError(AUTH_ERRORS[error.code ?? ""] ?? "Something went wrong. Please try again.");
+        console.error("Sign-in failed", error);
+        setError(authErrorMessage(error, AUTH_ERRORS));
         return;
       }
 
