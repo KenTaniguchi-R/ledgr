@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { test, fc } from "@fast-check/vitest";
 import {
   centsToDisplay,
+  centsToSignedDisplay,
   centsToCompact,
   displayToCents,
   plaidAmountToCents,
@@ -12,6 +13,21 @@ import {
 } from "./money";
 
 describe("money utilities", () => {
+  describe("centsToSignedDisplay", () => {
+    it("writes both signs, so a delta never reads as a quantity", () => {
+      expect(centsToSignedDisplay(1250)).toBe("+$12.50");
+      expect(centsToSignedDisplay(-1250)).toBe("-$12.50");
+    });
+
+    it("treats zero as non-negative", () => {
+      expect(centsToSignedDisplay(0)).toBe("+$0.00");
+    });
+
+    it("signs the amount, not the currency symbol", () => {
+      expect(centsToSignedDisplay(-1250, "EUR")).toBe("-€12.50");
+    });
+  });
+
   describe("centsToCompact", () => {
     it("abbreviates thousands and millions", () => {
       expect(centsToCompact(12830412)).toBe("$128.3K");

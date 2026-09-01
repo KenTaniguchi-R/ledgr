@@ -45,7 +45,11 @@ export default async function TransactionsPage({
         <ReviewEntryButton unreviewedCount={unreviewedSummary.count} />
       </div>
 
-      <FilterBar accounts={accountOptions} categories={allCategories} />
+      <FilterBar
+        accounts={accountOptions}
+        categories={allCategories}
+        resultCount={summary?.count ?? 0}
+      />
 
       {summary && (
         <FilterSummaryBar
