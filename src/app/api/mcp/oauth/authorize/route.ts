@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getClient } from "@/lib/mcp/auth/oauth-server";
-import { DEFAULT_SCOPE, getMcpResourceUrl } from "@/lib/mcp/constants";
+import { DEFAULT_SCOPE, getLedgrUrl, getMcpResourceUrl } from "@/lib/mcp/constants";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -26,7 +26,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid_client", error_description: "Unknown client_id" }, { status: 400 });
   }
 
-  const consentUrl = new URL("/mcp/authorize", request.url);
+  // Build the consent URL from the configured public origin, never from
+  // `request.url`: in Docker the server binds 0.0.0.0:3000 behind a port
+  // mapping, so `request.url` carries the container-internal address and
+  // the browser would follow the redirect to an unreachable host.
+  const consentUrl = new URL("/mcp/authorize", getLedgrUrl());
   consentUrl.searchParams.set("client_id", clientId);
   consentUrl.searchParams.set("redirect_uri", redirectUri);
   consentUrl.searchParams.set("code_challenge", codeChallenge);
