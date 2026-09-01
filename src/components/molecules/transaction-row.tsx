@@ -12,8 +12,18 @@ import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
 
+// Account is a column only at lg and up. The breakpoint is on the viewport but
+// the grid lives inside the content area, which is a 256px sidebar narrower —
+// at md the six tracks leave the description almost no width at all. Below lg
+// the account stays an inline suffix on the description (sm-lg), and below sm
+// it is dropped entirely; see the spans in the row body.
+//
+// The category track is bounded rather than `auto` wherever the account column
+// exists: every row is its own grid, so an `auto` track resolves per row and
+// the 1fr description absorbs the difference, which left the account starting
+// at a different x on every line.
 export const TRANSACTION_GRID_COLS =
-  "grid-cols-[24px_minmax(0,1fr)_auto_80px] sm:grid-cols-[24px_32px_minmax(0,1fr)_auto_100px]" as const;
+  "grid-cols-[24px_minmax(0,1fr)_auto_80px] sm:grid-cols-[24px_32px_minmax(0,1fr)_auto_100px] lg:grid-cols-[24px_32px_minmax(0,1fr)_128px_minmax(0,150px)_100px]" as const;
 
 interface TransactionRowProps {
   transaction: TxnRow;
@@ -96,13 +106,19 @@ export const TransactionRow = memo(function TransactionRow({
               ({txn.originalName})
             </span>
           )}
-          <span className="hidden sm:inline text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate">
+          <span className="hidden sm:inline lg:hidden text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate">
             {txn.accountName && accountDisplayName(txn.accountName)}
           </span>
         </div>
       </div>
 
-      <div onClick={handleCheckboxClick}>
+      <div className="hidden min-w-0 pr-2 text-xs text-muted-foreground lg:block">
+        <span className="block truncate">
+          {txn.accountName && accountDisplayName(txn.accountName)}
+        </span>
+      </div>
+
+      <div className="min-w-0" onClick={handleCheckboxClick}>
         <CategoryPill
           key={`${txn.id}-cat-${txn.categoryId}`}
           transactionId={txn.id}

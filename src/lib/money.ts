@@ -7,6 +7,18 @@ export function centsToDisplay(cents: number, currency = "USD"): string {
   }).format(cents / 100);
 }
 
+/**
+ * A signed amount, always carrying its sign: "+$12.50", "-$12.50", "+$0.00".
+ *
+ * Intl already renders a minus for negatives, but never a plus for positives.
+ * Where a figure is a delta rather than a quantity — a net, a gain/loss — the
+ * leading "+" is what makes it read as one, so both signs are written here.
+ */
+export function centsToSignedDisplay(cents: number, currency = "USD"): string {
+  const display = centsToDisplay(Math.abs(cents), currency);
+  return cents < 0 ? `-${display}` : `+${display}`;
+}
+
 export function displayToCents(display: number): number {
   return Math.round(display * 100);
 }

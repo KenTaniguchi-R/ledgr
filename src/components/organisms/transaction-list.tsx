@@ -130,6 +130,7 @@ export function TransactionList({
             />
           </div>
           <span>Description</span>
+          <span className="hidden lg:block">Account</span>
           <span>Category</span>
           <span className="text-right">Amount</span>
         </div>
