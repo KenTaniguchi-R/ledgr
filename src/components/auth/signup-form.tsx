@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/client";
+import { authErrorMessage } from "@/lib/auth/error-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +38,11 @@ export function SignupForm() {
       });
 
       if (error) {
-        setError(AUTH_ERRORS[error.code ?? ""] ?? "Something went wrong. Please try again.");
+        // Keep the full detail in the browser console — the visible copy is
+        // deliberately short, but a self-hoster debugging a 500 wants both this
+        // and the matching server log line.
+        console.error("Sign-up failed", error);
+        setError(authErrorMessage(error, AUTH_ERRORS));
         return;
       }
 

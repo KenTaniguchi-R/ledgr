@@ -61,6 +61,7 @@ async function seedHousehold(db: LedgrDb, s: string) {
     id: `authacc-${s}`,
     accountId: `acc-${s}`,
     providerId: "credential",
+    issuer: "local:credential",
     userId: uid,
     password: "hashed",
     updatedAt: new Date(),

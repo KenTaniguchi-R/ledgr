@@ -77,6 +77,11 @@ export const account = pgTable(
     id: text("id").primaryKey(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
+    // Namespaces an identity to the authority that issued it, so a provider ID
+    // can't collide across authentication methods. Better Auth writes it on
+    // every account and *filters sign-in on it*, so it is never null:
+    // "local:credential" for email/password, "local:oauth:<provider>" for OAuth.
+    issuer: text("issuer").notNull(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
