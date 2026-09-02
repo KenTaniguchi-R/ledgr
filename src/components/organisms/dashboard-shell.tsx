@@ -19,7 +19,10 @@ export function DashboardShell({ userName, userEmail, defaultOpen = true, childr
           <SidebarTrigger className="h-11 w-11" />
           <span className="text-sm font-semibold">Ledgr</span>
         </header>
-        <main className="flex-1 px-4 py-4 md:px-6 md:py-6 lg:px-8">
+        {/* The AI assistant button is `fixed bottom-6 right-6`, so it floats over
+            whatever the page ends with. Reserve its height (56px + 24px inset)
+            plus a gap, so content can always be scrolled clear of it. */}
+        <main className="flex-1 px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-24 lg:px-8">
           {children}
         </main>
       </SidebarInset>

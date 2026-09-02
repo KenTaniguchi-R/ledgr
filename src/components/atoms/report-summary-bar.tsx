@@ -55,19 +55,31 @@ interface ReportSummaryBarProps {
   items: SummaryItem[];
 }
 
+/**
+ * An inline `gridTemplateColumns` is unreachable by any breakpoint, so the bar
+ * kept its desktop column count on a phone and pushed the page sideways —
+ * squeezing the third tile down to its icon. Classes instead, so the count can
+ * fall to one column on a narrow screen.
+ */
+const COLUMNS_AT_WIDE: Record<number, string> = {
+  1: "lg:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+  5: "lg:grid-cols-5",
+};
+
 export function ReportSummaryBar({ items }: ReportSummaryBarProps) {
+  const columns = COLUMNS_AT_WIDE[Math.min(items.length, 5)] ?? "lg:grid-cols-5";
   return (
-    <div
-      className="grid gap-4"
-      style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 5)}, 1fr)` }}
-    >
+    <div className={cn("grid gap-4 grid-cols-1 sm:grid-cols-2", columns)}>
       {items.map((item) => {
         const tone = resolveTone(item);
         const Icon = item.icon;
         return (
           <div
             key={item.label}
-            className="flex items-center gap-3 rounded-lg border p-3"
+            className="flex min-w-0 items-center gap-3 rounded-lg border p-3"
           >
             {Icon && (
               <div
