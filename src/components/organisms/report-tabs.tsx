@@ -80,23 +80,29 @@ export function ReportTabs({
       value={activeTab}
       onValueChange={(tab) => updateFilter("tab", tab === "spending" ? null : tab)}
     >
-      <TabsList className="h-9">
-        <TabsTrigger value="spending">
-          <PieChart /> Spending
-        </TabsTrigger>
-        <TabsTrigger value="income-expense">
-          <ArrowLeftRight /> Income vs Expense
-        </TabsTrigger>
-        <TabsTrigger value="cash-flow">
-          <Waypoints /> Cash Flow
-        </TabsTrigger>
-        <TabsTrigger value="trends">
-          <TrendingUp /> Trends
-        </TabsTrigger>
-        <TabsTrigger value="net-worth">
-          <LineChart /> Net Worth
-        </TabsTrigger>
-      </TabsList>
+      {/* Five tabs do not fit a phone. Without a scroll container the list
+          just widened the page — Trends and Net Worth sat off-screen with no
+          way to reach them, because the list itself computes
+          `overflow-x: visible`. */}
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <TabsList className="h-9">
+          <TabsTrigger value="spending">
+            <PieChart /> Spending
+          </TabsTrigger>
+          <TabsTrigger value="income-expense">
+            <ArrowLeftRight /> Income vs Expense
+          </TabsTrigger>
+          <TabsTrigger value="cash-flow">
+            <Waypoints /> Cash Flow
+          </TabsTrigger>
+          <TabsTrigger value="trends">
+            <TrendingUp /> Trends
+          </TabsTrigger>
+          <TabsTrigger value="net-worth">
+            <LineChart /> Net Worth
+          </TabsTrigger>
+        </TabsList>
+      </div>
 
       <TabsContent value="spending" className="mt-4">
         {spendingData && (

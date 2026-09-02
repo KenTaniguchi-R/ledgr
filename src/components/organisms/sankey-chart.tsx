@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { sankey, sankeyLinkHorizontal } from "d3-sankey";
 import { centsToDisplay } from "@/lib/money";
 import { INCOME_COLOR, CHART_COLORS } from "@/lib/chart-colors";
+import { activateOnKey } from "@/lib/a11y";
 
 export interface SankeyNode {
   id: string;
@@ -155,12 +156,20 @@ export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyC
           const clickable = onNodeClick && node.type !== "savings";
           return (
             <g key={node.id}>
+              {/* An SVG rect takes focus only with an explicit tabIndex and a
+                  role — without both, the Sankey was mouse-only. */}
               <rect
                 x={x0} y={y0}
                 width={x1 - x0} height={nodeHeight}
                 fill={color} rx={2}
-                className={clickable ? "cursor-pointer" : ""}
+                tabIndex={clickable ? 0 : undefined}
+                role={clickable ? "button" : undefined}
+                aria-label={clickable ? `Show ${node.name} transactions` : undefined}
+                className={clickable ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" : ""}
                 onClick={() => clickable && onNodeClick(node.id, node.type)}
+                onKeyDown={activateOnKey(
+                  clickable ? () => onNodeClick(node.id, node.type) : undefined,
+                )}
               />
               {nodeHeight > 12 && (
                 <text

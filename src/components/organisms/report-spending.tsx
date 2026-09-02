@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { centsToDisplay } from "@/lib/money";
+import { activateOnKey } from "@/lib/a11y";
 import { CHART_COLORS } from "@/lib/chart-colors";
 import type { SpendingRow } from "@/queries/reports";
 
@@ -76,7 +77,7 @@ export function ReportSpending({
         <SpendingChart data={chartData} viewMode={view} onItemClick={handleDrillDown} />
       </div>
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table className="text-sm">
           <TableHeader>
             <TableRow className="hover:bg-transparent text-muted-foreground">
@@ -89,8 +90,17 @@ export function ReportSpending({
             {data.map((row, i) => (
               <TableRow
                 key={row.categoryId ?? "uncategorized"}
-                className="cursor-pointer"
+                // The row is the click target for a mouse, and a focus stop for
+                // a keyboard. Without the latter, drill-down was mouse-only:
+                // every row measured tabIndex -1 with no role.
+                tabIndex={0}
+                role="button"
+                aria-label={`Show ${row.categoryName} transactions, ${centsToDisplay(row.total)}`}
+                className="cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                 onClick={() => handleDrillDown({ id: row.categoryId, name: row.categoryName })}
+                onKeyDown={activateOnKey(() =>
+                  handleDrillDown({ id: row.categoryId, name: row.categoryName }),
+                )}
               >
                 <TableCell className="px-3 py-2">
                   <div className="flex items-center gap-3">

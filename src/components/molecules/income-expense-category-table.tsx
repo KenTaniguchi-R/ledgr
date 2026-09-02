@@ -1,6 +1,7 @@
 "use client";
 
 import { centsToDisplay } from "@/lib/money";
+import { activateOnKey } from "@/lib/a11y";
 import type { IncomeExpenseCategoryRow } from "@/queries/reports";
 import { ChevronRight } from "lucide-react";
 import { CategoryIconTile } from "@/components/atoms/category-icon";
@@ -52,10 +53,12 @@ function Section({
     );
   }
 
-  const rowClass = onCategoryClick ? "cursor-pointer group" : "hover:bg-transparent";
+  const rowClass = onCategoryClick
+    ? "cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+    : "hover:bg-transparent";
 
   return (
-    <div>
+    <div className="overflow-x-auto">
       <div className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/30">
         {label}
       </div>
@@ -72,8 +75,18 @@ function Section({
           {rows.map((row) => (
             <TableRow
               key={`${row.categoryId ?? "uncategorized"}-${row.isIncome}`}
+              tabIndex={onCategoryClick ? 0 : undefined}
+              role={onCategoryClick ? "button" : undefined}
+              aria-label={
+                onCategoryClick
+                  ? `Show ${row.categoryName} transactions, ${centsToDisplay(row.total)}`
+                  : undefined
+              }
               className={rowClass}
               onClick={() => onCategoryClick?.(row.categoryId, row.isIncome)}
+              onKeyDown={activateOnKey(
+                onCategoryClick ? () => onCategoryClick(row.categoryId, row.isIncome) : undefined,
+              )}
             >
               <TableCell className="px-3 py-2 flex items-center gap-2">
                 <CategoryIconTile name={row.categoryIcon} iconSize={14} className="size-6" />

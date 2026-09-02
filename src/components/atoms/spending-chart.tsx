@@ -2,6 +2,7 @@
 
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { centsToDisplay } from "@/lib/money";
+import { activateOnKey } from "@/lib/a11y";
 import { CHART_COLORS } from "@/lib/chart-colors";
 
 export interface SpendingChartItem {
@@ -78,7 +79,7 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="w-3/5 overflow-y-auto">
+        <div className="w-3/5 overflow-y-auto overflow-x-hidden">
           {chartData.map((row, i) => (
             <SpendingLegendRow
               key={row.name}
@@ -132,9 +133,15 @@ function SpendingLegendRow({
   onClick?: () => void;
 }) {
   return (
+    // Recharts' sectors cannot take focus, so this legend is the keyboard route
+    // into the donut. An inert row (no onClick) stays out of the tab order.
     <div
-      className={`flex items-center gap-2 py-1 text-sm ${onClick ? "cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1" : ""}`}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `Show ${name} transactions` : undefined}
+      className={`flex items-center gap-2 py-1 text-sm ${onClick ? "cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring rounded px-1 -mx-1" : ""}`}
       onClick={onClick}
+      onKeyDown={activateOnKey(onClick)}
     >
       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
       <span className="truncate flex-1">{name}</span>
