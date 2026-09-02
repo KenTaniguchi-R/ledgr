@@ -17,7 +17,7 @@ import {
 
 interface IncomeExpenseCategoryTableProps {
   data: IncomeExpenseCategoryRow[];
-  onCategoryClick?: (categoryId: string, isIncome: boolean) => void;
+  onCategoryClick?: (categoryId: string | null, isIncome: boolean) => void;
 }
 
 export function IncomeExpenseCategoryTable({ data, onCategoryClick }: IncomeExpenseCategoryTableProps) {
@@ -42,7 +42,7 @@ function Section({
 }: {
   label: string;
   rows: IncomeExpenseCategoryRow[];
-  onCategoryClick?: (categoryId: string, isIncome: boolean) => void;
+  onCategoryClick?: (categoryId: string | null, isIncome: boolean) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -71,7 +71,7 @@ function Section({
         <TableBody>
           {rows.map((row) => (
             <TableRow
-              key={row.categoryId}
+              key={`${row.categoryId ?? "uncategorized"}-${row.isIncome}`}
               className={rowClass}
               onClick={() => onCategoryClick?.(row.categoryId, row.isIncome)}
             >

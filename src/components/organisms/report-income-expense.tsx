@@ -36,7 +36,7 @@ export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseP
     { label: "Net", value: totalNet, color: "dynamic", icon: Scale },
   ];
 
-  function handleCategoryDrillDown(categoryId: string, isIncome: boolean) {
+  function handleCategoryDrillDown(categoryId: string | null, isIncome: boolean) {
     const cat = categoryData?.find((c) => c.categoryId === categoryId);
     setDrillDown({
       categoryId,
