@@ -11,6 +11,7 @@ import {
   ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 import { centsToDisplay, centsToCompact, axisTickFormatter } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
@@ -175,6 +176,9 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
           domain={["auto", "auto"]}
         />
         <Tooltip content={<CustomTooltip />} />
+        {/* Three series identified by colour alone, and only on hover, until
+            this. A legend is not optional past one series. */}
+        <Legend wrapperStyle={{ fontSize: 12 }} />
         <Area
           type="monotone"
           dataKey="netWorth"

@@ -5,7 +5,7 @@ import { Wallet, CalendarDays } from "lucide-react";
 import { TrendLineChart } from "@/components/atoms/trend-line-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CHART_COLORS } from "@/lib/chart-colors";
+import { MAX_TREND_SERIES, trendSeriesColor } from "@/lib/series-colors";
 import type { CategoryTrendRow } from "@/queries/reports";
 
 interface ReportTrendsProps {
@@ -14,14 +14,16 @@ interface ReportTrendsProps {
 
 export function ReportTrends({ data }: ReportTrendsProps) {
   const allCategories = [...new Set(data.map((r) => r.categoryName))];
-  const [selected, setSelected] = useState<Set<string>>(new Set(allCategories.slice(0, 10)));
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(allCategories.slice(0, MAX_TREND_SERIES)),
+  );
 
   function toggle(name: string) {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(name)) {
         next.delete(name);
-      } else if (next.size < 10) {
+      } else if (next.size < MAX_TREND_SERIES) {
         next.add(name);
       }
       return next;
@@ -29,9 +31,11 @@ export function ReportTrends({ data }: ReportTrendsProps) {
   }
 
   const selectedList = allCategories.filter((c) => selected.has(c));
-  const cats = selectedList.map((name, i) => ({
+  // Colour keys off the category, not off its position in this filtered list —
+  // otherwise unchecking one category repainted every line that remained.
+  const cats = selectedList.map((name) => ({
     name,
-    color: CHART_COLORS[i % CHART_COLORS.length],
+    color: trendSeriesColor(allCategories, name),
   }));
 
   // Pivot data for Recharts: { period, CatA: 1000, CatB: 2000, ... }
@@ -59,20 +63,36 @@ export function ReportTrends({ data }: ReportTrendsProps) {
       <ReportSummaryBar items={summaryItems} />
       <h3 className="text-lg font-medium">Category Trends</h3>
 
-      <div className="h-[300px]">
+      <div className="h-[340px]">
         <TrendLineChart data={chartData} categories={cats} />
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        {allCategories.map((name) => (
-          <label key={name} className="flex items-center gap-1.5 text-sm cursor-pointer">
-            <Checkbox
-              checked={selected.has(name)}
-              onCheckedChange={() => toggle(name)}
-            />
-            {name}
-          </label>
-        ))}
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Comparing {selected.size} of {MAX_TREND_SERIES}. Four lines is what the
+          chart palette can keep apart at a glance — clear one to add another.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {allCategories.map((name) => {
+            const isSelected = selected.has(name);
+            const atCapacity = !isSelected && selected.size >= MAX_TREND_SERIES;
+            return (
+              <label
+                key={name}
+                className={`flex items-center gap-1.5 text-sm ${
+                  atCapacity ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                }`}
+              >
+                <Checkbox
+                  checked={isSelected}
+                  disabled={atCapacity}
+                  onCheckedChange={() => toggle(name)}
+                />
+                {name}
+              </label>
+            );
+          })}
+        </div>
       </div>
 
     </div>
