@@ -12,7 +12,18 @@ export function formatMonthShort(month: string): string {
 }
 
 export function formatDateShort(date: string): string {
-  return new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const d = new Date(date + "T00:00:00");
+  // The year is only shown when it is not the current one. Most dates on screen
+  // are recent, where a year is noise (and would crowd chart axis ticks), but
+  // without it an older range reads as "Jan 1 - Mar 31" with nothing saying
+  // which year, and a year-over-year comparison label is indistinguishable
+  // from this year's.
+  const showYear = d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(showYear ? { year: "numeric" } : {}),
+  });
 }
 
 export function formatMonthLong(month: string): string {
@@ -70,6 +81,12 @@ export function monthBounds(monthStr: string): { from: string; to: string } {
   };
 }
 
+/** True when the range covers whole calendar months end to end (1st -> last). */
+function isWholeMonthSpan(fromDate: Date, toDate: Date): boolean {
+  const lastDayOfToMonth = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0).getDate();
+  return fromDate.getDate() === 1 && toDate.getDate() === lastDayOfToMonth;
+}
+
 export function shiftDateRange(
   from: string,
   to: string,
@@ -77,10 +94,17 @@ export function shiftDateRange(
   isPreset: boolean,
 ): { from: string; to: string } {
   const sign = direction === "back" ? -1 : 1;
+  const fromDate = new Date(from + "T12:00:00");
+  const toDate = new Date(to + "T12:00:00");
 
-  if (isPreset) {
-    const fromDate = new Date(from + "T12:00:00");
-    const toDate = new Date(to + "T12:00:00");
+  // Calendar-month arithmetic only makes sense for a range that actually spans
+  // whole months (Apr 1 - Jun 30). `rangeToDateBounds` returns a *rolling*
+  // window instead (Jun 2 - Sep 2), which touches four calendar months: the
+  // month-span arithmetic counted 4, and the end-of-month snap then stretched
+  // the baseline to 118 days against a 92-day window. A rolling window shifts
+  // by its own length, so the baseline is always the period immediately before
+  // it and exactly as long.
+  if (isPreset && isWholeMonthSpan(fromDate, toDate)) {
     const monthSpan =
       (toDate.getFullYear() - fromDate.getFullYear()) * 12 +
       (toDate.getMonth() - fromDate.getMonth()) + 1;
@@ -97,8 +121,6 @@ export function shiftDateRange(
     };
   }
 
-  const fromDate = new Date(from + "T12:00:00");
-  const toDate = new Date(to + "T12:00:00");
   const daySpan = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
   const newFrom = new Date(fromDate);
   newFrom.setDate(newFrom.getDate() + sign * daySpan);

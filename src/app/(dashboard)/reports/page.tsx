@@ -13,6 +13,7 @@ import {
   type ReportFilters,
 } from "@/queries/reports";
 import { rangeToDateBounds, shiftDateRange, comparisonLabel, getCurrentMonth } from "@/lib/date-utils";
+import { resolveReportDateSelection, DEFAULT_REPORT_PRESET } from "@/lib/report-date-selection";
 import { ReportFilterBar } from "@/components/organisms/report-filter-bar";
 import { ReportTabs } from "@/components/organisms/report-tabs";
 import { SavedReportPicker } from "@/components/organisms/saved-report-picker";
@@ -30,15 +31,21 @@ export default async function ReportsPage({
 
   const tab = typeof params.tab === "string" && VALID_TABS.has(params.tab) ? params.tab : "spending";
   const preset = typeof params.preset === "string" ? params.preset : null;
+  const from = typeof params.from === "string" ? params.from : null;
+  const to = typeof params.to === "string" ? params.to : null;
+
+  // Shared with ReportFilterBar so the page and the chip above it can never
+  // describe the same URL differently.
+  const { effectivePreset, isAllTime, isPreset } = resolveReportDateSelection({ from, to, preset });
 
   let dateFrom: string;
   let dateTo: string;
 
-  if (typeof params.from === "string" && typeof params.to === "string") {
-    dateFrom = params.from;
-    dateTo = params.to;
+  if (from && to) {
+    dateFrom = from;
+    dateTo = to;
   } else {
-    const bounds = rangeToDateBounds(preset ?? "3M");
+    const bounds = rangeToDateBounds(effectivePreset ?? DEFAULT_REPORT_PRESET);
     dateFrom = bounds.from ?? "2000-01-01";
     dateTo = bounds.to;
   }
@@ -49,8 +56,6 @@ export default async function ReportsPage({
   const filters: ReportFilters = { dateFrom, dateTo, accountIds, categoryIds };
 
   // Comparison period
-  const isPreset = preset !== null;
-  const isAllTime = preset === "all" || (!params.from && !params.to && !preset);
   let compLabel: string | null = null;
   let compPeriod: { dateFrom: string; dateTo: string } | undefined;
 
