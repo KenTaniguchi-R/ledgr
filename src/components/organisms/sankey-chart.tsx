@@ -31,6 +31,8 @@ interface LayoutNode extends SankeyNode {
   x1?: number;
   y0?: number;
   y1?: number;
+  /** Set by d3-sankey: the larger of the node's in- and out-flow. */
+  value?: number;
 }
 
 interface LayoutLink {
@@ -171,6 +173,11 @@ export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyC
                   clickable ? () => onNodeClick(node.id, node.type) : undefined,
                 )}
               />
+              {/* A money-flow diagram that never states an amount leaves the
+                  reader guessing whether the widest ribbon is $2,300 or
+                  $23,000. The value sits in muted ink beside the name, not in
+                  the node's own colour, which would read as another encoding.
+                  Nodes too thin for a label keep their value in the tooltip. */}
               {nodeHeight > 12 && (
                 <text
                   x={node.type === "income" ? x0 - 4 : x1 + 4}
@@ -180,6 +187,7 @@ export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyC
                   className="text-[10px] fill-foreground"
                 >
                   {node.name}
+                  <tspan className="fill-muted-foreground"> · {centsToDisplay(node.value ?? 0)}</tspan>
                 </text>
               )}
             </g>
