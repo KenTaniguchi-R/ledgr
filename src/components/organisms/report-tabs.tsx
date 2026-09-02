@@ -45,7 +45,6 @@ interface ReportTabsProps {
   sankeyLinks?: SankeyLink[];
   cashFlowBarData?: IncomeExpenseRow[];
   safeToSpendData?: SafeToSpendResult;
-  isCurrentMonth?: boolean;
   comparisonLabel: string | null;
   /**
    * The range the figures on screen were actually computed over. Passed down
@@ -69,7 +68,6 @@ export function ReportTabs({
   sankeyLinks,
   cashFlowBarData,
   safeToSpendData,
-  isCurrentMonth,
   comparisonLabel,
   dateFrom,
   dateTo,
@@ -129,7 +127,6 @@ export function ReportTabs({
             sankeyLinks={sankeyLinks}
             barData={cashFlowBarData}
             safeToSpend={safeToSpendData}
-            isCurrentMonth={isCurrentMonth ?? false}
             dateFrom={dateFrom}
             dateTo={dateTo}
             accountIds={accountIds}

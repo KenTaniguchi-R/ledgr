@@ -574,15 +574,27 @@ export interface SafeToSpendResult {
   recurringExpenses: number;
   discretionarySpent: number;
   safeToSpend: number;
+  /** The calendar month these figures cover, `YYYY-MM`. */
+  month: string;
 }
 
+/**
+ * How much of this month is still the household's to spend.
+ *
+ * Deliberately scoped to a whole calendar month and not to the report's date
+ * filter: every term is a this-month quantity — income received, bills still
+ * due, spending already made. Over a three-month range it would be asking how
+ * much is left to spend in the past. The Cash Flow tab labels the panel with
+ * `month` so a reader can see it stands apart from the filter above it.
+ */
 export async function getSafeToSpend(
   householdId: string,
   db: LedgrDb = defaultDb,
+  month: string = getCurrentMonth(),
 ): Promise<SafeToSpendResult> {
   const scoped = scopedQuery(householdId, db);
   const incomeCatIds = await getIncomeCategoryIds(householdId, db);
-  const { from: dateFrom, to: dateTo } = monthBounds(getCurrentMonth());
+  const { from: dateFrom, to: dateTo } = monthBounds(month);
 
   // Monthly income (including pending — so paycheck shows immediately)
   const incomeTxns = await db
@@ -598,7 +610,7 @@ export async function getSafeToSpend(
         isNull(transactions.transferPairId),
         incomeCatIds.size > 0
           ? inArray(transactions.categoryId, [...incomeCatIds])
-          : sql`0`,
+          : sql`false`,
       ),
     );
 
@@ -670,18 +682,23 @@ export async function getSafeToSpend(
         eq(transactions.isTransfer, false),
         isNull(transactions.transferPairId),
         isNull(transactions.recurringTransactionId),
-        sql`${transactions.normalizedAmount} > 0`,
+        // A charge is a NEGATIVE normalized amount, as everywhere else in
+        // Reports. Selecting positives instead collected the refunds and left
+        // every real charge out, so this tile read $0.00 in every month no
+        // matter what the household had spent.
+        lt(transactions.normalizedAmount, 0),
         notIncomeCondition,
       ),
     );
 
-  const discretionarySpent = discretionaryTxns.reduce((s, t) => s + t.normalizedAmount, 0);
+  const discretionarySpent = discretionaryTxns.reduce((s, t) => s + Math.abs(t.normalizedAmount), 0);
 
   return {
     monthlyIncome,
     recurringExpenses,
     discretionarySpent,
     safeToSpend: monthlyIncome - recurringExpenses - discretionarySpent,
+    month,
   };
 }
 
