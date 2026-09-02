@@ -58,7 +58,7 @@
     "node-cron": "^4.6.0",
     "papaparse": "^5.7.0",
     "pg": "^8.23.0",
-    "plaid": "^43.0.0",
+    "plaid": "^46.0.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-grid-layout": "^2.2.4",
