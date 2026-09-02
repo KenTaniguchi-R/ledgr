@@ -62,7 +62,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-grid-layout": "^2.2.4",
-    "react-plaid-link": "^4.1.1",
+    "react-plaid-link": "^5.0.0",
     "recharts": "^3.10.1",
     "shadcn": "^4.19.0",
     "tailwind-merge": "^3.6.0",
