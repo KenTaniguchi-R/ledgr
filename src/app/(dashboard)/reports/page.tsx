@@ -82,12 +82,20 @@ export default async function ReportsPage({
   let sankeyData;
   let safeToSpendData;
   let cashFlowBarData;
+  let spendingTotalIncome;
 
   switch (tab) {
-    case "spending":
-      spendingData = await withHousehold(householdId, (tx) =>
-        getSpendingByCategory(householdId, filters, tx, compPeriod));
+    case "spending": {
+      // Income comes along for the share-of-income figure in the headline.
+      const [spending, income] = await Promise.all([
+        withHousehold(householdId, (tx) =>
+          getSpendingByCategory(householdId, filters, tx, compPeriod)),
+        withHousehold(householdId, (tx) => getIncomeVsExpense(householdId, filters, tx)),
+      ]);
+      spendingData = spending;
+      spendingTotalIncome = income.reduce((s, r) => s + r.income, 0);
       break;
+    }
     case "income-expense": {
       const [ie, ieCat] = await Promise.all([
         withHousehold(householdId, (tx) => getIncomeVsExpense(householdId, filters, tx)),
@@ -139,6 +147,7 @@ export default async function ReportsPage({
         cashFlowBarData={cashFlowBarData}
         safeToSpendData={safeToSpendData}
         comparisonLabel={compLabel}
+        spendingTotalIncome={spendingTotalIncome}
         dateFrom={dateFrom}
         dateTo={dateTo}
         accountIds={accountIds}

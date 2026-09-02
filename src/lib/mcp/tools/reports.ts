@@ -39,8 +39,11 @@ export function registerReportTools(server: McpServer, householdId: string) {
           groupId: r.groupId,
           totalCents: r.total,
           totalDisplay: centsToDisplay(r.total),
+          // null means the category has no baseline row at all — new, rather
+          // than unchanged. Reporting it as 0 would let a consumer compute a
+          // change against a period the category was not in.
           prevTotalCents: r.prevTotal,
-          prevTotalDisplay: centsToDisplay(r.prevTotal),
+          prevTotalDisplay: r.prevTotal === null ? null : centsToDisplay(r.prevTotal),
         })),
       );
     },

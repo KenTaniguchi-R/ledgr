@@ -22,6 +22,12 @@ interface DateRangePopoverProps {
   active: boolean;
   /** Text shown after "Date:" on the trigger; null renders a bare "Date". */
   triggerValue: string | null;
+  /**
+   * The dates a named preset resolves to, shown in muted text beside it. A chip
+   * reading only "Last 3 months" never says which three months, and the
+   * resolved range appeared nowhere else on the page.
+   */
+  triggerDetail?: string | null;
   /** Current custom-range input values ("" when unset). */
   from: string;
   to: string;
@@ -42,6 +48,7 @@ export function DateRangePopover({
   selectedId,
   active,
   triggerValue,
+  triggerDetail,
   from,
   to,
   onSelectPreset,
@@ -66,6 +73,16 @@ export function DateRangePopover({
           <>
             <span className={cn("font-normal", active ? "opacity-70" : "text-muted-foreground")}>Date:</span>
             <span className="ml-1 max-w-[160px] truncate">{triggerValue}</span>
+            {triggerDetail && (
+              <span
+                className={cn(
+                  "ml-1.5 hidden truncate text-xs sm:inline",
+                  active ? "opacity-60" : "text-muted-foreground",
+                )}
+              >
+                {triggerDetail}
+              </span>
+            )}
           </>
         ) : (
           "Date"

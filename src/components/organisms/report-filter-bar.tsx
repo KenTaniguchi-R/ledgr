@@ -69,6 +69,15 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
     return null;
   })();
 
+  // A preset names a window without saying which one. Resolve it here so the
+  // chip prints the dates the report below it actually used.
+  const dateDetail = (() => {
+    if (!dateActive || !effectivePreset) return null;
+    const { from, to } = rangeToDateBounds(effectivePreset);
+    if (!from) return null;
+    return `${formatDateShort(from)} – ${formatDateShort(to)}`;
+  })();
+
   function handleDatePreset(id: string) {
     const { from, to } = rangeToDateBounds(id);
     updateFilters({ from, to, preset: id === "all" ? null : id });
@@ -95,6 +104,7 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
         selectedId={effectivePreset}
         active={dateActive}
         triggerValue={dateValue}
+        triggerDetail={dateDetail}
         from={fromParam ?? ""}
         to={toParam ?? ""}
         onSelectPreset={handleDatePreset}

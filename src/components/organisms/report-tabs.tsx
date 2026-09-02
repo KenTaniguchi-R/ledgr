@@ -46,6 +46,8 @@ interface ReportTabsProps {
   cashFlowBarData?: IncomeExpenseRow[];
   safeToSpendData?: SafeToSpendResult;
   comparisonLabel: string | null;
+  /** Income over the selected range — the Spending tab's share-of-income figure. */
+  spendingTotalIncome?: number;
   /**
    * The range the figures on screen were actually computed over. Passed down
    * rather than re-read from the URL, so a drill-down can never query a
@@ -69,6 +71,7 @@ export function ReportTabs({
   cashFlowBarData,
   safeToSpendData,
   comparisonLabel,
+  spendingTotalIncome,
   dateFrom,
   dateTo,
   accountIds,
@@ -109,6 +112,7 @@ export function ReportTabs({
           <ReportSpending
             data={spendingData}
             comparisonLabel={comparisonLabel}
+            totalIncome={spendingTotalIncome}
             dateFrom={dateFrom}
             dateTo={dateTo}
             accountIds={accountIds}

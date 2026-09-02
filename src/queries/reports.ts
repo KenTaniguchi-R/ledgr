@@ -37,7 +37,12 @@ export interface SpendingRow {
   groupId: string | null;
   categoryIcon: string | null;
   total: number;
-  prevTotal: number;
+  /**
+   * The same category's spending in the comparison period, or `null` when the
+   * category has no baseline row — it is new, which is not the same as
+   * unchanged. `null` also when no comparison period was requested.
+   */
+  prevTotal: number | null;
 }
 
 export interface IncomeExpenseRow {
@@ -66,7 +71,7 @@ export async function getSpendingByCategory(
   const currentSpending = await aggregateSpending(householdId, filters, db);
   const enriched = await enrichSpendingMap(currentSpending, db);
 
-  let prevMap = new Map<string, number>();
+  let prevMap: Map<string, number> | null = null;
   if (comparisonPeriod) {
     prevMap = await aggregateSpending(householdId, { ...filters, ...comparisonPeriod }, db);
   }
@@ -78,7 +83,7 @@ export async function getSpendingByCategory(
     groupId: row.groupId,
     categoryIcon: row.categoryIcon,
     total: row.value,
-    prevTotal: prevMap.get(row.id ?? "uncategorized") ?? 0,
+    prevTotal: prevMap?.get(row.id ?? "uncategorized") ?? null,
   }));
 }
 
