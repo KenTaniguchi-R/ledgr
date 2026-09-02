@@ -48,8 +48,9 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
   ];
 
   function handleDrillDown(item: { id: string | null; name: string }) {
+    // Keep the null: it means "uncategorized", not "every category".
     setDrillDown({
-      categoryId: item.id ?? undefined,
+      categoryId: item.id,
       categoryName: item.name,
       tabContext: "Spending",
     });

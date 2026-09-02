@@ -84,7 +84,8 @@ export async function deleteReport(
 const DRILL_DOWN_LIMIT = 50;
 
 export async function getDrillDownTransactions(filters: {
-  categoryId?: string;
+  /** A category id, `null` for uncategorized, `undefined` for no category filter. */
+  categoryId?: string | null;
   dateFrom: string;
   dateTo: string;
   type?: "income" | "expense";
@@ -93,7 +94,7 @@ export async function getDrillDownTransactions(filters: {
 
   const page = await withHousehold(householdId, (tx) =>
     getTransactions(householdId, {
-      categoryId: filters.categoryId ?? undefined,
+      categoryId: filters.categoryId,
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
     }, DRILL_DOWN_LIMIT, undefined, tx));
