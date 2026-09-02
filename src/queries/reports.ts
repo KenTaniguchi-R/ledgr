@@ -1,4 +1,4 @@
-import { eq, gte, lt, lte, sql, and, inArray, notInArray, isNull, isNotNull } from "drizzle-orm";
+import { eq, gte, lt, lte, sql, and, inArray, notInArray, isNull } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -12,7 +12,7 @@ import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, sumAbs } from "@/lib/query-helpers";
 import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
-import { resolvedCategoryLabel } from "@/lib/labels";
+import { resolvedCategoryLabel, UNCATEGORIZED } from "@/lib/labels";
 import {
   aggregateSpending,
   enrichSpendingMap,
@@ -46,7 +46,8 @@ export interface IncomeExpenseRow {
 
 export interface CategoryTrendRow {
   period: string;
-  categoryId: string;
+  /** `null` is uncategorized spending, not "no category filter". */
+  categoryId: string | null;
   categoryName: string;
   total: number;
 }
@@ -103,10 +104,10 @@ export async function getIncomeVsExpense(
 
   const incomeCatIds = [...(await getIncomeCategoryIds(householdId, db))];
 
-  // Income sums the raw (signed) amount of income-category txns; expenses sum
-  // the absolute value of everything else. An uncategorized row (no
-  // categoryId) falls back to its sign: a positive normalizedAmount (credit)
-  // counts as income rather than defaulting to expense.
+  // Income sums the raw (signed) amount of income-category txns. An
+  // uncategorized row (no categoryId) falls back to its sign: a positive
+  // normalizedAmount (credit) counts as income rather than defaulting to
+  // expense.
   const inIncomeCat =
     incomeCatIds.length > 0
       ? inArray(transactions.categoryId, incomeCatIds)
@@ -115,13 +116,18 @@ export async function getIncomeVsExpense(
     COALESCE(${inIncomeCat}, false)
     OR (${transactions.categoryId} IS NULL AND ${transactions.normalizedAmount} > 0)
   )`;
+  // Expenses use the same rule as the Spending tab (`spendingBaseConditions`):
+  // only *negative* non-income rows count. Without the sign guard, ABS() turned
+  // every refund and credit into spending, so this tile disagreed with the
+  // Spending tab by exactly the sum of the period's credits.
+  const isSpending = sql`(NOT (${isIncome}) AND ${transactions.normalizedAmount} < 0)`;
   const monthExpr = sql<string>`substring(${transactions.date}, 1, 7)`;
 
   const rows = await db
     .select({
       period: monthExpr,
       income: sql<number>`COALESCE(SUM(CASE WHEN ${isIncome} THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`.mapWith(Number),
-      expenses: sql<number>`COALESCE(SUM(CASE WHEN NOT (${isIncome}) THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
+      expenses: sql<number>`COALESCE(SUM(CASE WHEN ${isSpending} THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
     })
     .from(transactions)
     .where(scoped.where(transactions, ...conditions))
@@ -184,9 +190,11 @@ export async function getCategoryTrends(
 
   const trendMap = new Map<string, number>(); // "YYYY-MM|catId" -> total
 
+  // Uncategorized rows keyed on an empty id rather than skipped. Dropping them
+  // made the Trends total read as spending-minus-uncategorized while the tile
+  // above it was labelled simply "Total Spent".
   for (const row of nonSplitRows) {
-    if (!row.categoryId) continue;
-    const key = `${row.month}|${row.categoryId}`;
+    const key = `${row.month}|${row.categoryId ?? ""}`;
     trendMap.set(key, (trendMap.get(key) ?? 0) + row.total);
   }
 
@@ -218,7 +226,7 @@ export async function getCategoryTrends(
   }
 
   // Resolve category names
-  const allCatIds = [...new Set([...trendMap.keys()].map((k) => k.split("|")[1]))];
+  const allCatIds = [...new Set([...trendMap.keys()].map((k) => k.split("|")[1]))].filter(Boolean);
   const catNames = new Map<string, string>();
   if (allCatIds.length > 0) {
     const cats = await db
@@ -230,11 +238,12 @@ export async function getCategoryTrends(
 
   const result: CategoryTrendRow[] = [];
   for (const [key, total] of trendMap.entries()) {
-    const [period, categoryId] = key.split("|");
+    const [period, rawCategoryId] = key.split("|");
+    const categoryId = rawCategoryId === "" ? null : rawCategoryId;
     result.push({
       period,
       categoryId,
-      categoryName: resolvedCategoryLabel(catNames.get(categoryId)),
+      categoryName: categoryId === null ? UNCATEGORIZED : resolvedCategoryLabel(catNames.get(categoryId)),
       total,
     });
   }
@@ -243,7 +252,8 @@ export async function getCategoryTrends(
 }
 
 export interface IncomeExpenseCategoryRow {
-  categoryId: string;
+  /** `null` is uncategorized, which is a real row here. */
+  categoryId: string | null;
   categoryName: string;
   categoryIcon: string | null;
   isIncome: boolean;
@@ -288,49 +298,90 @@ export async function getIncomeExpenseByCategory(
     .where(scoped.where(transactions, ...conditions));
   const monthCount = Math.max(monthRow?.count ?? 0, 1);
 
-  // Per-category totals: income categories sum ABS(amount), everything else sums
-  // the raw signed amount — pushed into SQL via SUM(CASE ...). Null-category rows
-  // are excluded from the grouping (they never produced a row in the JS version).
-  const isIncome =
+  const inIncomeCat =
     incomeCatIds.size > 0
       ? sql`COALESCE(${inArray(transactions.categoryId, [...incomeCatIds])}, false)`
       : sql`false`;
 
+  // The expense side is exactly `spendingBaseConditions`: a negative amount in a
+  // non-income category, summed by magnitude. Uncategorized rows are grouped
+  // like any other category rather than filtered out — they are usually the
+  // single largest line, and dropping them made this table disagree with the
+  // Total Expenses tile above it.
+  //
+  // Income is left as it was (gross magnitudes, income categories only). Its own
+  // rows still undershoot the Total Income tile, which counts uncategorized
+  // credits as income — reconciling those two is a product decision about gross
+  // vs net income, tracked separately, not something to settle silently here.
+  //
+  // Both pools are aggregated in one pass and classified in JS: emitting the
+  // classifier in GROUP BY trips Postgres 42803, because Drizzle re-renders the
+  // template with fresh placeholders and the planner cannot match the terms.
   const catRows = await db
     .select({
       categoryId: transactions.categoryId,
       categoryName: categories.name,
       categoryIcon: categories.icon,
-      total: sql<number>`COALESCE(SUM(CASE WHEN ${isIncome} THEN ABS(${transactions.normalizedAmount}) ELSE ${transactions.normalizedAmount} END), 0)`.mapWith(Number),
+      incomeTotal: sql<number>`COALESCE(SUM(CASE
+          WHEN ${inIncomeCat} THEN ABS(${transactions.normalizedAmount})
+          ELSE 0 END), 0)`.mapWith(Number),
+      expenseTotal: sql<number>`COALESCE(SUM(CASE
+          WHEN NOT (${inIncomeCat}) AND ${transactions.normalizedAmount} < 0
+          THEN ABS(${transactions.normalizedAmount})
+          ELSE 0 END), 0)`.mapWith(Number),
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(scoped.where(transactions, ...conditions, isNotNull(transactions.categoryId)))
+    .where(scoped.where(transactions, ...conditions))
     .groupBy(transactions.categoryId, categories.name, categories.icon);
+
+  // A category can legitimately land on both sides — uncategorized most often,
+  // where credits are income and debits are spending. A side that sums to zero
+  // (a period of pure credits, say) is not a category of anything, so it is
+  // dropped rather than rendered as a $0 row.
+  const scored = catRows.flatMap((row) =>
+    (
+      [
+        { isIncome: true, total: row.incomeTotal },
+        { isIncome: false, total: row.expenseTotal },
+      ] as const
+    )
+      .filter((side) => side.total > 0)
+      .map((side) => ({
+        categoryId: row.categoryId,
+        categoryName: row.categoryName,
+        categoryIcon: row.categoryIcon,
+        isIncome: side.isIncome,
+        total: side.total,
+      })),
+  );
 
   let totalIncome = 0;
   let totalExpenses = 0;
-  for (const row of catRows) {
-    if (incomeCatIds.has(row.categoryId!)) totalIncome += row.total;
+  for (const row of scored) {
+    if (row.isIncome) totalIncome += row.total;
     else totalExpenses += row.total;
   }
 
-  const result: IncomeExpenseCategoryRow[] = catRows.map((row) => {
-    const rowIsIncome = incomeCatIds.has(row.categoryId!);
-    const denominator = rowIsIncome ? totalIncome : totalExpenses;
+  const result: IncomeExpenseCategoryRow[] = scored.map((row) => {
+    const denominator = row.isIncome ? totalIncome : totalExpenses;
     return {
-      categoryId: row.categoryId!,
-      categoryName: resolvedCategoryLabel(row.categoryName),
+      categoryId: row.categoryId,
+      categoryName: row.categoryId === null ? UNCATEGORIZED : resolvedCategoryLabel(row.categoryName),
       categoryIcon: row.categoryIcon,
-      isIncome: rowIsIncome,
+      isIncome: row.isIncome,
       total: row.total,
       monthlyAverage: Math.round(row.total / monthCount),
-      // A category total and its pool total share the same sign, so the ratio is
-      // a positive share. Guard only against divide-by-zero — an empty (0) pool.
+      // Both the row and its pool are positive magnitudes, so the share is a
+      // positive percentage that sums to 100 across the pool. Guard only against
+      // divide-by-zero — an empty (0) pool.
       percentOfTotal: denominator !== 0 ? (row.total / denominator) * 100 : 0,
     };
   });
 
+  // Magnitudes, largest first. Sorting the previous signed totals ranked
+  // expenses backwards: the biggest expense was the most negative, so it sorted
+  // last and the smallest sat at the top of the table.
   return result.sort((a, b) => b.total - a.total);
 }
 
@@ -438,16 +489,20 @@ export async function getCashFlowSankey(
     }
   }
 
-  // Expense side: non-income categories with a NEGATIVE normalizedAmount, summed
-  // as ABS — matching the codebase's expense convention (getCashFlow, etc.).
-  // Null categories are excluded.
+  // Expense side: non-income rows with a NEGATIVE normalizedAmount, summed as
+  // ABS — the same rule as the Spending tab. Uncategorized rows are included:
+  // excluding them drew a money-flow diagram missing the largest outflow in the
+  // period, which is precisely the flow a reader is looking for.
   const expenseConditions = [
     ...conditions,
-    isNotNull(transactions.categoryId),
     sql`${transactions.normalizedAmount} < 0`,
   ];
   if (incomeCatIds.size > 0) {
-    expenseConditions.push(notInArray(transactions.categoryId, [...incomeCatIds]));
+    // `category_id NOT IN (...)` is NULL — not TRUE — for an uncategorized row,
+    // so a bare notInArray silently drops every one of them.
+    expenseConditions.push(
+      sql`(${transactions.categoryId} IS NULL OR ${notInArray(transactions.categoryId, [...incomeCatIds])})`,
+    );
   }
   const expenseRows = await db
     .select({
@@ -461,7 +516,10 @@ export async function getCashFlowSankey(
     .groupBy(transactions.categoryId, categories.name);
 
   for (const row of expenseRows) {
-    expenseMap.set(row.categoryId!, { name: resolvedCategoryLabel(row.categoryName), total: row.total });
+    expenseMap.set(row.categoryId ?? "uncategorized", {
+      name: row.categoryId === null ? UNCATEGORIZED : resolvedCategoryLabel(row.categoryName),
+      total: row.total,
+    });
   }
 
   const totalIncome = [...incomeMap.values()].reduce((s, v) => s + v.total, 0);

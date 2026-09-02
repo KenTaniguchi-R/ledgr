@@ -104,7 +104,7 @@ describe("getIncomeVsExpense", () => {
 });
 
 describe("getIncomeExpenseByCategory", () => {
-  test("income sums abs amount, expense sums raw signed amount", async () => {
+  test("both pools sum as positive magnitudes", async () => {
     const { getIncomeExpenseByCategory } = await import("../../src/queries/reports");
     const result = await getIncomeExpenseByCategory(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
 
@@ -115,32 +115,38 @@ describe("getIncomeExpenseByCategory", () => {
     expect(salary?.isIncome).toBe(true);
     expect(salary?.total).toBe(500000); // abs of +500000
     expect(food?.isIncome).toBe(false);
-    expect(food?.total).toBe(-8000); // raw signed (-5000 + -3000)
-    expect(rent?.total).toBe(-100000); // raw signed
+    // Magnitudes, not signed sums: the table renders these directly and the
+    // pool percentages divide by them. See report-consistency.test.ts.
+    expect(food?.total).toBe(8000); // |-5000| + |-3000|
+    expect(rent?.total).toBe(100000);
   });
 
   test("sorts rows by total descending", async () => {
     const { getIncomeExpenseByCategory } = await import("../../src/queries/reports");
     const result = await getIncomeExpenseByCategory(householdId, { dateFrom: "2026-03-01", dateTo: "2026-03-31" }, db);
 
-    expect(result.map((r) => r.categoryName)).toEqual(["Salary", "Food", "Rent"]);
+    // Largest first within the combined list. Sorting signed totals used to
+    // rank expenses backwards, putting the smallest expense at the top.
+    expect(result.map((r) => r.categoryName)).toEqual(["Salary", "Rent", "Food"]);
   });
 
-  test("monthlyAverage divides by distinct month count; null-category months count in the divisor but rows are excluded", async () => {
+  test("monthlyAverage divides by distinct month count, and uncategorized gets its own row", async () => {
     // A lone null-category txn in January adds a third distinct month to the
-    // divisor even though it produces no output row.
+    // divisor, and is itself reported as uncategorized spending.
     await insertTransaction(db, householdId, accountId, { date: "2026-01-20", normalizedAmount: -9999, amount: 9999, categoryId: null, name: "Uncat Jan" });
 
     const { getIncomeExpenseByCategory } = await import("../../src/queries/reports");
     const result = await getIncomeExpenseByCategory(householdId, { dateFrom: "2026-01-01", dateTo: "2026-03-31" }, db);
 
-    // No row for the null-category transaction.
-    expect(result.every((r) => r.categoryName !== "Uncat Jan")).toBe(true);
+    // The null-category transaction is spending and is reported as such.
+    const uncategorized = result.find((r) => r.categoryId === null);
+    expect(uncategorized?.total).toBe(9999);
+    expect(uncategorized?.isIncome).toBe(false);
 
-    // Food = Feb (-4000) + Mar (-8000) = -12000 over 3 distinct months.
+    // Food = Feb (4000) + Mar (8000) = 12000 over 3 distinct months.
     const food = result.find((r) => r.categoryName === "Food");
-    expect(food?.total).toBe(-12000);
-    expect(food?.monthlyAverage).toBe(Math.round(-12000 / 3)); // -4000
+    expect(food?.total).toBe(12000);
+    expect(food?.monthlyAverage).toBe(Math.round(12000 / 3)); // 4000
   });
 
   test("percentOfTotal is relative to the income vs expense pool", async () => {
