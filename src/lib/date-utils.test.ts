@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, afterEach } from "vitest";
 import { test as fcTest } from "@fast-check/vitest";
 import { fc } from "@fast-check/vitest";
-import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel, formatTxnSpan, todayDateString } from "./date-utils";
+import { rangeToDateBounds, monthBounds, shiftDateRange, comparisonLabel, formatTxnSpan, todayDateString, formatDateShort } from "./date-utils";
 
 describe("todayDateString", () => {
   afterEach(() => {
@@ -111,6 +111,70 @@ describe("shiftDateRange", () => {
     const shiftedTo = new Date(result.to + "T12:00:00");
     const shiftedDays = Math.round((shiftedTo.getTime() - shiftedFrom.getTime()) / 86400000);
     expect(shiftedDays).toBe(originalDays);
+  });
+});
+
+describe("shiftDateRange on rolling preset ranges", () => {
+  // rangeToDateBounds("3M") produces a *rolling* window (e.g. Jun 2 - Sep 2),
+  // which spans four calendar months. The old month-span arithmetic added one
+  // to that span and snapped to end-of-month, producing a 118-day baseline for
+  // a 92-day window — so every comparison percentage was measured against a
+  // window 28% longer than the one it described.
+  const daysBetween = (a: string, b: string) =>
+    Math.round((new Date(b + "T12:00:00").getTime() - new Date(a + "T12:00:00").getTime()) / 86400000);
+
+  test("a rolling 3M window shifts to the immediately preceding window of equal length", () => {
+    const result = shiftDateRange("2026-06-02", "2026-09-02", "back", true);
+    expect(result).toEqual({ from: "2026-03-02", to: "2026-06-02" });
+  });
+
+  test("the baseline is the same length as the window it compares against", () => {
+    const result = shiftDateRange("2026-06-02", "2026-09-02", "back", true);
+    expect(daysBetween(result.from, result.to)).toBe(daysBetween("2026-06-02", "2026-09-02"));
+  });
+
+  test("month-aligned presets still shift by whole calendar months", () => {
+    // Apr 1 - Jun 30 is three whole months, so the baseline is Jan 1 - Mar 31
+    // rather than an equal-day-count window landing mid-month.
+    expect(shiftDateRange("2026-04-01", "2026-06-30", "back", true)).toEqual({
+      from: "2026-01-01",
+      to: "2026-03-31",
+    });
+  });
+
+  test("forward shifts are symmetric with back shifts", () => {
+    const back = shiftDateRange("2026-06-02", "2026-09-02", "back", true);
+    expect(shiftDateRange(back.from, back.to, "forward", true)).toEqual({
+      from: "2026-06-02",
+      to: "2026-09-02",
+    });
+  });
+
+  fcTest.prop([fc.integer({ min: 1, max: 200 })])(
+    "a rolling preset baseline always matches the window length",
+    (daySpan) => {
+      const fromDate = new Date("2026-06-02T12:00:00");
+      const toDate = new Date(fromDate);
+      toDate.setDate(toDate.getDate() + daySpan);
+      const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, "0")}-${String(toDate.getDate()).padStart(2, "0")}`;
+      const result = shiftDateRange("2026-06-02", to, "back", true);
+      expect(daysBetween(result.from, result.to)).toBe(daySpan);
+    },
+  );
+});
+
+describe("formatDateShort", () => {
+  const thisYear = new Date().getFullYear();
+
+  test("omits the year for dates in the current year", () => {
+    expect(formatDateShort(`${thisYear}-03-05`)).toBe("Mar 5");
+  });
+
+  test("includes the year for dates outside it", () => {
+    // A custom 2019 range used to render as "Jan 1 - Mar 31" with nothing
+    // saying which year, and a year-over-year comparison label was
+    // indistinguishable from the current year's.
+    expect(formatDateShort(`${thisYear - 7}-01-01`)).toContain(String(thisYear - 7));
   });
 });
 

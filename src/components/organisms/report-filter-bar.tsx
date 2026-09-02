@@ -12,6 +12,7 @@ import {
 } from "@/components/molecules/date-range-popover";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { rangeToDateBounds, formatDateShort, formatTxnSpan } from "@/lib/date-utils";
+import { resolveReportDateSelection } from "@/lib/report-date-selection";
 import type { CategoryGroup } from "@/queries/categories";
 
 // Reports keeps its own preset ids (mapped to rangeToDateBounds + the server's
@@ -51,10 +52,14 @@ export function ReportFilterBar({ accounts, categories }: ReportFilterBarProps) 
   const fromParam = searchParams.get("from");
   const toParam = searchParams.get("to");
   const presetParam = searchParams.get("preset");
-  // No preset + a manual from/to = custom; otherwise fall back to the 3M default.
-  const hasCustom = !!(fromParam && toParam && !presetParam);
-  const effectivePreset = presetParam ?? (hasCustom ? null : "3M");
-  const dateActive = effectivePreset !== "all";
+  // Shared with the Reports page so the chip and the report below it always
+  // describe the same range.
+  const { effectivePreset, isAllTime } = resolveReportDateSelection({
+    from: fromParam,
+    to: toParam,
+    preset: presetParam,
+  });
+  const dateActive = !isAllTime;
   const dateValue = (() => {
     if (!dateActive) return null;
     if (effectivePreset) return REPORT_DATE_OPTIONS.find((o) => o.id === effectivePreset)?.label ?? null;
