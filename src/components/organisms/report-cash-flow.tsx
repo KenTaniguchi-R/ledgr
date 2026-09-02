@@ -7,6 +7,7 @@ import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { resolvedCategoryLabel } from "@/lib/labels";
+import { formatMonthLong } from "@/lib/date-utils";
 import type { IncomeExpenseRow, SafeToSpendResult } from "@/queries/reports";
 
 interface ReportCashFlowProps {
@@ -14,7 +15,6 @@ interface ReportCashFlowProps {
   sankeyLinks: SankeyLink[];
   barData: IncomeExpenseRow[];
   safeToSpend: SafeToSpendResult;
-  isCurrentMonth: boolean;
   dateFrom: string;
   dateTo: string;
   accountIds?: string[];
@@ -25,7 +25,6 @@ export function ReportCashFlow({
   sankeyLinks,
   barData,
   safeToSpend,
-  isCurrentMonth,
   dateFrom,
   dateTo,
   accountIds,
@@ -48,7 +47,7 @@ export function ReportCashFlow({
       label: "Safe to Spend",
       value: safeToSpend.safeToSpend,
       color: safeColor,
-      secondaryLabel: isCurrentMonth ? undefined : "(current month)",
+      secondaryLabel: "income, less bills still due and what you have spent",
       icon: PiggyBank,
     },
   ];
@@ -74,7 +73,21 @@ export function ReportCashFlow({
 
   return (
     <div className="space-y-4">
-      <ReportSummaryBar items={summaryItems} />
+      {/* These four are a whole-calendar-month view and do not follow the date
+          filter above — "how much is left to spend" is only a question about
+          the month you are in. Say so, rather than letting a reader assume the
+          chip applies and read $0.00 as a data problem. */}
+      <section aria-labelledby="safe-to-spend-heading" className="space-y-2">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <h3 id="safe-to-spend-heading" className="text-lg font-medium">
+            {formatMonthLong(safeToSpend.month)}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            this month only — not affected by the date filter
+          </p>
+        </div>
+        <ReportSummaryBar items={summaryItems} />
+      </section>
 
       <h3 className="text-lg font-medium">Money Flow</h3>
       <div className="h-[400px]">

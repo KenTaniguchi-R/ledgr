@@ -12,7 +12,7 @@ import {
   getSafeToSpend,
   type ReportFilters,
 } from "@/queries/reports";
-import { rangeToDateBounds, shiftDateRange, comparisonLabel, getCurrentMonth } from "@/lib/date-utils";
+import { rangeToDateBounds, shiftDateRange, comparisonLabel } from "@/lib/date-utils";
 import { resolveReportDateSelection, DEFAULT_REPORT_PRESET } from "@/lib/report-date-selection";
 import { ReportFilterBar } from "@/components/organisms/report-filter-bar";
 import { ReportTabs } from "@/components/organisms/report-tabs";
@@ -116,9 +116,6 @@ export default async function ReportsPage({
       break;
   }
 
-  const currentMonth = getCurrentMonth();
-  const isCurrentMonth = dateFrom <= `${currentMonth}-01` && dateTo >= `${currentMonth}-01`;
-
   const [allCategories, filterAccounts, savedReports] = await sharedPromise;
 
   return (
@@ -141,7 +138,6 @@ export default async function ReportsPage({
         sankeyLinks={sankeyData?.links}
         cashFlowBarData={cashFlowBarData}
         safeToSpendData={safeToSpendData}
-        isCurrentMonth={isCurrentMonth}
         comparisonLabel={compLabel}
         dateFrom={dateFrom}
         dateTo={dateTo}
