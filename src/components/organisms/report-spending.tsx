@@ -18,18 +18,25 @@ import {
 } from "@/components/ui/table";
 import { centsToDisplay } from "@/lib/money";
 import { CHART_COLORS } from "@/lib/chart-colors";
-import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import type { SpendingRow } from "@/queries/reports";
 
 interface ReportSpendingProps {
   data: SpendingRow[];
   comparisonLabel: string | null;
+  dateFrom: string;
+  dateTo: string;
+  accountIds?: string[];
 }
 
-export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpendingProps) {
+export function ReportSpending({
+  data,
+  comparisonLabel: compLabel,
+  dateFrom,
+  dateTo,
+  accountIds,
+}: ReportSpendingProps) {
   const [view, setView] = useState<"donut" | "bar">("donut");
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
-  const { dateRange } = useSearchParamFilters();
 
   const chartData = data.map((r) => ({
     id: r.categoryId,
@@ -126,8 +133,9 @@ export function ReportSpending({ data, comparisonLabel: compLabel }: ReportSpend
 
       <DrillDownSheet
         filter={drillDown}
-        dateFrom={dateRange.from}
-        dateTo={dateRange.to}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        accountIds={accountIds}
         onClose={() => setDrillDown(null)}
       />
     </div>

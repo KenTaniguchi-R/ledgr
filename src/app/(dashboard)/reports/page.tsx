@@ -143,6 +143,9 @@ export default async function ReportsPage({
         safeToSpendData={safeToSpendData}
         isCurrentMonth={isCurrentMonth}
         comparisonLabel={compLabel}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        accountIds={accountIds}
       />
     </div>
   );

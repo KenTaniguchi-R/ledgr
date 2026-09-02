@@ -142,7 +142,24 @@ export async function getTransactions(
   cursor: string | null = null,
   db: LedgrDb = defaultDb,
 ): Promise<TransactionPage> {
-  const conditions = buildTransactionConditions(filters);
+  return fetchTransactionPage(householdId, buildTransactionConditions(filters), limit, cursor, db);
+}
+
+/**
+ * Fetch one page of transactions for an arbitrary set of conditions.
+ *
+ * `getTransactions` builds those conditions from the transactions-page filter
+ * shape; the Reports drill-down builds them from the spending/income definition
+ * instead, so that a drill-down lists exactly the rows its figure counted.
+ */
+export async function fetchTransactionPage(
+  householdId: string,
+  baseConditions: (SQL | undefined)[],
+  limit = 50,
+  cursor: string | null = null,
+  db: LedgrDb = defaultDb,
+): Promise<TransactionPage> {
+  const conditions = [...baseConditions];
 
   // Cursor conditions stay here — not in the shared builder
   const decoded = cursor ? decodeCursor(cursor) : null;

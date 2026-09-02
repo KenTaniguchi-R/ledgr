@@ -9,14 +9,17 @@ import {
   recurringTransactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, sumAbs } from "@/lib/query-helpers";
+import { notDeleted, sumAbs, countRows } from "@/lib/query-helpers";
 import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import { resolvedCategoryLabel, UNCATEGORIZED } from "@/lib/labels";
 import {
   aggregateSpending,
   enrichSpendingMap,
+  spendingBaseConditions,
+  incomeBaseConditions,
 } from "@/lib/spending-helpers";
+import { fetchTransactionPage, type TransactionRow } from "@/queries/transactions";
 import { getCurrentMonth, monthBounds } from "@/lib/date-utils";
 import type { SankeyNode, SankeyLink } from "@/components/organisms/sankey-chart";
 
@@ -679,5 +682,70 @@ export async function getSafeToSpend(
     recurringExpenses,
     discretionarySpent,
     safeToSpend: monthlyIncome - recurringExpenses - discretionarySpent,
+  };
+}
+
+
+export interface DrillDownFilters extends ReportFilters {
+  /** A category id, `null` for uncategorized, `undefined` for every category. */
+  categoryId?: string | null;
+  /** Which side of the report the clicked figure came from. */
+  type?: "income" | "expense";
+}
+
+export interface DrillDownResult {
+  rows: TransactionRow[];
+  hasMore: boolean;
+  /** Magnitude summed over every match, not just the page in `rows`. */
+  total: number;
+  /** How many transactions the figure counted, page size notwithstanding. */
+  matchCount: number;
+}
+
+/**
+ * The transactions behind a report figure.
+ *
+ * The population is the report's own — `spendingBaseConditions` or
+ * `incomeBaseConditions`, plus the report's date range and account filter — not
+ * a bare category+date lookup, which swept in the transfers, pending rows and
+ * refunds that the figure had deliberately excluded.
+ *
+ * `total` and `matchCount` are computed over that whole population. The sheet
+ * used to add up the rows it had been handed, so any category with more
+ * transactions than the page limit displayed a total short of the row that
+ * opened it.
+ */
+export async function getDrillDownTransactions(
+  householdId: string,
+  filters: DrillDownFilters,
+  limit = 50,
+  db: LedgrDb = defaultDb,
+): Promise<DrillDownResult> {
+  const scoped = scopedQuery(householdId, db);
+
+  const conditions =
+    filters.type === "income"
+      ? await incomeBaseConditions(householdId, filters, db)
+      : await spendingBaseConditions(householdId, filters, db);
+
+  if (filters.categoryId === null) {
+    conditions.push(isNull(transactions.categoryId));
+  } else if (filters.categoryId !== undefined) {
+    conditions.push(eq(transactions.categoryId, filters.categoryId));
+  }
+
+  const [page, [totals]] = await Promise.all([
+    fetchTransactionPage(householdId, conditions, limit, null, db),
+    db
+      .select({ total: sumAbs(transactions.normalizedAmount), matchCount: countRows() })
+      .from(transactions)
+      .where(scoped.where(transactions, ...conditions)),
+  ]);
+
+  return {
+    rows: page.rows,
+    hasMore: page.nextCursor !== null,
+    total: totals?.total ?? 0,
+    matchCount: totals?.matchCount ?? 0,
   };
 }

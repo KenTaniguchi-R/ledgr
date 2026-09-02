@@ -6,7 +6,6 @@ import { SankeyChart, type SankeyNode, type SankeyLink } from "@/components/orga
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
-import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { resolvedCategoryLabel } from "@/lib/labels";
 import type { IncomeExpenseRow, SafeToSpendResult } from "@/queries/reports";
 
@@ -16,6 +15,9 @@ interface ReportCashFlowProps {
   barData: IncomeExpenseRow[];
   safeToSpend: SafeToSpendResult;
   isCurrentMonth: boolean;
+  dateFrom: string;
+  dateTo: string;
+  accountIds?: string[];
 }
 
 export function ReportCashFlow({
@@ -24,9 +26,11 @@ export function ReportCashFlow({
   barData,
   safeToSpend,
   isCurrentMonth,
+  dateFrom,
+  dateTo,
+  accountIds,
 }: ReportCashFlowProps) {
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
-  const { dateRange } = useSearchParamFilters();
 
   const safeColor: SummaryItem["color"] = (() => {
     if (safeToSpend.monthlyIncome === 0) return "default";
@@ -89,8 +93,9 @@ export function ReportCashFlow({
 
       <DrillDownSheet
         filter={drillDown}
-        dateFrom={dateRange.from}
-        dateTo={dateRange.to}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        accountIds={accountIds}
         onClose={() => setDrillDown(null)}
       />
     </div>
