@@ -19,13 +19,14 @@ interface SpendingChartProps {
   onItemClick?: (item: { id: string | null; name: string }) => void;
 }
 
-// The aggregated "Other" row (built below from categories past the top 8) is
-// not a real category — give it a fixed neutral color instead of cycling back
-// into CHART_COLORS, which would collide with an earlier slice's color. Real
-// uncategorized spend also carries a null id, so key off the synthetic flag
-// rather than the id to avoid recoloring legitimate rows.
+// Two rows take the neutral rather than a palette slot. "Other" (rolled up from
+// categories past the top 8) is not a real category, and cycling back into
+// CHART_COLORS would collide with an earlier slice. Uncategorized is not a
+// category either — it is the absence of one, and as the largest slice in most
+// households it was taking CHART_COLORS[0], the loudest blue, making "we do not
+// know" the visual hero of the chart.
 function colorAt(item: SpendingChartItem, i: number): string {
-  if (item.synthetic) return "var(--chart-neutral)";
+  if (item.synthetic || item.id === null) return "var(--chart-neutral)";
   return CHART_COLORS[i % CHART_COLORS.length];
 }
 

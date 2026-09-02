@@ -181,3 +181,32 @@ describe("an income drill-down explains its own figure", () => {
     expect(drill.rows.map((r) => r.name).sort()).toEqual(["Bonus", "Salary"]);
   });
 });
+
+describe("a category's comparison against the baseline", () => {
+  test("a category absent from the baseline reports no previous figure, not zero", async () => {
+    // Food spends in both periods; Salary's category is irrelevant here — what
+    // matters is that a category with no baseline row is distinguishable from
+    // one that spent nothing, which `?? 0` made impossible.
+    await insertTransaction(db, householdId, accountId, { date: "2026-03-05", normalizedAmount: -5000, amount: 5000, categoryId: foodCatId, name: "Grocery" });
+    await insertTransaction(db, householdId, accountId, { date: "2026-02-10", normalizedAmount: -2000, amount: 2000, categoryId: foodCatId, name: "Grocery last period" });
+    await insertTransaction(db, householdId, accountId, { date: "2026-03-06", normalizedAmount: -3000, amount: 3000, categoryId: null, name: "First ever uncategorized" });
+    const { getSpendingByCategory } = await import("../../src/queries/reports");
+
+    const rows = await getSpendingByCategory(householdId, RANGE, db, {
+      dateFrom: "2026-02-01",
+      dateTo: "2026-02-28",
+    });
+
+    expect(rows.find((r) => r.categoryName === "Food")?.prevTotal).toBe(2000);
+    expect(rows.find((r) => r.categoryId === null)?.prevTotal).toBeNull();
+  });
+
+  test("without a comparison period nothing claims a previous figure", async () => {
+    await insertTransaction(db, householdId, accountId, { date: "2026-03-05", normalizedAmount: -5000, amount: 5000, categoryId: foodCatId, name: "Grocery" });
+    const { getSpendingByCategory } = await import("../../src/queries/reports");
+
+    const rows = await getSpendingByCategory(householdId, RANGE, db);
+
+    expect(rows.every((r) => r.prevTotal === null)).toBe(true);
+  });
+});
