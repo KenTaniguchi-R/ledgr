@@ -13,11 +13,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { TransactionListPanel } from "@/components/molecules/transaction-list-panel";
 import { getDrillDownTransactions } from "@/actions/reports";
+import { drillDownTransactionsUrl } from "@/lib/drill-down-url";
 import { centsToDisplay } from "@/lib/money";
 import type { TransactionRow } from "@/queries/transactions";
 
 export interface DrillDownFilter {
-  categoryId?: string;
+  /** A category id, `null` for uncategorized, `undefined` for no category filter. */
+  categoryId?: string | null;
   categoryName: string;
   month?: string;
   type?: "income" | "expense";
@@ -54,17 +56,21 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownS
       setRows(result.rows);
       setHasMore(result.hasMore);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- derived values (effectiveDateFrom/To) already capture filter changes
-  }, [filter?.categoryId, filter?.month, filter?.type, effectiveDateFrom, effectiveDateTo]);
+  // Depend on the filter object itself, not its fields: an uncategorized
+  // drill-down carries `categoryId: null` alongside undefined month/type, which
+  // is field-for-field identical to the closed (null filter) state, so a field
+  // dependency list would never fire and the sheet would open empty.
+  }, [filter, effectiveDateFrom, effectiveDateTo]);
 
   const totalAmount = rows.reduce((s, r) => s + r.normalizedAmount, 0);
 
   const txnPageUrl = filter
-    ? `/transactions?${new URLSearchParams({
-        ...(filter.categoryId ? { category: filter.categoryId } : {}),
-        from: filter.month ? `${filter.month}-01` : dateFrom,
-        to: filter.month ? `${filter.month}-31` : dateTo,
-      }).toString()}`
+    ? drillDownTransactionsUrl({
+        categoryId: filter.categoryId,
+        month: filter.month,
+        dateFrom,
+        dateTo,
+      })
     : "/transactions";
 
   return (

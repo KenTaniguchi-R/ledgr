@@ -8,6 +8,8 @@ export interface SpendingChartItem {
   id: string | null;
   name: string;
   value: number;
+  /** Set on the rolled-up "Other" slice this chart builds; not a real category. */
+  synthetic?: boolean;
 }
 
 interface SpendingChartProps {
@@ -18,11 +20,11 @@ interface SpendingChartProps {
 
 // The aggregated "Other" row (built below from categories past the top 8) is
 // not a real category — give it a fixed neutral color instead of cycling back
-// into CHART_COLORS, which would collide with an earlier slice's color.
-// Real uncategorized spend can also carry a null id under a different name,
-// so key off both id and name to avoid recoloring legitimate rows.
+// into CHART_COLORS, which would collide with an earlier slice's color. Real
+// uncategorized spend also carries a null id, so key off the synthetic flag
+// rather than the id to avoid recoloring legitimate rows.
 function colorAt(item: SpendingChartItem, i: number): string {
-  if (item.id === null && item.name === "Other") return "var(--chart-neutral)";
+  if (item.synthetic) return "var(--chart-neutral)";
   return CHART_COLORS[i % CHART_COLORS.length];
 }
 
@@ -40,13 +42,15 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
   const otherTotal = data.slice(8).reduce((sum, d) => sum + d.value, 0);
   const chartData: SpendingChartItem[] =
     otherTotal > 0
-      ? [...top8, { id: null, name: "Other", value: otherTotal }]
+      ? [...top8, { id: null, name: "Other", value: otherTotal, synthetic: true }]
       : top8;
 
   function handleClick(index: number) {
     if (!onItemClick) return;
     const item = chartData[index];
-    if (item) onItemClick({ id: item.id, name: item.name });
+    // "Other" spans several categories, which drill-down can't express — a null
+    // id there would be read as uncategorized, so leave the slice inert.
+    if (item && !item.synthetic) onItemClick({ id: item.id, name: item.name });
   }
 
   if (viewMode === "donut") {
