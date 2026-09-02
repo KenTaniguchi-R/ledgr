@@ -10,7 +10,11 @@ import { scopedQuery } from "@/lib/scoped-query";
 import { authorizeAction } from "@/lib/auth/authorize-action";
 import { getHouseholdId } from "@/lib/auth/session";
 import { withHousehold } from "@/lib/household-context";
-import { getTransactions, type TransactionRow } from "@/queries/transactions";
+import {
+  getDrillDownTransactions as queryDrillDownTransactions,
+  type DrillDownFilters,
+  type DrillDownResult,
+} from "@/queries/reports";
 
 const saveReportSchema = z.object({
   name: z.string().min(1).max(100),
@@ -83,21 +87,15 @@ export async function deleteReport(
 
 const DRILL_DOWN_LIMIT = 50;
 
-export async function getDrillDownTransactions(filters: {
-  /** A category id, `null` for uncategorized, `undefined` for no category filter. */
-  categoryId?: string | null;
-  dateFrom: string;
-  dateTo: string;
-  type?: "income" | "expense";
-}): Promise<{ rows: TransactionRow[]; hasMore: boolean }> {
+export async function getDrillDownTransactions(
+  filters: DrillDownFilters,
+  db: LedgrDb = defaultDb,
+): Promise<DrillDownResult> {
   const householdId = await getHouseholdId();
 
-  const page = await withHousehold(householdId, (tx) =>
-    getTransactions(householdId, {
-      categoryId: filters.categoryId,
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-    }, DRILL_DOWN_LIMIT, undefined, tx));
-
-  return { rows: page.rows, hasMore: page.nextCursor !== null };
+  return withHousehold(
+    householdId,
+    (tx) => queryDrillDownTransactions(householdId, filters, DRILL_DOWN_LIMIT, tx),
+    db,
+  );
 }

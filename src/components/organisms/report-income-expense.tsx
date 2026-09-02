@@ -6,18 +6,25 @@ import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
 import { IncomeExpenseCategoryTable } from "@/components/molecules/income-expense-category-table";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
-import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { resolvedCategoryLabel } from "@/lib/labels";
 import type { IncomeExpenseRow, IncomeExpenseCategoryRow } from "@/queries/reports";
 
 interface ReportIncomeExpenseProps {
   data: IncomeExpenseRow[];
   categoryData?: IncomeExpenseCategoryRow[];
+  dateFrom: string;
+  dateTo: string;
+  accountIds?: string[];
 }
 
-export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseProps) {
+export function ReportIncomeExpense({
+  data,
+  categoryData,
+  dateFrom,
+  dateTo,
+  accountIds,
+}: ReportIncomeExpenseProps) {
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
-  const { dateRange } = useSearchParamFilters();
 
   const chartData = data.map((r) => ({
     month: r.period,
@@ -61,8 +68,9 @@ export function ReportIncomeExpense({ data, categoryData }: ReportIncomeExpenseP
       )}
       <DrillDownSheet
         filter={drillDown}
-        dateFrom={dateRange.from}
-        dateTo={dateRange.to}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        accountIds={accountIds}
         onClose={() => setDrillDown(null)}
       />
     </div>

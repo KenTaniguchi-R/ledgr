@@ -30,13 +30,19 @@ interface DrillDownSheetProps {
   filter: DrillDownFilter | null;
   dateFrom: string;
   dateTo: string;
+  accountIds?: string[];
   onClose: () => void;
 }
 
-export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownSheetProps) {
+export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, onClose }: DrillDownSheetProps) {
+  // Depend on the contents, not the array identity: the parent re-renders on
+  // every drill-down open and would otherwise hand us a fresh array each time.
+  const accountKey = accountIds?.join(",") ?? "";
   const [isPending, startTransition] = useTransition();
   const [rows, setRows] = useState<TransactionRow[]>([]);
   const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
 
   const effectiveDateFrom = filter?.month ? `${filter.month}-01` : dateFrom;
   const effectiveDateTo = filter?.month
@@ -51,18 +57,20 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownS
         categoryId: filter.categoryId,
         dateFrom: effectiveDateFrom,
         dateTo: effectiveDateTo,
-        type: filter.type,
+        accountIds: accountKey ? accountKey.split(",") : undefined,
+        // The Spending tab has one side only, so an absent type means expense.
+        type: filter.type ?? "expense",
       });
       setRows(result.rows);
       setHasMore(result.hasMore);
+      setTotal(result.total);
+      setMatchCount(result.matchCount);
     });
   // Depend on the filter object itself, not its fields: an uncategorized
   // drill-down carries `categoryId: null` alongside undefined month/type, which
   // is field-for-field identical to the closed (null filter) state, so a field
   // dependency list would never fire and the sheet would open empty.
-  }, [filter, effectiveDateFrom, effectiveDateTo]);
-
-  const totalAmount = rows.reduce((s, r) => s + r.normalizedAmount, 0);
+  }, [filter, effectiveDateFrom, effectiveDateTo, accountKey]);
 
   const txnPageUrl = filter
     ? drillDownTransactionsUrl({
@@ -81,9 +89,12 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownS
           <SheetTitle className="text-base">
             {filter?.categoryName}
           </SheetTitle>
-          {!isPending && rows.length > 0 && (
+          {!isPending && matchCount > 0 && (
             <div className="text-sm text-muted-foreground tabular-nums">
-              {centsToDisplay(Math.abs(totalAmount))}
+              {centsToDisplay(total)}
+              <span className="ml-2 tabular-nums">
+                {matchCount} {matchCount === 1 ? "transaction" : "transactions"}
+              </span>
             </div>
           )}
         </SheetHeader>
@@ -99,7 +110,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, onClose }: DrillDownS
             <>
               {hasMore && (
                 <div className="text-xs text-muted-foreground px-2 pb-2">
-                  Showing first {rows.length} transactions
+                  Showing the most recent {rows.length} of {matchCount}
                 </div>
               )}
               <TransactionListPanel rows={rows} absoluteAmounts={filter?.tabContext === "Spending"} />

@@ -47,6 +47,15 @@ interface ReportTabsProps {
   safeToSpendData?: SafeToSpendResult;
   isCurrentMonth?: boolean;
   comparisonLabel: string | null;
+  /**
+   * The range the figures on screen were actually computed over. Passed down
+   * rather than re-read from the URL, so a drill-down can never query a
+   * different period than the row that opened it — on a bare `/reports` the
+   * URL carries no dates at all, and the client-side fallback was all-time.
+   */
+  dateFrom: string;
+  dateTo: string;
+  accountIds?: string[];
 }
 
 export function ReportTabs({
@@ -62,6 +71,9 @@ export function ReportTabs({
   safeToSpendData,
   isCurrentMonth,
   comparisonLabel,
+  dateFrom,
+  dateTo,
+  accountIds,
 }: ReportTabsProps) {
   const { updateFilter } = useSearchParamFilters();
 
@@ -89,11 +101,25 @@ export function ReportTabs({
       </TabsList>
 
       <TabsContent value="spending" className="mt-4">
-        {spendingData && <ReportSpending data={spendingData} comparisonLabel={comparisonLabel} />}
+        {spendingData && (
+          <ReportSpending
+            data={spendingData}
+            comparisonLabel={comparisonLabel}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            accountIds={accountIds}
+          />
+        )}
       </TabsContent>
       <TabsContent value="income-expense" className="mt-4">
         {incomeExpenseData && (
-          <ReportIncomeExpense data={incomeExpenseData} categoryData={incomeExpenseCategoryData} />
+          <ReportIncomeExpense
+            data={incomeExpenseData}
+            categoryData={incomeExpenseCategoryData}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            accountIds={accountIds}
+          />
         )}
       </TabsContent>
       <TabsContent value="cash-flow" className="mt-4">
@@ -104,6 +130,9 @@ export function ReportTabs({
             barData={cashFlowBarData}
             safeToSpend={safeToSpendData}
             isCurrentMonth={isCurrentMonth ?? false}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            accountIds={accountIds}
           />
         )}
       </TabsContent>

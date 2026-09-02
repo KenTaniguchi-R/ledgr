@@ -1,4 +1,4 @@
-import { eq, lt, gte, lte, inArray, notInArray, isNull } from "drizzle-orm";
+import { eq, lt, gte, lte, inArray, notInArray, isNull, sql } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -9,7 +9,7 @@ import {
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, sumAbs, sumCol } from "@/lib/query-helpers";
 import { UNCATEGORIZED, resolvedCategoryLabel } from "@/lib/labels";
-import { notIncome } from "@/queries/shared-conditions";
+import { notIncome, getIncomeCategoryIds } from "@/queries/shared-conditions";
 import type { ReportFilters } from "@/queries/reports";
 
 export interface SpendingChartItem {
@@ -22,7 +22,13 @@ export interface SpendingChartItem {
 }
 
 
-async function spendingBaseConditions(householdId: string, filters: ReportFilters, db: LedgrDb) {
+/**
+ * The one definition of spending. Every Reports tab that answers "how much did
+ * I spend?" builds on this, and so does the drill-down that explains any of
+ * those figures: a settled, non-transfer, negative charge outside an income
+ * category.
+ */
+export async function spendingBaseConditions(householdId: string, filters: ReportFilters, db: LedgrDb) {
   const conditions = [
     notDeleted(transactions),
     lt(transactions.normalizedAmount, 0),
@@ -32,6 +38,32 @@ async function spendingBaseConditions(householdId: string, filters: ReportFilter
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
     await notIncome(householdId, db),
+  ];
+  if (filters.accountIds?.length) {
+    conditions.push(inArray(transactions.accountId, filters.accountIds));
+  }
+  return conditions;
+}
+
+/**
+ * The income counterpart, matching the Sankey's income nodes and the Income vs
+ * Expense category table: settled, non-transfer rows in an income category,
+ * summed by magnitude. Note this is *not* the Total Income tile's definition,
+ * which also counts uncategorized credits — that gap is the open gross-vs-net
+ * product question, deliberately left alone here.
+ */
+export async function incomeBaseConditions(householdId: string, filters: ReportFilters, db: LedgrDb) {
+  const incomeCatIds = await getIncomeCategoryIds(householdId, db);
+  const conditions = [
+    notDeleted(transactions),
+    eq(transactions.pending, false),
+    eq(transactions.isTransfer, false),
+    isNull(transactions.transferPairId),
+    gte(transactions.date, filters.dateFrom),
+    lte(transactions.date, filters.dateTo),
+    incomeCatIds.size > 0
+      ? inArray(transactions.categoryId, [...incomeCatIds])
+      : sql`false`,
   ];
   if (filters.accountIds?.length) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
