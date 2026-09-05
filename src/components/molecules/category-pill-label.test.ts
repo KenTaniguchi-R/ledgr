@@ -30,4 +30,18 @@ describe("categoryPillLabel", () => {
       variant: "category",
     });
   });
+
+  it("labels investment-account activity as Investment, not Transfer", () => {
+    expect(categoryPillLabel(null, true, "investment_account")).toEqual({
+      text: "Investment",
+      variant: "investment",
+    });
+  });
+
+  it("prefers an assigned category name even for investment-account activity", () => {
+    expect(categoryPillLabel("Dividends", true, "investment_account")).toEqual({
+      text: "Dividends",
+      variant: "category",
+    });
+  });
 });

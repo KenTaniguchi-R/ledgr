@@ -74,6 +74,7 @@ export function ReviewCard({
           currentCategoryName={transaction.categoryName}
           categories={categories}
           isTransfer={transaction.isTransfer}
+          transferSource={transaction.transferSource}
           onCategoryChange={onCategoryChange}
           open={categoryOpen}
           onOpenChange={onCategoryOpenChange}

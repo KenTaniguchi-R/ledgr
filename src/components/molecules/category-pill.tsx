@@ -30,6 +30,7 @@ interface CategoryPillProps {
   categories: CategoryGroup[];
   disabled?: boolean;
   isTransfer?: boolean;
+  transferSource?: string | null;
   merchantId?: string | null;
   merchantName?: string | null;
   onCategoryChange?: (categoryId: string | null, categoryName: string | null) => void;
@@ -50,6 +51,7 @@ export function CategoryPill({
   categories,
   disabled = false,
   isTransfer = false,
+  transferSource = null,
   merchantId,
   merchantName,
   onCategoryChange,
@@ -138,7 +140,7 @@ export function CategoryPill({
           >
             <span className="truncate">
               {(() => {
-                const { text, variant } = categoryPillLabel(categoryName, isTransfer);
+                const { text, variant } = categoryPillLabel(categoryName, isTransfer, transferSource);
                 if (variant === "category") return text;
                 return (
                   <span className={cn("text-muted-foreground", variant === "uncategorized" && "italic")}>

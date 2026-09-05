@@ -50,9 +50,14 @@ export const transactions = pgTable(
     // tagged separately since it never has a transferPairId. `suggested` is a
     // single-leg, low-confidence match (e.g. a bare P2P processor name) —
     // isTransfer stays false until a human confirms via the review queue, so
-    // it keeps counting toward spend/income until then.
+    // it keeps counting toward spend/income until then. `investment_account`
+    // is a deterministic, non-ambiguous tag applied to every transaction on
+    // an account.type="investment" account (brokerage fills, clearing fees)
+    // — those are never spending/income, but unlike `pattern`/`auto` they
+    // aren't a "transfer" in the UI sense, so the pill label branches on this
+    // source to show "Investment" instead of "Transfer".
     transferSource: text("transfer_source", {
-      enum: ["pfc", "auto", "pattern", "suggested", "manual", "manual_rejected"],
+      enum: ["pfc", "auto", "pattern", "suggested", "manual", "manual_rejected", "investment_account"],
     }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
