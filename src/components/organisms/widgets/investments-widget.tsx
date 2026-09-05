@@ -49,10 +49,10 @@ export function InvestmentsWidget({
           the list scrolls rather than clipping. The min-height matters for
           anyone whose saved layout still has this widget at one row — without
           it `flex-1` resolves to zero there and the list vanishes entirely. */}
-      <ul className="flex min-h-10 flex-1 flex-col gap-2 overflow-y-auto">
+      <ul className="flex min-h-10 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden">
         {topHoldings.map((h) => (
           <li key={holdingLabel(h)} className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex min-w-0 items-baseline justify-between gap-2">
               <span className="truncate text-sm font-medium">{holdingLabel(h)}</span>
               <span className="shrink-0 text-sm tabular-nums">
                 {centsToDisplay(h.currentValue)}
