@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { AccessTokenClaims } from "../auth/token";
 import { registerAccountTools } from "./accounts";
 import { registerDashboardTools } from "./dashboard";
-import { registerTransactionTools } from "./transactions";
+import { registerTransactionTools, registerTransactionWriteTools } from "./transactions";
 import { registerBudgetReadTools, registerBudgetWriteTools } from "./budgets";
 import { registerReportTools } from "./reports";
 import { registerRecurringTools } from "./recurring";
@@ -30,6 +30,7 @@ export function registerAllTools(server: McpServer, claims: AccessTokenClaims) {
   if (scopes.includes("ledgr:write")) {
     registerCategoryWriteTools(server, householdId);
     registerBudgetWriteTools(server, householdId);
+    registerTransactionWriteTools(server, householdId);
   }
 
   if (scopes.includes("ledgr:sync")) {

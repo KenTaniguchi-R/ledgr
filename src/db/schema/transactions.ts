@@ -44,9 +44,15 @@ export const transactions = pgTable(
     isTransfer: boolean("is_transfer").default(false),
     // Provenance for isTransfer/transferPairId, mirroring categorySource:
     // manual and manual_rejected are user decisions and must never be
-    // overwritten by the lower tiers (pfc at ingestion, auto pair-detection).
+    // overwritten by the lower tiers (pfc at ingestion, auto/pattern
+    // detection). `pattern` is a single-leg, high-confidence name/memo match
+    // (e.g. a credit-card payoff memo) — trusted immediately like `auto`, but
+    // tagged separately since it never has a transferPairId. `suggested` is a
+    // single-leg, low-confidence match (e.g. a bare P2P processor name) —
+    // isTransfer stays false until a human confirms via the review queue, so
+    // it keeps counting toward spend/income until then.
     transferSource: text("transfer_source", {
-      enum: ["pfc", "auto", "manual", "manual_rejected"],
+      enum: ["pfc", "auto", "pattern", "suggested", "manual", "manual_rejected"],
     }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

@@ -13,12 +13,13 @@ import {
 import { getAccountsByInstitution } from "@/queries/accounts";
 import { getBudgetForMonth } from "@/queries/budgets";
 import { getUpcomingBills } from "@/queries/recurring";
-import { getTransactionSummary } from "@/queries/transactions";
+import { getTransactionSummary, getSuggestedTransferCount } from "@/queries/transactions";
 import { getCurrentMonth, shiftMonth, formatMonthLong } from "@/lib/date-utils";
 import { uncategorizedShare } from "@/lib/uncategorized-share";
 import { budgetPace } from "@/lib/budget-pace";
 import { rangeSupport } from "@/lib/net-worth-range";
 import { ReviewNudge } from "@/components/molecules/review-nudge";
+import { TransferReviewNudge } from "@/components/molecules/transfer-review-nudge";
 import { getLayoutForUser } from "@/queries/dashboard-layout";
 import { getDefaultLayout } from "@/components/organisms/widgets/registry";
 import { getSession } from "@/lib/auth/session";
@@ -49,7 +50,7 @@ export default async function DashboardPage() {
   const heroRange =
     rangeSupport(fullCoverageSince, new Date()).find((r) => r.recommended)?.range ?? "1M";
 
-  const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, accountGroups, budgetData, upcomingBills, investmentsData, savedLayout, unreviewedSummary] =
+  const [summary, prevSummary, netWorthHistory, monthlySpending, cashFlow, recentTransactions, accountGroups, budgetData, upcomingBills, investmentsData, savedLayout, unreviewedSummary, suggestedTransferCount] =
     await Promise.all([
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, spendingMonth, tx)),
       withHousehold(householdId, (tx) => getDashboardSummary(householdId, prevMonth, tx)),
@@ -63,6 +64,7 @@ export default async function DashboardPage() {
       getInvestmentsSummary(householdId),
       session ? getLayoutForUser(session.user.id) : null,
       withHousehold(householdId, (tx) => getTransactionSummary(householdId, { reviewed: false }, tx)),
+      withHousehold(householdId, (tx) => getSuggestedTransferCount(householdId, tx)),
     ]);
 
   // Flattened from the institution grouping so the balances widget can show the
@@ -124,6 +126,7 @@ export default async function DashboardPage() {
         share={uncategorizedShare(monthlySpending)}
         monthLabel={formatMonthLong(spendingMonth)}
       />
+      <TransferReviewNudge suggestedCount={suggestedTransferCount} />
       <NetWorthHero
         netWorth={summary.netWorth}
         initialHistory={netWorthHistory}

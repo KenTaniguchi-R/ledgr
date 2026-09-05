@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ReviewCardDialog } from "@/components/organisms/review-card-dialog";
+import { TransferReviewDialog } from "@/components/organisms/transfer-review-dialog";
 import { TransactionRow, TRANSACTION_GRID_COLS } from "@/components/molecules/transaction-row";
 import { TransactionDateHeader } from "@/components/molecules/transaction-date-header";
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
@@ -22,6 +23,7 @@ interface TransactionListProps {
   nextCursor: string | null;
   categories: CategoryGroup[];
   filters: TransactionFilters;
+  suggestedTransfers?: TxnRow[];
 }
 
 export function TransactionList({
@@ -29,6 +31,7 @@ export function TransactionList({
   nextCursor,
   categories,
   filters,
+  suggestedTransfers = [],
 }: TransactionListProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -38,7 +41,9 @@ export function TransactionList({
   const [loadingMore, setLoadingMore] = useState(false);
   const { selectedId, select, clear } = useSelectedTransaction();
   const urlSearchParams = useSearchParams();
-  const isReviewMode = urlSearchParams.get("mode") === "review";
+  const mode = urlSearchParams.get("mode");
+  const isReviewMode = mode === "review";
+  const isTransferReviewMode = mode === "review-transfers";
 
   const groups = useMemo(() => groupByDate(rows), [rows]);
 
@@ -97,6 +102,8 @@ export function TransactionList({
     params.delete("mode");
     router.push(`/transactions${params.toString() ? `?${params.toString()}` : ""}`);
   }, [router, urlSearchParams]);
+
+  const handleTransferReviewDone = handleReviewDone;
 
   const hasBulkSelection = selected.size > 0;
 
@@ -174,7 +181,7 @@ export function TransactionList({
       </div>
 
       {/* Detail Panel Column */}
-      {isPanelOpen && !isReviewMode && (
+      {isPanelOpen && !isReviewMode && !isTransferReviewMode && (
         <div
           className={cn(
             "border-l bg-background",
@@ -203,6 +210,13 @@ export function TransactionList({
           rows={rows}
           categories={categories}
           onDone={handleReviewDone}
+        />
+      )}
+
+      {isTransferReviewMode && (
+        <TransferReviewDialog
+          rows={suggestedTransfers}
+          onDone={handleTransferReviewDone}
         />
       )}
     </div>
