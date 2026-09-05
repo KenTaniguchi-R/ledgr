@@ -263,6 +263,39 @@ export async function getTransactionSummary(
   };
 }
 
+/**
+ * Transactions flagged by the single-leg pattern pass (transfer-detection.ts)
+ * as a likely transfer but too low-confidence to auto-exclude — a bare P2P
+ * processor name (Zelle, Venmo, Cash App, PayPal). Still counts toward
+ * spend/income until a human confirms or rejects it via the review queue.
+ */
+export async function getSuggestedTransfers(
+  householdId: string,
+  db: LedgrDb = defaultDb,
+): Promise<TransactionRow[]> {
+  const { rows } = await fetchTransactionPage(
+    householdId,
+    [notDeleted(transactions), eq(transactions.transferSource, "suggested")],
+    200,
+    null,
+    db,
+  );
+  return rows;
+}
+
+export async function getSuggestedTransferCount(
+  householdId: string,
+  db: LedgrDb = defaultDb,
+): Promise<number> {
+  const scoped = scopedQuery(householdId, db);
+  const [result] = await db
+    .select({ count: countRows() })
+    .from(transactions)
+    .where(scoped.where(transactions, notDeleted(transactions), eq(transactions.transferSource, "suggested")))
+    .limit(1);
+  return result?.count ?? 0;
+}
+
 export async function getTransactionDetail(
   householdId: string,
   transactionId: string,

@@ -3,6 +3,7 @@ import { withHousehold } from "@/lib/household-context";
 import {
   getTransactions,
   getTransactionSummary,
+  getSuggestedTransfers,
 } from "@/queries/transactions";
 import { getCategories } from "@/queries/categories";
 import { getAccounts } from "@/queries/accounts";
@@ -26,7 +27,7 @@ export default async function TransactionsPage({
     .filter(([k]) => k !== "reviewed")
     .some(([, v]) => v !== undefined);
 
-  const [page, allCategories, allAccounts, summary, unreviewedSummary] = await Promise.all([
+  const [page, allCategories, allAccounts, summary, unreviewedSummary, suggestedTransfers] = await Promise.all([
     withHousehold(householdId, (tx) => getTransactions(householdId, filters, undefined, undefined, tx)),
     getCategories(householdId),
     getAccounts(householdId),
@@ -35,6 +36,7 @@ export default async function TransactionsPage({
     // arithmetic on it at all — per-day subtotals, and nothing for the whole.
     withHousehold(householdId, (tx) => getTransactionSummary(householdId, filters, tx)),
     withHousehold(householdId, (tx) => getTransactionSummary(householdId, { reviewed: false }, tx)),
+    withHousehold(householdId, (tx) => getSuggestedTransfers(householdId, tx)),
   ]);
   const accountOptions = allAccounts.map((a) => ({ id: a.id, name: a.name }));
 
@@ -60,7 +62,7 @@ export default async function TransactionsPage({
         />
       )}
 
-      {page.rows.length === 0 ? (
+      {page.rows.length === 0 && suggestedTransfers.length === 0 ? (
         <TransactionEmptyState hasFilters={hasAnyFilters} />
       ) : (
         <TransactionList
@@ -69,6 +71,7 @@ export default async function TransactionsPage({
           nextCursor={page.nextCursor}
           categories={allCategories}
           filters={filters}
+          suggestedTransfers={suggestedTransfers}
         />
       )}
     </div>

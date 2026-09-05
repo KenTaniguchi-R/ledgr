@@ -121,6 +121,88 @@ export async function updateTransactionFields(
 }
 
 
+/**
+ * Confirms a low-confidence transfer suggestion (transferSource="suggested",
+ * set by the single-leg pattern pass in transfer-detection.ts) from the
+ * review queue. Split into a *Scoped core + session-authorized wrapper, same
+ * shape as updateTransactionCategoryScoped/updateTransactionCategory, so the
+ * MCP transfer tool can call the core directly with its own householdId.
+ */
+export async function confirmTransferSuggestionScoped(
+  householdId: string,
+  transactionId: string,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true } | { error: string }> {
+  const parsedId = transactionIdSchema.safeParse(transactionId);
+  if (!parsedId.success) return { error: "Invalid input" };
+
+  return withHousehold(householdId, async (tx) => {
+    const scoped = scopedQuery(householdId, tx);
+    const [existing] = await tx
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)))
+      .limit(1);
+
+    if (!existing) return { error: "Transaction not found" };
+
+    await tx.update(transactions)
+      .set({ isTransfer: true, transferSource: "manual", updatedAt: new Date() })
+      .where(eq(transactions.id, existing.id));
+
+    return { success: true };
+  }, db);
+}
+
+export async function confirmTransferSuggestion(
+  transactionId: string,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  return confirmTransferSuggestionScoped(auth.householdId, transactionId, db);
+}
+
+/**
+ * Rejects a transfer suggestion — keeps it as real spending/income and, via
+ * transferSource="manual_rejected", stops it from ever being re-suggested by
+ * a later sync (same guard applyTransferDetection already honors for pairs).
+ */
+export async function rejectTransferSuggestionScoped(
+  householdId: string,
+  transactionId: string,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true } | { error: string }> {
+  const parsedId = transactionIdSchema.safeParse(transactionId);
+  if (!parsedId.success) return { error: "Invalid input" };
+
+  return withHousehold(householdId, async (tx) => {
+    const scoped = scopedQuery(householdId, tx);
+    const [existing] = await tx
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(scoped.where(transactions, eq(transactions.id, parsedId.data), notDeleted(transactions)))
+      .limit(1);
+
+    if (!existing) return { error: "Transaction not found" };
+
+    await tx.update(transactions)
+      .set({ isTransfer: false, transferSource: "manual_rejected", updatedAt: new Date() })
+      .where(eq(transactions.id, existing.id));
+
+    return { success: true };
+  }, db);
+}
+
+export async function rejectTransferSuggestion(
+  transactionId: string,
+  db: LedgrDb = defaultDb,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  return rejectTransferSuggestionScoped(auth.householdId, transactionId, db);
+}
+
 export async function upsertSplit(
   transactionId: string,
   splitId: string | null,

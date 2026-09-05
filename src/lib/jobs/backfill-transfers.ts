@@ -14,14 +14,21 @@ import { assertCanEnumerateHouseholds } from "@/lib/jobs/cross-household";
  * withHousehold transaction (applyTransferDetection already does this
  * internally per call).
  */
-export async function backfillTransfers(db: LedgrDb = defaultDb): Promise<{ households: number; tagged: number }> {
+export async function backfillTransfers(
+  db: LedgrDb = defaultDb,
+): Promise<{ households: number; tagged: number; patternsTagged: number; suggestedFlagged: number }> {
   await assertCanEnumerateHouseholds(db);
   const allHouseholds = await db.select({ id: households.id }).from(households);
 
   let tagged = 0;
+  let patternsTagged = 0;
+  let suggestedFlagged = 0;
   for (const { id: householdId } of allHouseholds) {
-    tagged += await applyTransferDetection(householdId, db);
+    const result = await applyTransferDetection(householdId, db);
+    tagged += result.pairs;
+    patternsTagged += result.patterns;
+    suggestedFlagged += result.suggested;
   }
 
-  return { households: allHouseholds.length, tagged };
+  return { households: allHouseholds.length, tagged, patternsTagged, suggestedFlagged };
 }

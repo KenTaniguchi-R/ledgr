@@ -7,7 +7,7 @@ import {
   insertCategoryGroup,
   insertCategory,
 } from "./helpers";
-import { getTransactions } from "../../src/queries/transactions";
+import { getTransactions, getSuggestedTransfers, getSuggestedTransferCount } from "../../src/queries/transactions";
 import type { LedgrDb } from "../../src/db";
 
 describe("getTransactions", () => {
@@ -158,5 +158,65 @@ describe("getTransactions", () => {
       expect(Math.abs(row.normalizedAmount)).toBeGreaterThanOrEqual(1000);
       expect(Math.abs(row.normalizedAmount)).toBeLessThanOrEqual(3000);
     }
+  });
+});
+
+describe("getSuggestedTransfers / getSuggestedTransferCount", () => {
+  let db: LedgrDb;
+  let close: () => Promise<void>;
+  let householdId: string;
+
+  beforeAll(async () => {
+    ({ db, close } = await createTestDb());
+    ({ householdId } = await insertHousehold(db));
+    const { accountId } = await insertAccount(db, householdId, { name: "Checking" });
+
+    await insertTransaction(db, householdId, accountId, {
+      name: "Zelle",
+      date: "2026-05-01",
+      amount: 7000,
+      normalizedAmount: -7000,
+      isTransfer: false,
+      transferSource: "suggested",
+    });
+    await insertTransaction(db, householdId, accountId, {
+      name: "Venmo",
+      date: "2026-05-02",
+      amount: 2500,
+      normalizedAmount: -2500,
+      isTransfer: false,
+      transferSource: "suggested",
+    });
+    // Not suggested — should be excluded from both.
+    await insertTransaction(db, householdId, accountId, {
+      name: "Uber",
+      date: "2026-05-03",
+      amount: 2400,
+      normalizedAmount: -2400,
+    });
+    // Already resolved by a human — no longer "suggested".
+    await insertTransaction(db, householdId, accountId, {
+      name: "Cash App",
+      date: "2026-05-04",
+      amount: 1000,
+      normalizedAmount: -1000,
+      isTransfer: true,
+      transferSource: "manual",
+    });
+  });
+
+  afterAll(async () => {
+    await close();
+  });
+
+  it("returns only transactions still pending transfer review", async () => {
+    const rows = await getSuggestedTransfers(householdId, db);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.name).sort()).toEqual(["Venmo", "Zelle"]);
+  });
+
+  it("counts only transactions still pending transfer review", async () => {
+    const count = await getSuggestedTransferCount(householdId, db);
+    expect(count).toBe(2);
   });
 });

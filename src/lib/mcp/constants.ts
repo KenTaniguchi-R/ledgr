@@ -13,7 +13,7 @@ export const DEFAULT_SCOPE = "ledgr:read ledgr:write ledgr:sync";
 
 export const SCOPE_LABELS: Record<string, string> = {
   "ledgr:read": "View your accounts, transactions, budgets, and reports",
-  "ledgr:write": "Update transaction categories and budget allocations",
+  "ledgr:write": "Update transaction categories, transfer status, and budget allocations",
   "ledgr:sync": "Trigger bank account syncs",
 };
 
