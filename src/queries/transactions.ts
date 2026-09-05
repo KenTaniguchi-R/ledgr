@@ -40,6 +40,7 @@ export interface TransactionRow {
   hasSplits: boolean;
   isTransfer: boolean;
   transferPairId: string | null;
+  transferSource: string | null;
   categorySource: CategorySource | null;
   externalId: string | null;
 }
@@ -72,6 +73,7 @@ const transactionSelectFields = {
   notes: transactions.notes,
   isTransfer: transactions.isTransfer,
   transferPairId: transactions.transferPairId,
+  transferSource: transactions.transferSource,
   categorySource: transactions.categorySource,
   externalId: transactions.externalId,
 };
@@ -200,6 +202,7 @@ export async function fetchTransactionPage(
     hasSplits: splitSet.has(row.id),
     isTransfer: Boolean(row.isTransfer),
     transferPairId: row.transferPairId ?? null,
+    transferSource: row.transferSource ?? null,
     categorySource: row.categorySource ?? null,
     externalId: row.externalId ?? null,
   }));
@@ -336,6 +339,7 @@ export async function getTransactionDetail(
     reviewed: Boolean(row.reviewed),
     isTransfer: Boolean(row.isTransfer),
     transferPairId: row.transferPairId ?? null,
+    transferSource: row.transferSource ?? null,
     categorySource: row.categorySource ?? null,
     externalId: row.externalId ?? null,
     hasSplits: splits.length > 0,

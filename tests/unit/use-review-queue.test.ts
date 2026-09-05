@@ -29,6 +29,7 @@ function makeTxn(overrides: Partial<TransactionRow> = {}): TransactionRow {
     hasSplits: false,
     isTransfer: false,
     transferPairId: null,
+    transferSource: null,
     categorySource: null,
     externalId: null,
     ...overrides,

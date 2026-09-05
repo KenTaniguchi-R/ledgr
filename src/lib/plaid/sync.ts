@@ -344,6 +344,12 @@ async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
+      // Every transaction Plaid returns for an investment account (brokerage
+      // fills, clearing fees) is deterministically non-spending — unlike the
+      // PFC/pattern transfer heuristics, there's no ambiguity to preserve a
+      // user override for on a brand-new row.
+      const isInvestmentAccount = typeByInternalId.get(internalAccountId) === "investment";
+
       insertRows.push({
         id: uuid(),
         accountId: internalAccountId,
@@ -361,8 +367,8 @@ async function applyToDb(
         pending: row.pending,
         pfcPrimary: row.pfcPrimary,
         pfcDetailed: row.pfcDetailed,
-        isTransfer: row.isTransfer,
-        transferSource: row.isTransfer ? "pfc" : null,
+        isTransfer: isInvestmentAccount ? true : row.isTransfer,
+        transferSource: isInvestmentAccount ? "investment_account" : row.isTransfer ? "pfc" : null,
         createdAt: now,
         updatedAt: now,
       });
@@ -397,6 +403,10 @@ async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
+      const isInvestmentAccount = typeByInternalId.get(internalAccountId) === "investment";
+      const computedIsTransfer = isInvestmentAccount ? true : row.isTransfer;
+      const computedTransferSource = isInvestmentAccount ? "investment_account" : row.isTransfer ? "pfc" : null;
+
       const existingId = existingIdByExternalId.get(row.externalId);
       if (existingId) {
         await tx.update(transactions)
@@ -416,11 +426,12 @@ async function applyToDb(
             // Plaid's PFC re-derives isTransfer on every modified row, which
             // would otherwise silently revert a user's own transfer decision
             // (and orphan any transferPairId). Keep manual decisions; let PFC
-            // refresh everything else.
+            // (or the investment-account override above) refresh everything
+            // else.
             isTransfer: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
-              THEN ${transactions.isTransfer} ELSE ${row.isTransfer} END`,
+              THEN ${transactions.isTransfer} ELSE ${computedIsTransfer} END`,
             transferSource: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
-              THEN ${transactions.transferSource} ELSE ${row.isTransfer ? "pfc" : null} END`,
+              THEN ${transactions.transferSource} ELSE ${computedTransferSource} END`,
             updatedAt: now,
             // Preserve user's manual categorization and reviewed status
           })
@@ -443,8 +454,8 @@ async function applyToDb(
           pending: row.pending,
           pfcPrimary: row.pfcPrimary,
           pfcDetailed: row.pfcDetailed,
-          isTransfer: row.isTransfer,
-          transferSource: row.isTransfer ? "pfc" : null,
+          isTransfer: computedIsTransfer,
+          transferSource: computedTransferSource,
           createdAt: now,
           updatedAt: now,
         });

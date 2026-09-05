@@ -751,4 +751,153 @@ describe("transaction sync integration", () => {
     const [item] = await db.select().from(bankConnections).where(eq(bankConnections.id, PLAID_ITEM_ID));
     expect(item?.syncCursor).toBe("cursor_advanced");
   });
+
+  it("tags investment-account transactions as non-spending, leaving other accounts untouched", async () => {
+    await setup();
+    await seedTestData(db);
+
+    const now = new Date();
+    await db.insert(accounts).values({
+      id: "acc-internal-investment",
+      householdId: HOUSEHOLD_ID,
+      bankConnectionId: PLAID_ITEM_ID,
+      externalAccountId: "plaid-acc-investment",
+      name: "Portfolio Value (2688)",
+      type: "investment",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    server.use(
+      http.post("https://sandbox.plaid.com/transactions/sync", () =>
+        HttpResponse.json({
+          added: [
+            {
+              transaction_id: "txn-investment-fill",
+              account_id: "plaid-acc-investment",
+              amount: 369.66,
+              iso_currency_code: "USD",
+              date: "2026-09-01",
+              name: "Buy XPO Fill",
+              merchant_name: null,
+              logo_url: null,
+              pending: false,
+              pending_transaction_id: null,
+              personal_finance_category: { primary: "GENERAL_SERVICES", detailed: "GENERAL_SERVICES_OTHER_GENERAL_SERVICES" },
+            },
+            {
+              transaction_id: "txn-checking-groceries",
+              account_id: "plaid-acc-checking",
+              amount: 45.0,
+              iso_currency_code: "USD",
+              date: "2026-09-01",
+              name: "Grocery Store",
+              merchant_name: "Grocery Store",
+              logo_url: null,
+              pending: false,
+              pending_transaction_id: null,
+              personal_finance_category: { primary: "FOOD_AND_DRINK", detailed: "FOOD_AND_DRINK_GROCERIES" },
+            },
+          ],
+          modified: [],
+          removed: [],
+          has_more: false,
+          next_cursor: "cursor_investment",
+          request_id: "req-sync-investment",
+        }),
+      ),
+    );
+
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
+    expect(result.success).toBe(true);
+
+    const [investmentTxn] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.externalId, "txn-investment-fill"));
+    expect(investmentTxn?.isTransfer).toBe(true);
+    expect(investmentTxn?.transferSource).toBe("investment_account");
+
+    const [checkingTxn] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.externalId, "txn-checking-groceries"));
+    expect(checkingTxn?.isTransfer).toBe(false);
+    expect(checkingTxn?.transferSource).toBeNull();
+  });
+
+  it("never overwrites a manually-corrected investment-account transaction on re-sync", async () => {
+    await setup();
+    await seedTestData(db);
+
+    const now = new Date();
+    await db.insert(accounts).values({
+      id: "acc-internal-investment",
+      householdId: HOUSEHOLD_ID,
+      bankConnectionId: PLAID_ITEM_ID,
+      externalAccountId: "plaid-acc-investment",
+      name: "Portfolio Value (2688)",
+      type: "investment",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // A user manually decided this row is real spending, not investment noise
+    // (e.g. a mislabeled fee dispute), and rejected the auto-tag.
+    await db.insert(transactions).values({
+      id: "txn-manually-corrected",
+      accountId: "acc-internal-investment",
+      householdId: HOUSEHOLD_ID,
+      externalId: "txn-investment-manual",
+      provider: "plaid",
+      date: "2026-09-01",
+      originalName: "Buy XPO Fill",
+      name: "Buy XPO Fill",
+      amount: 36966,
+      normalizedAmount: -36966,
+      currency: "USD",
+      pending: false,
+      isTransfer: false,
+      transferSource: "manual_rejected",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    server.use(
+      http.post("https://sandbox.plaid.com/transactions/sync", () =>
+        HttpResponse.json({
+          added: [],
+          modified: [
+            {
+              transaction_id: "txn-investment-manual",
+              account_id: "plaid-acc-investment",
+              amount: 369.66,
+              iso_currency_code: "USD",
+              date: "2026-09-01",
+              name: "Buy XPO Fill",
+              merchant_name: null,
+              logo_url: null,
+              pending: false,
+              pending_transaction_id: null,
+              personal_finance_category: { primary: "GENERAL_SERVICES", detailed: "GENERAL_SERVICES_OTHER_GENERAL_SERVICES" },
+            },
+          ],
+          removed: [],
+          has_more: false,
+          next_cursor: "cursor_investment_resync",
+          request_id: "req-sync-investment-resync",
+        }),
+      ),
+    );
+
+    const result = await syncInstitution(PLAID_ITEM_ID, HOUSEHOLD_ID, db);
+    expect(result.success).toBe(true);
+
+    const [row] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.externalId, "txn-investment-manual"));
+    expect(row?.isTransfer).toBe(false);
+    expect(row?.transferSource).toBe("manual_rejected");
+  });
 });

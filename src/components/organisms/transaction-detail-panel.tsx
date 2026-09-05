@@ -127,6 +127,7 @@ export function TransactionDetailPanel({
               currentCategoryName={txn.categoryName}
               categories={categories}
               isTransfer={txn.isTransfer}
+              transferSource={txn.transferSource}
               merchantId={txn.merchantId}
               merchantName={txn.merchantName}
             />
