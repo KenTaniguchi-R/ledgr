@@ -12,6 +12,7 @@ import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
 import { TransactionDetailPanel } from "@/components/organisms/transaction-detail-panel";
 import { loadMoreTransactions } from "@/actions/transactions";
 import { groupByDate } from "@/lib/transactions";
+import { summarizeDay } from "@/lib/transaction-day-summary";
 import { useSelectedTransaction } from "@/hooks/use-selected-transaction";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -143,14 +144,10 @@ export function TransactionList({
         </div>
 
         {groups.map((group) => {
-          const netAmount = group.rows.reduce((sum, r) => sum + r.normalizedAmount, 0);
+          const summary = summarizeDay(group.rows);
           return (
             <div key={group.date}>
-              <TransactionDateHeader
-                date={group.date}
-                transactionCount={group.rows.length}
-                netAmount={netAmount}
-              />
+              <TransactionDateHeader date={group.date} summary={summary} />
               {group.rows.map((txn) => (
                 <TransactionRow
                   key={txn.id}
