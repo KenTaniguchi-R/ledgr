@@ -35,9 +35,17 @@ export function AccountBalancesWidget({ data }: AccountBalancesWidgetProps) {
       {/* Account and balance are a real two-column table. The widget shows no
           visible headers, so they are screen-reader only -- without them the
           balances read as an undifferentiated run of numbers. */}
-      <div className="flex-1 overflow-y-auto">
-        <table className="w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {/* table-fixed pins the balance column to a fixed width so it can
+            never be pushed past the card's edge -- without it the balance
+            column grows to fit its content and drags a horizontal scrollbar
+            (and the card's own overflow-hidden) along with it. */}
+        <table className="w-full table-fixed">
           <caption className="sr-only">Account balances</caption>
+          <colgroup>
+            <col />
+            <col className="w-24" />
+          </colgroup>
           <thead className="sr-only">
             <tr>
               <th scope="col">Account</th>
@@ -58,7 +66,7 @@ export function AccountBalancesWidget({ data }: AccountBalancesWidgetProps) {
                     <span className="truncate text-sm">{accountDisplayName(account.name)}</span>
                   </div>
                 </td>
-                <td className="px-1 py-1.5 text-right">
+                <td className="px-1 py-1.5 text-right whitespace-nowrap">
                   <BalanceDisplay
                     amount={account.currentBalance}
                     currency={account.currency ?? "USD"}
