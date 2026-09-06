@@ -71,18 +71,20 @@ export default async function DashboardPage() {
   // same bank marks the accounts page does, rather than falling back to generic
   // type glyphs for accounts it has a logo for.
   const accounts = accountGroups.flatMap((group) =>
-    group.accounts
-      .filter((a) => !a.isHidden)
-      .map((a) => ({
-        id: a.id,
-        name: a.name,
-        type: a.type,
-        currentBalance: a.currentBalance,
-        currency: a.currency,
-        institutionName: group.institutionName,
-        logoBase64: group.logoBase64,
-        primaryColor: group.primaryColor,
-      })),
+    group.accounts.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      currentBalance: a.currentBalance,
+      currency: a.currency,
+      // Carried rather than filtered here: the balances widget regroups these
+      // with groupAccountsByType, which drops hidden accounts itself so its
+      // subtotals match the ones on the Accounts page.
+      isHidden: a.isHidden,
+      institutionName: group.institutionName,
+      logoBase64: group.logoBase64,
+      primaryColor: group.primaryColor,
+    })),
   );
 
   // The Spending tile reports `spendingMonth`, which is the latest month with

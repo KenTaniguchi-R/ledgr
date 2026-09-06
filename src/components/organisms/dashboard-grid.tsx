@@ -34,6 +34,7 @@ export interface DashboardData {
     type: AccountType;
     currentBalance: number | null;
     currency: string | null;
+    isHidden: boolean | null;
     institutionName: string;
     logoBase64: string | null;
     primaryColor: string | null;
