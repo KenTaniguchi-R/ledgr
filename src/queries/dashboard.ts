@@ -19,6 +19,11 @@ import { baseTransactionQuery, type TransactionRow } from "./transactions";
 
 export interface DashboardSummary {
   netWorth: number;
+  /** The two sides netWorth is the difference of. Both were already summed to
+   *  produce it; the hero shows them so a net worth reads as a position rather
+   *  than a bare number. Liabilities are negative, per schema/accounts.ts. */
+  assets: number;
+  liabilities: number;
   monthlyIncome: number;
   monthlyExpenses: number;
   monthlyNet: number;
@@ -111,6 +116,8 @@ export async function getDashboardSummary(
     // Plain sum — liability balances are already stored negative, so
     // subtracting them would add the debt. See schema/accounts.ts.
     netWorth: totalAssets + totalLiabilities,
+    assets: totalAssets,
+    liabilities: totalLiabilities,
     monthlyIncome,
     monthlyExpenses,
     monthlyNet: monthlyIncome - monthlyExpenses,

@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { NetWorthAreaChart } from "@/components/atoms/net-worth-area-chart";
+import { BalanceDisplay } from "@/components/atoms/balance-display";
 import { DateRangeSelector } from "@/components/molecules/date-range-selector";
 import { centsToDisplay } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
@@ -20,6 +21,9 @@ const RANGE_LABELS: Record<string, string> = {
 
 interface NetWorthHeroProps {
   netWorth: number;
+  /** Signed totals behind `netWorth`; liabilities arrive negative. */
+  assets: number;
+  liabilities: number;
   initialHistory: NetWorthPoint[];
   initialRange?: string;
   /**
@@ -31,6 +35,8 @@ interface NetWorthHeroProps {
 
 export function NetWorthHero({
   netWorth,
+  assets,
+  liabilities,
   initialHistory,
   initialRange,
   fullCoverageSince = null,
@@ -71,6 +77,7 @@ export function NetWorthHero({
   const coverage = coverageBoundary(trimmed);
   const trimmedTo = trimmed !== history ? fullBoundary : null;
   const [dollars, cents] = centsToDisplay(netWorth).split(".");
+  const hasPosition = assets !== 0 || liabilities !== 0;
 
   function handleRangeChange(next: string) {
     setRange(next);
@@ -125,6 +132,32 @@ export function NetWorthHero({
                   ? `full history since ${formatDateShort(coverage.date)}`
                   : "history incomplete"}
               </span>
+            )}
+            {/* The two sides of the number beside them, on the same row: net
+                worth alone cannot tell a paid-off house from a leveraged
+                brokerage account. No border or fill — these are its operands,
+                not separate figures, and the hero keeps its height because the
+                row already had the width. Hidden only when there is nothing to
+                divide, so an empty household is not shown two zeroes. */}
+            {hasPosition && (
+              <dl className="flex items-baseline gap-6 sm:ml-3">
+                {[
+                  { label: "Assets", amount: assets },
+                  { label: "Debts", amount: liabilities },
+                ].map(({ label, amount }) => (
+                  <div key={label}>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd>
+                      {/* BalanceDisplay, as the Accounts page totals its groups
+                          with -- it already tints a negative, so debts read as
+                          debts here without a second colour convention. */}
+                      <BalanceDisplay amount={amount} size="md" className="font-semibold" />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             )}
           </div>
         </div>

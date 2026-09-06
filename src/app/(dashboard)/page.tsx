@@ -129,6 +129,8 @@ export default async function DashboardPage() {
       <TransferReviewNudge suggestedCount={suggestedTransferCount} />
       <NetWorthHero
         netWorth={summary.netWorth}
+        assets={summary.assets}
+        liabilities={summary.liabilities}
         initialHistory={netWorthHistory}
         initialRange={heroRange}
         fullCoverageSince={fullCoverageSince}
