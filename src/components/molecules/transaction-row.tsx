@@ -97,10 +97,18 @@ export const TransactionRow = memo(function TransactionRow({
           name={txn.merchantName ?? txn.name}
           pfcPrimary={txn.pfcPrimary}
           size="sm"
+          className={cn(txn.isTransfer && "opacity-60")}
         />
         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
           {txn.pending && <Clock className="size-3 text-muted-foreground shrink-0" />}
-          <span className="font-medium truncate">{txn.name}</span>
+          <span
+            className={cn(
+              "truncate",
+              txn.isTransfer ? "font-normal text-muted-foreground" : "font-medium",
+            )}
+          >
+            {txn.name}
+          </span>
           {txn.originalName !== txn.name && (
             <span className="text-xs text-muted-foreground hidden group-hover/row:inline truncate">
               ({txn.originalName})
@@ -133,8 +141,17 @@ export const TransactionRow = memo(function TransactionRow({
         />
       </div>
 
+      {/* Transfers recede by colour, not by `opacity-60` — that is already spent
+          on `pending`, and stacking the two leaves a pending transfer barely
+          readable. Muting the amount also drops its `text-positive` green,
+          which a transfer into an account never earned. */}
       <div className="text-right">
-        <AmountDisplay amount={txn.normalizedAmount} currency={txn.currency} pending={txn.pending} />
+        <AmountDisplay
+          amount={txn.normalizedAmount}
+          currency={txn.currency}
+          pending={txn.pending}
+          className={cn(txn.isTransfer && "font-normal text-muted-foreground")}
+        />
       </div>
     </div>
   );
