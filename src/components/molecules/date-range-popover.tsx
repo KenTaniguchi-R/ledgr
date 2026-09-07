@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export interface DatePresetOption {
@@ -58,8 +59,12 @@ export function DateRangePopover({
 }: DateRangePopoverProps) {
   const [open, setOpen] = useState(false);
 
-  function handlePreset(id: string) {
-    onSelectPreset(id);
+  // Base UI hands back an array even for single select, and an empty one when
+  // the active item is clicked again. Re-picking the current preset should just
+  // close the popover, not clear the range.
+  function handlePreset(groupValue: string[]) {
+    const id = groupValue[0] ?? selectedId;
+    if (id) onSelectPreset(id);
     setOpen(false);
   }
 
@@ -90,19 +95,33 @@ export function DateRangePopover({
         <ChevronDown className="ml-1 h-3 w-3 opacity-60" />
       </PopoverTrigger>
       <PopoverContent className="w-[240px] p-2" align={align}>
-        <div className="flex flex-col">
+        {/* A roving-focus group rather than a stack of buttons, so the presets
+            answer to arrow keys instead of costing one Tab stop each. This
+            cannot be a DropdownMenu: the custom-range inputs below share the
+            popover, and Base UI's menu typeahead has no input guard, so typing
+            a date would move the menu selection instead. */}
+        <ToggleGroup
+          value={selectedId ? [selectedId] : []}
+          onValueChange={handlePreset}
+          orientation="vertical"
+          spacing={0}
+          aria-label="Date range presets"
+          className="w-full"
+        >
           {presets.map((preset) => (
-            <button
+            <ToggleGroupItem
               key={preset.id}
-              type="button"
-              onClick={() => handlePreset(preset.id)}
-              className="flex h-8 items-center justify-between rounded-md px-2 text-sm hover:bg-muted"
+              value={preset.id}
+              className="h-8 w-full justify-between rounded-md px-2 text-sm font-normal"
             >
               {preset.label}
-              {selectedId === preset.id && <Check className="h-3.5 w-3.5" />}
-            </button>
+              <Check
+                aria-hidden
+                className={cn("h-3.5 w-3.5", selectedId !== preset.id && "invisible")}
+              />
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
         <Separator className="my-2" />
         <p className="px-2 pb-1 text-xs text-muted-foreground">Custom range</p>
         <div className="flex items-center gap-1.5 px-1">
