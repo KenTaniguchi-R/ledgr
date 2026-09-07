@@ -1,6 +1,12 @@
 "use client";
 
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { centsToDisplay } from "@/lib/money";
 import { activateOnKey } from "@/lib/a11y";
 import { CHART_COLORS } from "@/lib/chart-colors";
@@ -25,6 +31,10 @@ interface SpendingChartProps {
 // category either — it is the absence of one, and as the largest slice in most
 // households it was taking CHART_COLORS[0], the loudest blue, making "we do not
 // know" the visual hero of the chart.
+// In bar mode every row is the same series, so the row label names the measure
+// and the tooltip header carries the category.
+const BAR_CONFIG: ChartConfig = { value: { label: "Amount" } };
+
 function colorAt(item: SpendingChartItem, i: number): string {
   if (item.synthetic || item.id === null) return "var(--chart-neutral)";
   return CHART_COLORS[i % CHART_COLORS.length];
@@ -56,10 +66,17 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
   }
 
   if (viewMode === "donut") {
+    // Slices are user categories, so their names are the series keys — they
+    // carry spaces and ampersands and cannot be emitted as `--color-<key>`
+    // custom properties. The config names each slice; `Cell` keeps the colour.
+    const donutConfig: ChartConfig = Object.fromEntries(
+      chartData.map((item) => [item.name, { label: item.name }]),
+    );
+
     return (
       <div className="flex gap-3 h-full">
         <div className="w-2/5 shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
+          <ChartContainer config={donutConfig} className="aspect-auto h-full w-full">
             <PieChart>
               <Pie
                 data={chartData}
@@ -76,9 +93,13 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
                   <Cell key={i} fill={colorAt(item, i)} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => centsToDisplay(Number(v))} />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent hideLabel valueFormatter={(v) => centsToDisplay(Number(v))} />
+                }
+              />
             </PieChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
         <div className="w-3/5 overflow-y-auto overflow-x-hidden">
           {chartData.map((row, i) => (
@@ -97,7 +118,7 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartContainer config={BAR_CONFIG} className="aspect-auto h-full w-full">
       <BarChart data={chartData} layout="vertical" margin={{ left: 80 }}>
         <XAxis
           type="number"
@@ -105,7 +126,9 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
           tick={{ fontSize: 11 }}
         />
         <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
-        <Tooltip formatter={(v) => centsToDisplay(Number(v))} />
+        <ChartTooltip
+          content={<ChartTooltipContent valueFormatter={(v) => centsToDisplay(Number(v))} />}
+        />
         <Bar
           dataKey="value"
           onClick={(_, index) => handleClick(index)}
@@ -116,7 +139,7 @@ export function SpendingChart({ data, viewMode, onItemClick }: SpendingChartProp
           ))}
         </Bar>
       </BarChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }
 
