@@ -39,6 +39,10 @@ function ToggleGroup({
       data-variant={variant}
       data-size={size}
       data-spacing={spacing}
+      // Base UI drives arrow-key movement from this, so it has to reach the
+      // primitive and not just the data attribute the styles read. Without it
+      // a vertical group still answered to Left/Right instead of Up/Down.
+      orientation={orientation}
       data-orientation={orientation}
       style={{ "--gap": spacing } as React.CSSProperties}
       className={cn(
