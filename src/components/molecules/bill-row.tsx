@@ -1,6 +1,7 @@
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { BillStatusIndicator } from "@/components/atoms/bill-status-indicator";
 import { Badge } from "@/components/ui/badge";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { categoryLabel } from "@/lib/labels";
 import type { BillRow as BillRowType } from "@/queries/recurring";
 
@@ -24,11 +25,11 @@ export function BillRow({ bill, onSelect }: BillRowProps) {
     // unreachable by keyboard, and wrapping the row in a <button> would
     // destroy the table semantics screen readers need to pair cells with
     // their column headers.
-    <tr
+    <TableRow
       onClick={onSelect}
-      className="cursor-pointer border-b border-border/50 last:border-b-0 hover:bg-accent"
+      className="cursor-pointer border-border/50 hover:bg-accent"
     >
-      <td className="px-3 py-2">
+      <TableCell className="px-3 py-2">
         <button
           type="button"
           onClick={(e) => {
@@ -40,27 +41,27 @@ export function BillRow({ bill, onSelect }: BillRowProps) {
         >
           {bill.name}
         </button>
-      </td>
-      <td className="max-w-[160px] truncate px-3 py-2 text-xs text-muted-foreground">
+      </TableCell>
+      <TableCell className="max-w-[160px] truncate px-3 py-2 text-xs text-muted-foreground">
         {categoryLabel(bill.categoryName)}
-      </td>
-      <td className="px-3 py-2 text-right">
+      </TableCell>
+      <TableCell className="px-3 py-2 text-right">
         {bill.averageAmount !== null && (
           <AmountDisplay amount={bill.averageAmount} absolute />
         )}
-      </td>
-      <td className="px-3 py-2">
+      </TableCell>
+      <TableCell className="px-3 py-2">
         {bill.frequency && (
           <Badge variant="outline" className="text-xs font-normal">
             {FREQUENCY_LABELS[bill.frequency] ?? bill.frequency}
           </Badge>
         )}
-      </td>
-      <td className="px-3 py-2">
+      </TableCell>
+      <TableCell className="px-3 py-2">
         <span className="flex justify-end">
           <BillStatusIndicator status={bill.status} relativeDateLabel={bill.relativeDateLabel} />
         </span>
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
