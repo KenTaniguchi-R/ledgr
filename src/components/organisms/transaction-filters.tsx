@@ -27,6 +27,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -83,6 +90,10 @@ function triggerLabel(label: string, value: string | null, active: boolean): Rea
     </>
   );
 }
+
+/** A radio group needs a value for every row; `null` is not one, so the
+ *  "no type filter" row carries this sentinel and maps back to null. */
+const ALL_TYPES = "__all__";
 
 export function TransactionFilters({ accounts, categories, resultCount }: TransactionFiltersProps) {
   const { updateFilter, updateFilters, clearFilters, hasFilters, searchParams } =
@@ -474,39 +485,30 @@ export function TransactionFilters({ accounts, categories, resultCount }: Transa
           </PopoverContent>
         </Popover>
 
-        {/* Type */}
-        <Popover open={typeOpen} onOpenChange={setTypeOpen}>
-          <PopoverTrigger
+        {/* Type — a single-select list, which is what a menu radio group is for.
+            Built from raw buttons it was Tab-only: five stops, no arrow keys. */}
+        <DropdownMenu open={typeOpen} onOpenChange={setTypeOpen}>
+          <DropdownMenuTrigger
             render={<Button variant={typeValue ? "default" : "outline"} size="sm" className="h-8 text-xs" />}
           >
             <ArrowLeftRight className="mr-1 h-3.5 w-3.5" />
             {triggerLabel("Type", typeValue, !!typeValue)}
             <ChevronDown className="ml-1 h-3 w-3 opacity-60" />
-          </PopoverTrigger>
-          <PopoverContent className="w-[180px] p-1" align="start">
-            <div className="flex flex-col">
-              <button
-                type="button"
-                onClick={() => selectType(null)}
-                className="flex h-8 items-center justify-between rounded-md px-2 text-sm hover:bg-muted"
-              >
-                All types
-                {!typeId && <Check className="h-3.5 w-3.5" />}
-              </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[180px]" align="start">
+            <DropdownMenuRadioGroup
+              value={typeId ?? ALL_TYPES}
+              onValueChange={(value) => selectType(value === ALL_TYPES ? null : String(value))}
+            >
+              <DropdownMenuRadioItem value={ALL_TYPES}>All types</DropdownMenuRadioItem>
               {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => selectType(value)}
-                  className="flex h-8 items-center justify-between rounded-md px-2 text-sm hover:bg-muted"
-                >
+                <DropdownMenuRadioItem key={value} value={value}>
                   {label}
-                  {typeId === value && <Check className="h-3.5 w-3.5" />}
-                </button>
+                </DropdownMenuRadioItem>
               ))}
-            </div>
-          </PopoverContent>
-        </Popover>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Amount */}
         <Popover open={amountOpen} onOpenChange={setAmountOpen}>
