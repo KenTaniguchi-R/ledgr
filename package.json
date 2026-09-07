@@ -13,6 +13,7 @@
     "db:setup": "pnpm db:generate && pnpm db:migrate",
     "db:studio": "drizzle-kit studio",
     "rotate-keys": "node --env-file-if-exists=.env --import tsx scripts/rotate-keys.ts",
+    "reset-password": "node --env-file-if-exists=.env --import tsx scripts/reset-password.ts",
     "backfill-clean-names": "node --env-file-if-exists=.env --import tsx scripts/backfill-clean-names.ts",
     "backfill-transfers": "node --env-file-if-exists=.env --import tsx scripts/backfill-transfers.ts",
     "backfill-investment-activity": "node --env-file-if-exists=.env --import tsx scripts/backfill-investment-activity.ts",
