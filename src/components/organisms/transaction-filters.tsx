@@ -18,6 +18,11 @@ import { cn } from "@/lib/utils";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
 import { useAmountFilter } from "@/hooks/use-amount-filter";
 import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -313,16 +318,18 @@ export function TransactionFilters({ accounts, categories, resultCount }: Transa
     <div className="space-y-3">
       {/* Row 1: search + export */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1 sm:flex-none">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+        <InputGroup className="h-9 flex-1 sm:flex-none sm:w-[280px]">
+          <InputGroupAddon>
+            <Search />
+          </InputGroupAddon>
+          <InputGroupInput
             placeholder="Search transactions..."
             aria-label="Search transactions"
             value={searchValue}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="h-9 w-full pl-8 text-sm sm:w-[280px]"
+            className="text-sm"
           />
-        </div>
+        </InputGroup>
 
         <a
           href={`/api/export/transactions?${searchParams.toString()}`}

@@ -3,7 +3,11 @@
 import { useCallback, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 
 export function BillSearch() {
   const router = useRouter();
@@ -32,14 +36,15 @@ export function BillSearch() {
   }
 
   return (
-    <div className="relative w-[240px]">
-      <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-      <Input
+    <InputGroup className="w-[240px]">
+      <InputGroupAddon>
+        <Search />
+      </InputGroupAddon>
+      <InputGroupInput
         placeholder="Search bills..."
         value={value}
         onChange={(e) => handleChange(e.target.value)}
-        className="pl-8 h-8"
       />
-    </div>
+    </InputGroup>
   );
 }
