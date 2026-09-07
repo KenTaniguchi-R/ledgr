@@ -1,6 +1,14 @@
 "use client";
 
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { centsToDisplay, centsToCompact } from "@/lib/money";
 import { formatMonthShort } from "@/lib/date-utils";
 import { INCOME_COLOR, SPENDING_COLOR, PRIMARY_COLOR } from "@/lib/chart-colors";
@@ -10,6 +18,12 @@ interface CashFlowBarChartProps {
   data: CashFlowRow[];
   showTrendline?: boolean;
 }
+
+const chartConfig = {
+  income: { label: "Income", color: INCOME_COLOR },
+  expenses: { label: "Spending", color: SPENDING_COLOR },
+  net: { label: "Net", color: PRIMARY_COLOR },
+} satisfies ChartConfig;
 
 export function CashFlowBarChart({ data, showTrendline = false }: CashFlowBarChartProps) {
   if (data.length === 0) {
@@ -21,7 +35,9 @@ export function CashFlowBarChart({ data, showTrendline = false }: CashFlowBarCha
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    // Every caller sizes this chart with an explicit-height parent, so fill it
+    // rather than taking ChartContainer's default 16:9 aspect ratio.
+    <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
       <ComposedChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis
@@ -39,25 +55,28 @@ export function CashFlowBarChart({ data, showTrendline = false }: CashFlowBarCha
           tickLine={false}
           tickCount={4}
         />
-        <Tooltip
-          formatter={(v) => centsToDisplay(Number(v))}
-          labelFormatter={(label) => formatMonthShort(String(label))}
+        <ChartTooltip
           cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+          content={
+            <ChartTooltipContent
+              labelFormatter={(label) => formatMonthShort(String(label))}
+              valueFormatter={(v) => centsToDisplay(Number(v))}
+            />
+          }
         />
-        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[4, 4, 0, 0]} maxBarSize={24} />
-        <Bar dataKey="expenses" name="Spending" fill={SPENDING_COLOR} radius={[4, 4, 0, 0]} maxBarSize={24} />
+        <ChartLegend content={<ChartLegendContent />} />
+        <Bar dataKey="income" fill="var(--color-income)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+        <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[4, 4, 0, 0]} maxBarSize={24} />
         {showTrendline && (
           <Line
             type="monotone"
             dataKey="net"
-            name="Net"
-            stroke={PRIMARY_COLOR}
+            stroke="var(--color-net)"
             strokeWidth={2}
             dot={false}
           />
         )}
       </ComposedChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }

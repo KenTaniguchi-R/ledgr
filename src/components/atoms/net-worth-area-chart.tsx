@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import {
   ComposedChart,
   Area,
@@ -7,12 +8,17 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ReferenceArea,
   ReferenceLine,
-  ResponsiveContainer,
-  Legend,
 } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { centsToDisplay, centsToCompact, axisTickFormatter } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
 import { INCOME_COLOR, EXPENSE_COLOR, POSITIVE_COLOR, UNCOVERED_COLOR } from "@/lib/chart-colors";
@@ -36,31 +42,26 @@ interface NetWorthAreaChartProps {
   seriesName?: string;
 }
 
-interface TooltipEntry {
-  name: string;
-  value: number;
-  color: string;
-}
-
 const AXIS_TICK = { fontSize: 11, fill: "var(--muted-foreground)" };
 
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  // The split single-mode series leaves one key null on either side of the
-  // coverage boundary; Recharts still reports it, so drop the empty half
-  // rather than rendering the same date twice.
-  const entries = payload.filter((e) => e.value !== null && e.value !== undefined);
-  if (entries.length === 0) return null;
-  return (
-    <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="font-medium">{formatDateShort(label ?? "")}</p>
-      {entries.map((entry: TooltipEntry) => (
-        <p key={entry.name} className="tabular-nums" style={{ color: entry.color }}>
-          {entry.name}: {centsToDisplay(entry.value)}
-        </p>
-      ))}
-    </div>
-  );
+const MULTI_CONFIG = {
+  netWorth: { label: "Net Worth", color: POSITIVE_COLOR },
+  assets: { label: "Assets", color: INCOME_COLOR },
+  liabilities: { label: "Liabilities", color: EXPENSE_COLOR },
+} satisfies ChartConfig;
+
+/**
+ * The split single-mode series leaves one key null on either side of the
+ * coverage boundary; Recharts still reports it, so drop the empty half rather
+ * than rendering the same date twice with a blank value.
+ */
+function DenseTooltipContent({
+  payload,
+  ...props
+}: React.ComponentProps<typeof ChartTooltipContent>) {
+  const entries = payload?.filter((e) => e.value !== null && e.value !== undefined);
+  if (!entries?.length) return null;
+  return <ChartTooltipContent {...props} payload={entries} />;
 }
 
 export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }: NetWorthAreaChartProps) {
@@ -95,8 +96,16 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
       };
     });
 
+    const singleConfig: ChartConfig = {
+      covered: { label: seriesName, color: POSITIVE_COLOR },
+      partial: {
+        label: boundary.hasPartial ? "Tracked accounts only" : seriesName,
+        color: boundary.hasPartial ? UNCOVERED_COLOR : POSITIVE_COLOR,
+      },
+    };
+
     return (
-      <ResponsiveContainer width="100%" height="100%">
+      <ChartContainer config={singleConfig} className="aspect-auto h-full w-full">
         <ComposedChart data={split} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
           <defs>
             <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
@@ -118,7 +127,14 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
             tickCount={4}
             domain={["auto", "auto"]}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <ChartTooltip
+            content={
+              <DenseTooltipContent
+                labelFormatter={(label) => formatDateShort(String(label))}
+                valueFormatter={(v) => centsToDisplay(Number(v))}
+              />
+            }
+          />
           {boundary.hasPartial && boundary.date && (
             <ReferenceArea
               x1={points[0].date}
@@ -134,29 +150,27 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
           <Area
             type="monotone"
             dataKey="covered"
-            name={seriesName}
             fill="url(#portfolioGradient)"
-            stroke={POSITIVE_COLOR}
+            stroke="var(--color-covered)"
             strokeWidth={2}
             connectNulls={false}
           />
           <Line
             type="monotone"
             dataKey="partial"
-            name={boundary.hasPartial ? "Tracked accounts only" : seriesName}
-            stroke={boundary.hasPartial ? UNCOVERED_COLOR : POSITIVE_COLOR}
+            stroke="var(--color-partial)"
             strokeWidth={boundary.hasPartial ? 1.75 : 2}
             strokeDasharray={boundary.hasPartial ? "5 4" : undefined}
             dot={false}
             connectNulls={false}
           />
         </ComposedChart>
-      </ResponsiveContainer>
+      </ChartContainer>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartContainer config={MULTI_CONFIG} className="aspect-auto h-full w-full">
       <ComposedChart data={data as unknown as ChartDataPoint[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <defs>
           <linearGradient id="netWorthGradient" x1="0" y1="0" x2="0" y2="1">
@@ -175,21 +189,27 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
           tickCount={4}
           domain={["auto", "auto"]}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <ChartTooltip
+          content={
+            <DenseTooltipContent
+              labelFormatter={(label) => formatDateShort(String(label))}
+              valueFormatter={(v) => centsToDisplay(Number(v))}
+            />
+          }
+        />
         {/* Three series identified by colour alone, and only on hover, until
             this. A legend is not optional past one series. */}
-        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <ChartLegend content={<ChartLegendContent />} />
         <Area
           type="monotone"
           dataKey="netWorth"
-          name="Net Worth"
           fill="url(#netWorthGradient)"
-          stroke={POSITIVE_COLOR}
+          stroke="var(--color-netWorth)"
           strokeWidth={2}
         />
-        <Line type="monotone" dataKey="assets" name="Assets" stroke={INCOME_COLOR} strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
-        <Line type="monotone" dataKey="liabilities" name="Liabilities" stroke={EXPENSE_COLOR} strokeWidth={1.5} dot={false} />
+        <Line type="monotone" dataKey="assets" stroke="var(--color-assets)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
+        <Line type="monotone" dataKey="liabilities" stroke="var(--color-liabilities)" strokeWidth={1.5} dot={false} />
       </ComposedChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }

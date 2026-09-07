@@ -1,6 +1,14 @@
 "use client";
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, LabelList } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { centsToDisplay } from "@/lib/money";
 import { formatMonthShort } from "@/lib/date-utils";
 
@@ -40,9 +48,16 @@ export function TrendLineChart({ data, categories: cats }: TrendLineChartProps) 
   }
 
   const lastIndex = data.length - 1;
+  // Categories are user data, so their names are the series keys. They carry
+  // spaces and ampersands, which would not survive being emitted as
+  // `--color-<key>` custom properties — so the config names the series and the
+  // stroke stays inline.
+  const chartConfig: ChartConfig = Object.fromEntries(
+    cats.map((cat) => [cat.name, { label: cat.name }]),
+  );
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
       <LineChart data={data} margin={{ top: 5, right: LABEL_GUTTER, bottom: 5, left: 5 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis dataKey="period" tickFormatter={formatMonthShort} tick={{ fontSize: 11 }} />
@@ -51,8 +66,15 @@ export function TrendLineChart({ data, categories: cats }: TrendLineChartProps) 
           tick={{ fontSize: 11 }}
           width={60}
         />
-        <Tooltip formatter={(v) => centsToDisplay(Number(v))} labelFormatter={(l) => formatMonthShort(String(l))} />
-        <Legend />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              labelFormatter={(l) => formatMonthShort(String(l))}
+              valueFormatter={(v) => centsToDisplay(Number(v))}
+            />
+          }
+        />
+        <ChartLegend content={<ChartLegendContent />} />
         {cats.map((cat) => (
           <Line
             key={cat.name}
@@ -72,6 +94,6 @@ export function TrendLineChart({ data, categories: cats }: TrendLineChartProps) 
           </Line>
         ))}
       </LineChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }
