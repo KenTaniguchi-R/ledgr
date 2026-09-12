@@ -397,7 +397,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
           currency: "USD",
           pending: false,
           reviewed: true,
-          categorySource: CATEGORY_SOURCES[txnIndex % 5],
+          categorySource: CATEGORY_SOURCES[txnIndex % CATEGORY_SOURCES.length],
           createdAt: now,
           updatedAt: now,
         });
@@ -439,7 +439,7 @@ export async function seedDemoHousehold(db: LedgrDb = defaultDb): Promise<void> 
           currency: "USD",
           pending: false,
           reviewed: txnIndex % 4 !== 0,
-          categorySource: CATEGORY_SOURCES[txnIndex % 5],
+          categorySource: CATEGORY_SOURCES[txnIndex % CATEGORY_SOURCES.length],
           createdAt: now,
           updatedAt: now,
         });
