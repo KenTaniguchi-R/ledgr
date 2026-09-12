@@ -49,6 +49,39 @@ describe("classifySingleLegTransfer", () => {
     expect(classifySingleLegTransfer("Bahar Rabiei", null)).toBeNull();
   });
 
+  it("recognizes a bare points redemption as high confidence", () => {
+    // Reward credits are neither spend nor income; before this they fell
+    // through to Uncategorized and counted toward spending totals.
+    expect(classifySingleLegTransfer("Points Redeemed", null)).toBe("pattern");
+  });
+
+  it("recognizes an issuer-prefixed points redemption memo", () => {
+    expect(
+      classifySingleLegTransfer("Thankyou Points Redeemed TY OR301166076", null),
+    ).toBe("pattern");
+  });
+
+  it("does not flag a purchase at a merchant whose name contains points", () => {
+    expect(classifySingleLegTransfer("Five Points Pizza", "Five Points Pizza")).toBeNull();
+    expect(classifySingleLegTransfer("Points West Bank ATM", null)).toBeNull();
+  });
+
+  it("recognizes a retirement rollover into a named self account", () => {
+    expect(
+      classifySingleLegTransfer(
+        "Direct rollover of $ into Robinhood Traditional IRA account ending in",
+        null,
+      ),
+    ).toBe("pattern");
+  });
+
+  it("does not flag a rollover with no self-account keyword", () => {
+    // "rollover" alone is not enough — the self-account keyword is what
+    // separates moving your own money from a merchant that happens to use
+    // the word.
+    expect(classifySingleLegTransfer("Rollover Bar & Grill", null)).toBeNull();
+  });
+
   it("is case-insensitive", () => {
     expect(classifySingleLegTransfer("gsbank payment", null)).toBe("pattern");
     expect(classifySingleLegTransfer("ZELLE", null)).toBe("suggested");

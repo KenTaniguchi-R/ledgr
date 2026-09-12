@@ -15,7 +15,9 @@ interface TransactionMetadataProps {
 const SOURCE_LABELS: Record<string, string> = {
   manual: "Manual",
   ai: "AI",
+  ai_low_confidence: "AI (unsure)",
   rule: "Rule",
+  merchant_default: "Merchant",
   plaid: "Plaid",
   pfc: "Plaid (PFC)",
 };
