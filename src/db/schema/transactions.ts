@@ -6,7 +6,19 @@ import { merchants } from "./merchants";
 import { categories } from "./categories";
 import { recurringTransactions } from "./recurring";
 
-export const CATEGORY_SOURCES = ["rule", "merchant_default", "pfc", "ai", "manual"] as const;
+// `ai_low_confidence` is a real AI assignment, just one the model was unsure
+// of. An uncategorized row has to be edited by hand anyway, so a best guess is
+// strictly better than nothing — it is recorded under its own source so the
+// review queue can surface it and a later tier can safely overwrite it, which
+// a plain `ai` assignment is not meant to allow.
+export const CATEGORY_SOURCES = [
+  "rule",
+  "merchant_default",
+  "pfc",
+  "ai",
+  "ai_low_confidence",
+  "manual",
+] as const;
 export type CategorySource = (typeof CATEGORY_SOURCES)[number];
 
 export const transactions = pgTable(

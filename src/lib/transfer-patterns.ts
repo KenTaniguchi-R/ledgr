@@ -11,9 +11,24 @@ const CARD_PAYOFF_MEMOS = [
   "cc payment thank you",
 ];
 
-// Self-transfer phrasing: requires both "transfer" and a self-account keyword
-// so an unrelated "Wire Transfer Fee" merchant charge doesn't match.
-const SELF_TRANSFER_KEYWORD = /\btransfer\b/i;
+// Reward redemptions posted as a statement credit ("Points Redeemed",
+// "Thankyou Points Redeemed TY OR301166076"). Not spending and not income —
+// counting them as either skews both sides of a report, so they are excluded
+// the same way a transfer is. Anchored on the two-word phrase rather than a
+// bare "points" so a purchase at a merchant with "Points" in its name (Five
+// Points Pizza) cannot match.
+const REWARD_REDEMPTION_MEMOS = [
+  "points redeemed",
+  "points redemption",
+  "reward redemption",
+];
+
+// Self-transfer phrasing: requires both a movement verb and a self-account
+// keyword so an unrelated "Wire Transfer Fee" merchant charge doesn't match.
+// "rollover" is here because a retirement rollover is phrased as a movement
+// into an account rather than as a "transfer" ("Direct rollover of $X into
+// Robinhood Traditional IRA").
+const SELF_TRANSFER_KEYWORD = /\b(transfer|rollover)\b/i;
 const SELF_ACCOUNT_KEYWORD = /\b(savings|brokerage|ira)\b/i;
 
 // Bare P2P processor names — lower confidence than the patterns above because
@@ -28,10 +43,10 @@ function matchesAny(haystack: string, needles: string[]): boolean {
 /**
  * Classifies a single transaction (no matching leg required) as a likely
  * transfer from its name/merchant text alone. Returns "pattern" for
- * high-confidence matches (known card payoff memos, named self-transfers to
- * savings/brokerage/IRA — trusted immediately), "suggested" for low-confidence
- * matches (bare P2P processor names — routed to manual review instead), or
- * null when nothing matches.
+ * high-confidence matches (known card payoff memos, reward redemptions, and
+ * named self-transfers or rollovers to savings/brokerage/IRA — trusted
+ * immediately), "suggested" for low-confidence matches (bare P2P processor
+ * names — routed to manual review instead), or null when nothing matches.
  */
 export function classifySingleLegTransfer(
   name: string,
@@ -40,6 +55,7 @@ export function classifySingleLegTransfer(
   const text = `${name} ${merchantName ?? ""}`.toLowerCase().trim();
 
   if (matchesAny(text, CARD_PAYOFF_MEMOS)) return "pattern";
+  if (matchesAny(text, REWARD_REDEMPTION_MEMOS)) return "pattern";
   if (SELF_TRANSFER_KEYWORD.test(text) && SELF_ACCOUNT_KEYWORD.test(text)) return "pattern";
   if (matchesAny(text, P2P_PROCESSORS)) return "suggested";
 
