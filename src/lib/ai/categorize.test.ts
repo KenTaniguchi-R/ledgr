@@ -19,6 +19,25 @@ describe("buildCategorizationPrompt", () => {
     expect(prompt).toContain("Food & Drink");
   });
 
+  test("includes worked examples when there are any", () => {
+    const prompt = buildCategorizationPrompt(
+      [{ id: "txn-1", description: "STARBUCKS #123", normalizedAmount: -550 }],
+      categories,
+      [{ description: "BLUE BOTTLE", categoryName: "Coffee" }],
+    );
+    expect(prompt).toContain("Examples of previously categorized");
+    expect(prompt).toContain("BLUE BOTTLE");
+  });
+
+  test("omits the examples section entirely when there are none", () => {
+    const prompt = buildCategorizationPrompt(
+      [{ id: "txn-1", description: "STARBUCKS #123", normalizedAmount: -550 }],
+      categories,
+      [],
+    );
+    expect(prompt).not.toContain("Examples of previously categorized");
+  });
+
   test("includes transaction details", () => {
     const prompt = buildCategorizationPrompt(
       [{ id: "txn-1", description: "STARBUCKS #123", normalizedAmount: -550 }],
@@ -54,6 +73,19 @@ describe("buildCategorizationPrompt expense/income labelling", () => {
       [],
     );
     expect(prompt).toContain("$1581.00 (income)");
+  });
+
+  test("treats a zero amount as income, not expense", () => {
+    // Pins the boundary on the comparison that caused the original bug, so a
+    // `<` -> `<=` slip is caught. Zero is neither, but the branch has to fall
+    // somewhere and the else-branch is where it has always fallen.
+    const prompt = buildCategorizationPrompt(
+      [{ id: "txn-0", description: "ZERO ADJUSTMENT", normalizedAmount: 0 }],
+      categories,
+      [],
+    );
+    expect(prompt).toContain("$0.00 (income)");
+    expect(prompt).not.toContain("$0.00 (expense)");
   });
 
   test("tells the model not to cross the expense/income line", () => {
