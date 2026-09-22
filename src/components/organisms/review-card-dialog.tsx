@@ -13,7 +13,7 @@ import { ReviewProgressBar } from "@/components/atoms/review-progress-bar";
 import { ReviewKeyHints } from "@/components/atoms/review-key-hints";
 import { useReviewQueue } from "@/hooks/use-review-queue";
 import { useReviewKeyboard } from "@/hooks/use-review-keyboard";
-import { toggleReviewed } from "@/actions/transactions";
+import { toggleReviewed, updateTransactionCategory } from "@/actions/transactions";
 import { updateTransactionFields } from "@/actions/transaction-detail";
 import type { TransactionRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
@@ -48,6 +48,7 @@ export function ReviewCardDialog({
     skip,
     retreat,
     exit,
+    updateCurrentTransaction,
   } = useReviewQueue(rows, handleConfirmAction);
 
   useEffect(() => {
@@ -73,11 +74,22 @@ export function ReviewCardDialog({
 
   useReviewKeyboard(phase, handlers, phase === "VIEWING");
 
-  const handleCategoryChange: (id: string | null, name: string | null) => void = useCallback(
-    () => {
+  // `onCategoryChange` puts CategoryPill in "parent owns the save" mode —
+  // it stops calling updateTransactionCategory itself, so this has to.
+  const handleCategoryChange = useCallback(
+    (categoryId: string | null, categoryName: string | null) => {
+      if (!currentTransaction) return;
+      const prev = currentTransaction;
+      updateCurrentTransaction({ categoryId, categoryName });
       setPhase("VIEWING");
+
+      void updateTransactionCategory(currentTransaction.id, categoryId).then((result) => {
+        if ("error" in result) {
+          updateCurrentTransaction({ categoryId: prev.categoryId, categoryName: prev.categoryName });
+        }
+      });
     },
-    [setPhase],
+    [currentTransaction, updateCurrentTransaction, setPhase],
   );
 
   const handleCategoryOpenChange = useCallback(
@@ -95,10 +107,11 @@ export function ReviewCardDialog({
     async (value: string) => {
       if (!currentTransaction) return { error: "No transaction" };
       const result = await updateTransactionFields(currentTransaction.id, { notes: value });
+      if ("success" in result) updateCurrentTransaction({ notes: value });
       setPhase("VIEWING");
       return result;
     },
-    [currentTransaction, setPhase],
+    [currentTransaction, setPhase, updateCurrentTransaction],
   );
 
   const isSaving = phase === "SAVING";

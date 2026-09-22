@@ -34,6 +34,10 @@ interface CategoryPillProps {
   merchantId?: string | null;
   merchantName?: string | null;
   onCategoryChange?: (categoryId: string | null, categoryName: string | null) => void;
+  /** Fires after a self-managed save (no `onCategoryChange`) persists successfully,
+   * so a caller that isn't driving the save can still learn the new value —
+   * e.g. to update the row/list state it renders elsewhere from. */
+  onSaved?: (categoryId: string | null, categoryName: string | null) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -55,6 +59,7 @@ export function CategoryPill({
   merchantId,
   merchantName,
   onCategoryChange,
+  onSaved,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: CategoryPillProps) {
@@ -92,6 +97,8 @@ export function CategoryPill({
         setCategoryName(prevName);
         return result;
       }
+
+      onSaved?.(categoryId, newName);
 
       if (result.merchantCategoryConflict && merchantId && categoryId) {
         const currentCategoryName = categories

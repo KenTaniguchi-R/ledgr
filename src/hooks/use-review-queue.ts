@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { TransactionRow } from "@/queries/transactions";
 
 export type ReviewPhase =
@@ -26,8 +26,20 @@ export function useReviewQueue(
     ? queue[currentIndex] ?? null
     : null;
 
+  // `rows` isn't just an initial snapshot — every persisted edit anywhere in
+  // this app (including a category picked mid-review, a few lines down) calls
+  // `revalidatePath("/transactions")`, which pushes a fresh `rows` reference
+  // down from the list. `start` reads through a ref instead of closing over
+  // `rows` directly so it stays referentially stable; otherwise the mount
+  // effect below (`useEffect(() => start(), [start])`) re-fires on every such
+  // edit and restarts the whole queue from card one.
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  });
+
   const start = useCallback(() => {
-    const q = rows.filter((r) => !r.reviewed && !r.pending);
+    const q = rowsRef.current.filter((r) => !r.reviewed && !r.pending);
     setQueue(q);
     setCurrentIndex(0);
     setSessionReviewedCount(0);
@@ -37,7 +49,7 @@ export function useReviewQueue(
     } else {
       setPhase("VIEWING");
     }
-  }, [rows]);
+  }, []);
 
   const confirm = useCallback(async () => {
     const txn = queue[currentIndex];
@@ -79,6 +91,20 @@ export function useReviewQueue(
     setPhase("IDLE");
   }, []);
 
+  // Category/notes edits made mid-review persist themselves (see
+  // ReviewCardDialog), but the queue is its own snapshot of `rows` — without
+  // this the edit only lives in whatever local state the field itself holds,
+  // and going Back to a card, or the card you already edited, shows the
+  // pre-edit value again.
+  const updateCurrentTransaction = useCallback(
+    (patch: Partial<TransactionRow>) => {
+      setQueue((prev) =>
+        prev.map((t, i) => (i === currentIndex ? { ...t, ...patch } : t)),
+      );
+    },
+    [currentIndex],
+  );
+
   return {
     phase,
     setPhase,
@@ -92,5 +118,6 @@ export function useReviewQueue(
     skip,
     retreat,
     exit,
+    updateCurrentTransaction,
   };
 }

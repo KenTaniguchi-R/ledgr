@@ -40,6 +40,21 @@ export function TransactionList({
   const [rows, setRows] = useState(initialRows);
   const [cursor, setCursor] = useState(nextCursor);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // `router.refresh()` re-runs the server component and hands this component
+  // fresh `initialRows`/`nextCursor` props, but `useState` only reads its
+  // initializer on mount — without this, every flow that leans on refresh()
+  // to show a server-side change (bulk actions, exiting Review, exiting
+  // transfer review) silently no-ops until a full page reload. Adjusted
+  // during render, the same way splitsOpenFor is reset in the detail panel,
+  // rather than in an effect, so it only fires on a real prop change and
+  // doesn't clobber in-flight local optimistic updates.
+  const [syncedInitialRows, setSyncedInitialRows] = useState(initialRows);
+  if (syncedInitialRows !== initialRows) {
+    setSyncedInitialRows(initialRows);
+    setRows(initialRows);
+    setCursor(nextCursor);
+  }
   const [loadingMore, setLoadingMore] = useState(false);
   const { selectedId, select, clear } = useSelectedTransaction();
   const urlSearchParams = useSearchParams();
@@ -125,6 +140,17 @@ export function TransactionList({
     setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
   }, []);
 
+  const handleCategoryUpdated = useCallback(
+    (id: string, categoryId: string | null, categoryName: string | null) => {
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, categoryId, categoryName } : r)));
+    },
+    [],
+  );
+
+  const handleReviewedUpdated = useCallback((id: string, reviewed: boolean) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, reviewed } : r)));
+  }, []);
+
   // Quick-hide from the row itself: since the default ledger view excludes
   // hidden rows, hiding one has to drop it from `rows` immediately rather
   // than wait for a refetch — the same reason the panel below closes when
@@ -204,6 +230,8 @@ export function TransactionList({
                   onSelect={handleSelect}
                   onClick={() => select(txn.id)}
                   onHide={handleHideTransaction}
+                  onCategoryUpdated={handleCategoryUpdated}
+                  onReviewedUpdated={handleReviewedUpdated}
                 />
               ))}
             </div>

@@ -21,6 +21,16 @@ export function useReviewKeyboard(
     if (!enabled || phase !== "VIEWING") return;
 
     function handleKeyDown(e: KeyboardEvent) {
+      // These shortcuts belong to whatever the user is actually typing in or
+      // choosing from — the category popover's own list, the notes field,
+      // above all. Without this, Enter both picks the highlighted category
+      // *and* confirms/advances the queue, since this listener is capture-
+      // phase on `document` and fires ahead of the popover's own handling.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable], [role="listbox"], [role="menu"]')) {
+        return;
+      }
+
       switch (e.key) {
         case "Enter":
           e.preventDefault();

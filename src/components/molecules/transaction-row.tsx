@@ -34,6 +34,11 @@ interface TransactionRowProps {
   onClick?: () => void;
   /** Hides the row without opening the detail panel — a quick declutter action. */
   onHide?: (id: string) => void;
+  /** CategoryPill saves itself; this just mirrors the result into list state
+   * so the detail panel doesn't reopen this row on the pre-edit category. */
+  onCategoryUpdated?: (id: string, categoryId: string | null, categoryName: string | null) => void;
+  /** Same mirroring, for the reviewed toggle. */
+  onReviewedUpdated?: (id: string, reviewed: boolean) => void;
 }
 
 export const TransactionRow = memo(function TransactionRow({
@@ -44,6 +49,8 @@ export const TransactionRow = memo(function TransactionRow({
   onSelect,
   onClick,
   onHide,
+  onCategoryUpdated,
+  onReviewedUpdated,
 }: TransactionRowProps) {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -72,6 +79,20 @@ export const TransactionRow = memo(function TransactionRow({
       onHide?.(txn.id);
     },
     [txn.id, onHide],
+  );
+
+  const handleCategorySaved = useCallback(
+    (categoryId: string | null, categoryName: string | null) => {
+      onCategoryUpdated?.(txn.id, categoryId, categoryName);
+    },
+    [txn.id, onCategoryUpdated],
+  );
+
+  const handleReviewedSaved = useCallback(
+    (reviewed: boolean) => {
+      onReviewedUpdated?.(txn.id, reviewed);
+    },
+    [txn.id, onReviewedUpdated],
   );
 
   return (
@@ -105,6 +126,7 @@ export const TransactionRow = memo(function TransactionRow({
           key={`${txn.id}-reviewed-${txn.reviewed}`}
           transactionId={txn.id}
           reviewed={txn.reviewed}
+          onSaved={handleReviewedSaved}
         />
       </div>
 
@@ -162,6 +184,7 @@ export const TransactionRow = memo(function TransactionRow({
           transferSource={txn.transferSource}
           merchantId={txn.merchantId}
           merchantName={txn.merchantName}
+          onSaved={handleCategorySaved}
         />
       </div>
 

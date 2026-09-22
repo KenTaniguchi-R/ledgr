@@ -63,6 +63,7 @@ export function TransactionDetailPanel({
     hiddenPending,
     detailLoaded,
     handleFieldSave,
+    handleCategorySave,
     handleReviewedToggle,
     handleTransferToggle,
     handleHiddenToggle,
@@ -202,6 +203,7 @@ export function TransactionDetailPanel({
               transferSource={txn.transferSource}
               merchantId={txn.merchantId}
               merchantName={txn.merchantName}
+              onSaved={handleCategorySave}
             />
             {txn.pending && (
               <Badge variant="outline" className="h-5 gap-1 text-[10px]">

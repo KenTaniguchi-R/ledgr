@@ -7,9 +7,13 @@ import { cn } from "@/lib/utils";
 interface ReviewedDotProps {
   transactionId: string;
   reviewed: boolean;
+  /** Fires once the toggle persists, so a caller rendering this row from list
+   * state can mirror the change — otherwise the list keeps showing the
+   * pre-toggle reviewed state once this component's own state goes away. */
+  onSaved?: (reviewed: boolean) => void;
 }
 
-export function ReviewedDot({ transactionId, reviewed }: ReviewedDotProps) {
+export function ReviewedDot({ transactionId, reviewed, onSaved }: ReviewedDotProps) {
   const [isReviewed, setIsReviewed] = useState(reviewed);
   const [isPending, startTransition] = useTransition();
 
@@ -23,6 +27,7 @@ export function ReviewedDot({ transactionId, reviewed }: ReviewedDotProps) {
         setIsReviewed(prev);
       } else {
         setIsReviewed(result.reviewed);
+        onSaved?.(result.reviewed);
       }
     });
   }

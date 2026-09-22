@@ -31,6 +31,21 @@ export function useTransactionDetail(
 
   const { splits, resetSplits, addSplit, updateSplit, removeSplit } = useSplitEditor();
 
+  // Splits persist themselves (see TransactionSplitRow), but nothing else
+  // tracks that the transaction gained or lost its split status — derive
+  // `hasSplits` from the split list and mirror it up whenever it actually
+  // changes, or the row behind the panel keeps showing a stale, editable
+  // category pill for a transaction that's now split.
+  useEffect(() => {
+    const hasSplits = splits.some((s) => !s.isDraft);
+    setTxn((prev) => {
+      if (!prev || prev.hasSplits === hasSplits) return prev;
+      const updated = { ...prev, hasSplits };
+      onUpdatedRef.current(updated);
+      return updated;
+    });
+  }, [splits]);
+
   const detailLoaded = loadedId === transactionId;
 
   useEffect(() => {
@@ -111,6 +126,20 @@ export function useTransactionDetail(
     [transactionId, txn],
   );
 
+  // CategoryPill saves the category itself (it also owns the merchant-default
+  // conflict prompt), so this just mirrors the result into local/list state
+  // once it succeeds — otherwise the row behind the panel, and the panel
+  // itself if reopened, keep showing the category from before the edit.
+  const handleCategorySave = useCallback(
+    (categoryId: string | null, categoryName: string | null) => {
+      if (!txn) return;
+      const updated = { ...txn, categoryId, categoryName };
+      setTxn(updated);
+      onUpdatedRef.current(updated);
+    },
+    [txn],
+  );
+
   const handleReviewedToggle = useCallback(() => {
     const prev = reviewed;
     setReviewed(!prev);
@@ -130,6 +159,7 @@ export function useTransactionDetail(
     hiddenPending,
     detailLoaded,
     handleFieldSave,
+    handleCategorySave,
     handleReviewedToggle,
     handleTransferToggle,
     handleHiddenToggle,
