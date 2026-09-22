@@ -77,6 +77,30 @@ describe("syncConnection", () => {
     expect(pending.pending).toBe(true);
   });
 
+  it("tags transactions on an investment account as isTransfer with transferSource investment_account", async () => {
+    // Regression: SimpleFIN sync used to hardcode isTransfer: false on every
+    // insert, so brokerage fills/fees (e.g. Robinhood) showed up as regular
+    // spend instead of being suppressed the way Plaid's investment-account
+    // sync already suppresses them.
+    ({ db, close } = await createTestDb());
+    const { householdId } = await insertHousehold(db);
+    const { connectionId } = await insertSimplefinConnection(db, householdId);
+    await insertAccount(db, householdId, {
+      bankConnectionId: connectionId,
+      externalAccountId: "sf-acc-checking",
+      type: "investment",
+    });
+
+    await syncConnection(connectionId, householdId, db);
+
+    const txns = await db.select().from(transactions).where(eq(transactions.householdId, householdId));
+    expect(txns).toHaveLength(2);
+    for (const t of txns) {
+      expect(t.isTransfer).toBe(true);
+      expect(t.transferSource).toBe("investment_account");
+    }
+  });
+
   it("backfills a missing institution icon on sync (pre-existing connections from before icon caching)", async () => {
     const { householdId, connectionId } = await setupWithAccount();
 

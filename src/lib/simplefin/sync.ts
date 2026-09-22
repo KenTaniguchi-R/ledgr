@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { eq, and, isNull, inArray, desc } from "drizzle-orm";
+import { eq, and, isNull, inArray, desc, sql } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
 import { bankConnections, syncLog, transactions, accounts, investmentHoldings, holdingsHistory, institutionLogos } from "@/db/schema";
 import { decrypt } from "@/lib/encryption";
@@ -12,6 +12,7 @@ import { classifyPollError } from "./utils";
 import { fetchFaviconDataUri } from "@/lib/favicon";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { applyTransferDetection } from "@/lib/transfer-detection";
+import { computeInvestmentTransferTagging } from "@/lib/investment-transfer-tagging";
 import { applyRecurringDetection } from "@/lib/simplefin/recurring";
 import { withHousehold } from "@/lib/household-context";
 
@@ -219,7 +220,7 @@ async function applyToDb(
 
   return withHousehold(householdId, async (tx) => {
     const accountRows = await tx
-      .select({ id: accounts.id, externalAccountId: accounts.externalAccountId })
+      .select({ id: accounts.id, externalAccountId: accounts.externalAccountId, type: accounts.type })
       .from(accounts)
       .where(
         and(
@@ -230,7 +231,9 @@ async function applyToDb(
       );
 
     const externalToInternal = new Map<string, string>();
+    const typeByInternalId = new Map<string, string>();
     for (const row of accountRows) {
+      typeByInternalId.set(row.id, row.type);
       if (row.externalAccountId) externalToInternal.set(row.externalAccountId, row.id);
     }
 
@@ -254,6 +257,8 @@ async function applyToDb(
       const existingId = existingIdByExternalId.get(row.externalId);
       if (existingId) {
         modifiedCount++;
+        const isInvestmentAccount = typeByInternalId.get(internalAccountId) === "investment";
+        const tagging = computeInvestmentTransferTagging(isInvestmentAccount, false);
         await tx.update(transactions)
           .set({
             accountId: internalAccountId,
@@ -264,11 +269,19 @@ async function applyToDb(
             normalizedAmount: row.normalizedAmount,
             currency: row.currency,
             pending: row.pending,
+            // Keep a user's manual transfer decision; let the investment-account
+            // tag refresh everything else (mirrors plaid/sync.ts).
+            isTransfer: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
+              THEN ${transactions.isTransfer} ELSE ${tagging.isTransfer} END`,
+            transferSource: sql`CASE WHEN ${transactions.transferSource} IN ('manual','manual_rejected')
+              THEN ${transactions.transferSource} ELSE ${tagging.transferSource} END`,
             updatedAt: now,
             // categoryId/reviewed/categorySource are preserved (not touched)
           })
           .where(eq(transactions.id, existingId));
       } else {
+        const isInvestmentAccount = typeByInternalId.get(internalAccountId) === "investment";
+        const tagging = computeInvestmentTransferTagging(isInvestmentAccount, false);
         insertRows.push({
           id: uuid(),
           accountId: internalAccountId,
@@ -284,7 +297,8 @@ async function applyToDb(
           pending: row.pending,
           pfcPrimary: null,
           pfcDetailed: null,
-          isTransfer: false,
+          isTransfer: tagging.isTransfer,
+          transferSource: tagging.transferSource,
           createdAt: now,
           updatedAt: now,
         });

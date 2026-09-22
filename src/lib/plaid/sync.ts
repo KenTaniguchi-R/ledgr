@@ -2,6 +2,7 @@ import { v4 as uuid } from "uuid";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { categorizeSyncedTransactions } from "@/lib/categorization/engine";
 import { applyTransferDetection } from "@/lib/transfer-detection";
+import { computeInvestmentTransferTagging } from "@/lib/investment-transfer-tagging";
 import { syncRecurringTransactions } from "./recurring";
 import type { PlaidApi } from "plaid";
 import {
@@ -344,11 +345,8 @@ async function applyToDb(
         ? merchantNameToId.get(row.merchantName) ?? null
         : null;
 
-      // Every transaction Plaid returns for an investment account (brokerage
-      // fills, clearing fees) is deterministically non-spending — unlike the
-      // PFC/pattern transfer heuristics, there's no ambiguity to preserve a
-      // user override for on a brand-new row.
       const isInvestmentAccount = typeByInternalId.get(internalAccountId) === "investment";
+      const tagging = computeInvestmentTransferTagging(isInvestmentAccount, row.isTransfer);
 
       insertRows.push({
         id: uuid(),
@@ -367,8 +365,8 @@ async function applyToDb(
         pending: row.pending,
         pfcPrimary: row.pfcPrimary,
         pfcDetailed: row.pfcDetailed,
-        isTransfer: isInvestmentAccount ? true : row.isTransfer,
-        transferSource: isInvestmentAccount ? "investment_account" : row.isTransfer ? "pfc" : null,
+        isTransfer: tagging.isTransfer,
+        transferSource: tagging.transferSource,
         createdAt: now,
         updatedAt: now,
       });
@@ -404,8 +402,8 @@ async function applyToDb(
         : null;
 
       const isInvestmentAccount = typeByInternalId.get(internalAccountId) === "investment";
-      const computedIsTransfer = isInvestmentAccount ? true : row.isTransfer;
-      const computedTransferSource = isInvestmentAccount ? "investment_account" : row.isTransfer ? "pfc" : null;
+      const { isTransfer: computedIsTransfer, transferSource: computedTransferSource } =
+        computeInvestmentTransferTagging(isInvestmentAccount, row.isTransfer);
 
       const existingId = existingIdByExternalId.get(row.externalId);
       if (existingId) {
