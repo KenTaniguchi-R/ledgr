@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronLeft, Clock } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { ArrowDown, ArrowUp, ChevronLeft, Clock, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { EditableText } from "@/components/molecules/editable-text";
+import { Textarea } from "@/components/ui/textarea";
 import { CategoryPill } from "@/components/molecules/category-pill";
 import { DetailGroup, DetailRow } from "@/components/molecules/detail-group";
 import { SplitEditor } from "@/components/molecules/split-editor";
@@ -78,6 +79,25 @@ export function TransactionDetailPanel({
     setSplitsOpenFor(transactionId);
     setSplitsOpen(false);
   }
+
+  // The note card is always-open (not click-to-edit like the other fields),
+  // so its draft is kept in local state and resynced whenever the selected
+  // transaction changes, the same way splitsOpen is reset above.
+  const [noteDraft, setNoteDraft] = useState(txn?.notes ?? "");
+  const [noteDraftFor, setNoteDraftFor] = useState(transactionId);
+  if (noteDraftFor !== transactionId) {
+    setNoteDraftFor(transactionId);
+    setNoteDraft(txn?.notes ?? "");
+  }
+  const [isNotePending, startNoteTransition] = useTransition();
+
+  const handleNoteBlur = () => {
+    if (!txn || noteDraft === (txn.notes ?? "")) return;
+    startNoteTransition(async () => {
+      const result = await handleFieldSave("notes", noteDraft);
+      if ("error" in result) setNoteDraft(txn.notes ?? "");
+    });
+  };
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -248,15 +268,6 @@ export function TransactionDetailPanel({
             hint={splitSummary}
             onClick={() => setSplitsOpen((v) => !v)}
           />
-
-          <DetailRow label="Note">
-            <EditableText
-              value={txn.notes ?? ""}
-              onSave={(v) => handleFieldSave("notes", v)}
-              placeholder="Add a note…"
-              className="max-w-[190px] truncate text-right"
-            />
-          </DetailRow>
         </DetailGroup>
 
         {(splitsOpen || splits.length > 0) && (
@@ -272,6 +283,24 @@ export function TransactionDetailPanel({
             />
           </div>
         )}
+
+        {/* Its own card, always open — a note is the one field here someone
+            might actually write a sentence into, not a settings toggle. */}
+        <div className="mt-3.5 rounded-xl bg-card px-3.5 py-3 ring-1 ring-foreground/10">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.11em] text-muted-foreground">
+            <StickyNote className="size-3" aria-hidden />
+            Note
+          </div>
+          <Textarea
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onBlur={handleNoteBlur}
+            disabled={isNotePending}
+            placeholder="Add a note…"
+            rows={2}
+            className="min-h-12 resize-none border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 md:text-sm"
+          />
+        </div>
 
         <DetailGroup className="mt-3.5">
           <DetailRow label="Review status">
