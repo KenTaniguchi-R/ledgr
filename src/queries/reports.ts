@@ -9,7 +9,7 @@ import {
   recurringTransactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, sumAbs, countRows } from "@/lib/query-helpers";
+import { notDeleted, notHidden, sumAbs, countRows } from "@/lib/query-helpers";
 import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import { resolvedCategoryLabel, UNCATEGORIZED } from "@/lib/labels";
@@ -96,6 +96,7 @@ export async function getIncomeVsExpense(
 
   const conditions = [
     notDeleted(transactions),
+    notHidden(transactions),
     eq(transactions.pending, false),
     eq(transactions.isTransfer, false),
     isNull(transactions.transferPairId),
@@ -158,6 +159,7 @@ export async function getCategoryTrends(
   const scoped = scopedQuery(householdId, db);
   const conditions = [
     notDeleted(transactions),
+    notHidden(transactions),
     lt(transactions.normalizedAmount, 0),
     eq(transactions.pending, false),
     eq(transactions.isTransfer, false),
@@ -280,6 +282,7 @@ export async function getIncomeExpenseByCategory(
 
   const conditions = [
     notDeleted(transactions),
+    notHidden(transactions),
     eq(transactions.pending, false),
     eq(transactions.isTransfer, false),
     isNull(transactions.transferPairId),
@@ -465,6 +468,7 @@ export async function getCashFlowSankey(
 
   const conditions = [
     notDeleted(transactions),
+    notHidden(transactions),
     eq(transactions.pending, false),
     eq(transactions.isTransfer, false),
     isNull(transactions.transferPairId),
@@ -609,6 +613,7 @@ export async function getSafeToSpend(
       scoped.where(
         transactions,
         notDeleted(transactions),
+        notHidden(transactions),
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
         eq(transactions.isTransfer, false),
@@ -681,6 +686,7 @@ export async function getSafeToSpend(
       scoped.where(
         transactions,
         notDeleted(transactions),
+        notHidden(transactions),
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
         eq(transactions.pending, false),

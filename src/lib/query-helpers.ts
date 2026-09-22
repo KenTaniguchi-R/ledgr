@@ -1,8 +1,12 @@
-import { isNull, sql } from "drizzle-orm";
+import { eq, isNull, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 export function notDeleted(table: { deletedAt: PgColumn }) {
   return isNull(table.deletedAt);
+}
+
+export function notHidden(table: { isHidden: PgColumn }) {
+  return eq(table.isHidden, false);
 }
 
 export function sumAbs(col: PgColumn) {

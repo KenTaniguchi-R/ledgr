@@ -1,0 +1,2 @@
+ALTER TABLE "transactions" ADD COLUMN "is_hidden" boolean DEFAULT false;--> statement-breakpoint
+CREATE INDEX "idx_txn_household_hidden_date" ON "transactions" USING btree ("household_id","is_hidden","date");

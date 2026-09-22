@@ -48,6 +48,8 @@ interface MobileFilterSheetProps {
   activeCount: number;
   reviewed: boolean;
   onReviewedChange: (next: boolean) => void;
+  hidden: boolean;
+  onHiddenChange: (next: boolean) => void;
   onClearAll: () => void;
   /** Row count under the filters as they currently stand. */
   resultCount: number;
@@ -67,6 +69,8 @@ export function MobileFilterSheet({
   activeCount,
   reviewed,
   onReviewedChange,
+  hidden,
+  onHiddenChange,
   onClearAll,
   resultCount,
 }: MobileFilterSheetProps) {
@@ -176,7 +180,7 @@ export function MobileFilterSheet({
             );
           })}
 
-          {/* Reviewed is a toggle, not a list, so it gets a row of its own. */}
+          {/* Reviewed and Hidden are toggles, not lists, so each gets a row of its own. */}
           <div className="flex items-center gap-2 border-t px-4 py-3 text-sm">
             <label htmlFor="filter-reviewed" className="flex-1">
               Reviewed only
@@ -185,6 +189,16 @@ export function MobileFilterSheet({
               id="filter-reviewed"
               checked={reviewed}
               onCheckedChange={onReviewedChange}
+            />
+          </div>
+          <div className="flex items-center gap-2 border-t px-4 py-3 text-sm">
+            <label htmlFor="filter-hidden" className="flex-1">
+              Hidden only
+            </label>
+            <Switch
+              id="filter-hidden"
+              checked={hidden}
+              onCheckedChange={onHiddenChange}
             />
           </div>
         </div>

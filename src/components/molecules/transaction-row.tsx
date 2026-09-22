@@ -2,7 +2,7 @@
 
 import { accountDisplayName } from "@/lib/account-name";
 import { memo, useCallback } from "react";
-import { Clock } from "lucide-react";
+import { Clock, EyeOff } from "lucide-react";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { CategoryPill } from "@/components/molecules/category-pill";
@@ -32,6 +32,8 @@ interface TransactionRowProps {
   isActive?: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onClick?: () => void;
+  /** Hides the row without opening the detail panel — a quick declutter action. */
+  onHide?: (id: string) => void;
 }
 
 export const TransactionRow = memo(function TransactionRow({
@@ -41,6 +43,7 @@ export const TransactionRow = memo(function TransactionRow({
   isActive = false,
   onSelect,
   onClick,
+  onHide,
 }: TransactionRowProps) {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -63,19 +66,40 @@ export const TransactionRow = memo(function TransactionRow({
     e.stopPropagation();
   }, []);
 
+  const handleHideClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onHide?.(txn.id);
+    },
+    [txn.id, onHide],
+  );
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={handleKeyDown}
+      data-txn-row={txn.id}
       className={cn(
-        "group/row grid items-center h-11 sm:h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer",
+        "group/row relative grid items-center h-11 sm:h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer",
         TRANSACTION_GRID_COLS,
         txn.pending && "opacity-60",
         isActive && "bg-muted",
       )}
     >
+      {onHide && (
+        <button
+          type="button"
+          onClick={handleHideClick}
+          title="Hide transaction"
+          aria-label="Hide transaction"
+          className="absolute right-2 top-1/2 z-10 flex size-6 -translate-y-1/2 scale-90 items-center justify-center rounded-full border border-border bg-card opacity-0 shadow-sm transition-all group-hover/row:scale-100 group-hover/row:opacity-100 hover:bg-muted"
+        >
+          <EyeOff className="size-3.5" />
+        </button>
+      )}
+
       <div onClick={handleCheckboxClick}>
         <ReviewedDot
           key={`${txn.id}-reviewed-${txn.reviewed}`}

@@ -7,7 +7,7 @@ import {
   transactions,
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, notHidden } from "@/lib/query-helpers";
 import { getIncomeCategoryIds } from "@/queries/shared-conditions";
 import { aggregateSpending, enrichSpendingMap } from "@/lib/spending-helpers";
 import type { ReportFilters } from "@/queries/reports";
@@ -101,6 +101,7 @@ export async function getDashboardSummary(
       scoped.where(
         transactions,
         notDeleted(transactions),
+        notHidden(transactions),
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
         eq(transactions.pending, false),
@@ -369,6 +370,7 @@ export async function getCashFlow(
       scoped.where(
         transactions,
         notDeleted(transactions),
+        notHidden(transactions),
         gte(transactions.date, dateFrom),
         eq(transactions.pending, false),
         eq(transactions.isTransfer, false),
@@ -397,7 +399,7 @@ export async function getRecentTransactions(
 
   const rows = await base
     .joins(db.select(base.select).from(base.from))
-    .where(base.scoped.where(transactions, notDeleted(transactions)))
+    .where(base.scoped.where(transactions, notDeleted(transactions), notHidden(transactions)))
     .orderBy(desc(transactions.date), desc(transactions.id))
     .limit(limit);
 
@@ -407,6 +409,7 @@ export async function getRecentTransactions(
     currency: row.currency ?? "USD",
     pending: Boolean(row.pending),
     reviewed: Boolean(row.reviewed),
+    isHidden: Boolean(row.isHidden),
     hasSplits: false,
   }));
 }

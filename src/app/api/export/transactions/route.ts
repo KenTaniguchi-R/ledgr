@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getHouseholdId } from "@/lib/auth/session";
 import { baseTransactionQuery } from "@/queries/transactions";
 import { transactions } from "@/db/schema";
-import { notDeleted } from "@/lib/query-helpers";
+import { notDeleted, notHidden } from "@/lib/query-helpers";
 import { desc, gte, lte, eq, like, isNull, type SQL } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { todayDateString } from "@/lib/date-utils";
@@ -21,7 +21,7 @@ export async function buildCsvString(
   filters: ExportFilters,
   db: LedgrDb = defaultDb,
 ): Promise<string> {
-  const conditions: (SQL | undefined)[] = [notDeleted(transactions)];
+  const conditions: (SQL | undefined)[] = [notDeleted(transactions), notHidden(transactions)];
 
   if (filters.from) conditions.push(gte(transactions.date, filters.from));
   if (filters.to) conditions.push(lte(transactions.date, filters.to));

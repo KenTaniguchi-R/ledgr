@@ -13,6 +13,7 @@ import {
   ChevronDown,
   BadgeCheck,
   CalendarDays,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSearchParamFilters } from "@/hooks/use-search-param-filters";
@@ -148,6 +149,7 @@ export function TransactionFilters({ accounts, categories, resultCount }: Transa
   const amountValue = describeAmountFilter(amount.minDisplay, amount.maxDisplay);
 
   const reviewedActive = searchParams.get("reviewed") === "true";
+  const hiddenActive = searchParams.get("hidden") === "true";
 
   function handleDatePreset(id: string) {
     if (id === "all") updateFilters({ from: null, to: null });
@@ -169,6 +171,7 @@ export function TransactionFilters({ accounts, categories, resultCount }: Transa
     amountMinDisplay: amount.minDisplay,
     amountMaxDisplay: amount.maxDisplay,
     reviewed: reviewedActive,
+    hidden: hiddenActive,
     accounts,
     categories,
   });
@@ -183,6 +186,7 @@ export function TransactionFilters({ accounts, categories, resultCount }: Transa
       updateFilters({ amountMin: null, amountMax: null });
     },
     reviewed: () => updateFilter("reviewed", null),
+    hidden: () => updateFilter("hidden", null),
   };
 
   function renderChip(chip: FilterChip) {
@@ -366,6 +370,8 @@ export function TransactionFilters({ accounts, categories, resultCount }: Transa
           activeCount={chips.length}
           reviewed={reviewedActive}
           onReviewedChange={(next) => updateFilter("reviewed", next ? "true" : null)}
+          hidden={hiddenActive}
+          onHiddenChange={(next) => updateFilter("hidden", next ? "true" : null)}
           onClearAll={handleClearAll}
           resultCount={resultCount}
         />
@@ -557,6 +563,19 @@ export function TransactionFilters({ accounts, categories, resultCount }: Transa
           onClick={() => updateFilter("reviewed", reviewedActive ? null : "true")}
         >
           <BadgeCheck className="mr-1 h-3.5 w-3.5" /> Reviewed
+        </Button>
+
+        {/* Hidden toggle — shows only hidden transactions; they're excluded by
+            default everywhere else. */}
+        <Button
+          type="button"
+          variant={hiddenActive ? "default" : "outline"}
+          size="sm"
+          className="h-8 text-xs"
+          aria-pressed={hiddenActive}
+          onClick={() => updateFilter("hidden", hiddenActive ? null : "true")}
+        >
+          <EyeOff className="mr-1 h-3.5 w-3.5" /> Hidden
         </Button>
       </div>
 

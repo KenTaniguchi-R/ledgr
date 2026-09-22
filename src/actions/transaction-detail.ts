@@ -23,6 +23,7 @@ const updateFieldsSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
       .optional(),
     isTransfer: z.boolean().optional(),
+    isHidden: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field required",
@@ -111,6 +112,7 @@ export async function updateTransactionFields(
       updates.isTransfer = fields.isTransfer;
       updates.transferSource = fields.isTransfer ? "manual" : "manual_rejected";
     }
+    if (fields.isHidden !== undefined) updates.isHidden = fields.isHidden;
 
     await tx.update(transactions)
       .set(updates)

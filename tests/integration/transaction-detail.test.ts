@@ -199,6 +199,26 @@ describe("updateTransactionFields", () => {
     );
     expect(result).toEqual({ error: "Cannot edit date on bank-synced transactions" });
   });
+
+  it("toggles isHidden on and back off", async () => {
+    const hideResult = await updateTransactionFields(editTxnId, { isHidden: true }, db);
+    expect(hideResult).toEqual({ success: true });
+
+    const [hiddenRow] = await db
+      .select({ isHidden: transactions.isHidden })
+      .from(transactions)
+      .where(eq(transactions.id, editTxnId));
+    expect(hiddenRow!.isHidden).toBe(true);
+
+    const unhideResult = await updateTransactionFields(editTxnId, { isHidden: false }, db);
+    expect(unhideResult).toEqual({ success: true });
+
+    const [unhiddenRow] = await db
+      .select({ isHidden: transactions.isHidden })
+      .from(transactions)
+      .where(eq(transactions.id, editTxnId));
+    expect(unhiddenRow!.isHidden).toBe(false);
+  });
 });
 
 describe("upsertSplit", () => {

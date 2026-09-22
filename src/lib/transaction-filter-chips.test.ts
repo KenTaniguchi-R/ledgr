@@ -35,6 +35,7 @@ const EMPTY: ChipInput = {
   amountMinDisplay: "",
   amountMaxDisplay: "",
   reviewed: false,
+  hidden: false,
   accounts: ACCOUNTS,
   categories: CATEGORIES,
 };
@@ -120,6 +121,12 @@ describe("buildFilterChips", () => {
     ]);
   });
 
+  it("counts the hidden toggle, which has no value of its own", () => {
+    expect(buildFilterChips({ ...EMPTY, hidden: true })).toEqual([
+      { key: "hidden", label: null, value: "Hidden" },
+    ]);
+  });
+
   it("orders chips the same way the filter controls are ordered", () => {
     const chips = buildFilterChips({
       ...EMPTY,
@@ -130,6 +137,7 @@ describe("buildFilterChips", () => {
       typeId: "credits",
       amountMinDisplay: "10",
       reviewed: true,
+      hidden: true,
     });
     expect(chips.map((c) => c.key)).toEqual([
       "date",
@@ -138,6 +146,7 @@ describe("buildFilterChips", () => {
       "type",
       "amount",
       "reviewed",
+      "hidden",
     ]);
   });
 });

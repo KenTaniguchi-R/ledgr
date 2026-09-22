@@ -31,6 +31,7 @@ export function parseTransactionFilters(
     amountMin,
     amountMax,
     transactionType,
+    hidden: params.hidden === "true" ? true : undefined,
   };
 
   return { filters, isReviewMode };

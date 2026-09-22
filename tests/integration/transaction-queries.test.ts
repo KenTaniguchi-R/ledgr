@@ -159,6 +159,26 @@ describe("getTransactions", () => {
       expect(Math.abs(row.normalizedAmount)).toBeLessThanOrEqual(3000);
     }
   });
+
+  it("excludes hidden transactions by default", async () => {
+    await insertTransaction(db, householdId, accountId, {
+      name: "Duplicate Hold",
+      date: "2026-05-07",
+      amount: -8500,
+      normalizedAmount: 8500,
+      isHidden: true,
+    });
+
+    const page = await getTransactions(householdId, {}, 50, null, db);
+    expect(page.rows.some((r) => r.name === "Duplicate Hold")).toBe(false);
+  });
+
+  it("shows only hidden transactions when hidden filter is set", async () => {
+    const page = await getTransactions(householdId, { hidden: true }, 50, null, db);
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0].name).toBe("Duplicate Hold");
+    expect(page.rows[0].isHidden).toBe(true);
+  });
 });
 
 describe("getSuggestedTransfers / getSuggestedTransferCount", () => {

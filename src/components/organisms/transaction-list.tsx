@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,6 +11,7 @@ import { TransactionDateHeader } from "@/components/molecules/transaction-date-h
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
 import { TransactionDetailPanel } from "@/components/organisms/transaction-detail-panel";
 import { loadMoreTransactions } from "@/actions/transactions";
+import { updateTransactionFields } from "@/actions/transaction-detail";
 import { groupByDate } from "@/lib/transactions";
 import { summarizeDay } from "@/lib/transaction-day-summary";
 import { useSelectedTransaction } from "@/hooks/use-selected-transaction";
@@ -55,6 +56,36 @@ export function TransactionList({
 
   const isPanelOpen = selectedId !== null;
 
+  // ↑↓ walks the ledger in the order it is rendered, across day boundaries —
+  // the job on this screen is clearing a backlog, not inspecting one payment.
+  const selectedIndex = useMemo(
+    () => (selectedId ? rows.findIndex((r) => r.id === selectedId) : -1),
+    [selectedId, rows],
+  );
+
+  const stepPrev = useMemo(
+    () =>
+      selectedIndex > 0 ? () => select(rows[selectedIndex - 1].id) : null,
+    [selectedIndex, rows, select],
+  );
+
+  const stepNext = useMemo(
+    () =>
+      selectedIndex >= 0 && selectedIndex < rows.length - 1
+        ? () => select(rows[selectedIndex + 1].id)
+        : null,
+    [selectedIndex, rows, select],
+  );
+
+  // Stepping with the arrow keys has to bring the row with it, or the
+  // highlight walks off the top or bottom of the viewport unseen.
+  useEffect(() => {
+    if (!selectedId) return;
+    document
+      .querySelector(`[data-txn-row="${CSS.escape(selectedId)}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
+
   const handleSelect = useCallback((id: string, checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -94,6 +125,23 @@ export function TransactionList({
     setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
   }, []);
 
+  // Quick-hide from the row itself: since the default ledger view excludes
+  // hidden rows, hiding one has to drop it from `rows` immediately rather
+  // than wait for a refetch — the same reason the panel below closes when
+  // it was showing the row being hidden.
+  const handleHideTransaction = useCallback(
+    (id: string) => {
+      const prevRows = rows;
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      if (selectedId === id) clear();
+
+      updateTransactionFields(id, { isHidden: true }).then((result) => {
+        if ("error" in result) setRows(prevRows);
+      });
+    },
+    [rows, selectedId, clear],
+  );
+
   const handlePanelClose = useCallback(() => {
     clear();
   }, [clear]);
@@ -110,16 +158,14 @@ export function TransactionList({
 
   return (
     <div
-      className={cn(
-        "group/list grid transition-[grid-template-columns] duration-200 ease-out",
-        isPanelOpen && !isMobile
-          ? "grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
-          : "grid-cols-[1fr]",
-      )}
+      className="group/list relative"
       data-bulk-active={hasBulkSelection ? "" : undefined}
     >
-      {/* List Column */}
-      <div className="min-w-0 overflow-hidden">
+      {/* The ledger keeps the full content width whether or not the panel is
+          open. It used to give up two fifths of it, which starved the `1fr`
+          description track — the account and category tracks are fixed, so the
+          description absorbed the whole loss and truncated to a few letters. */}
+      <div className="min-w-0">
         {hasBulkSelection && (
           <BulkActionBar
             selectedIds={Array.from(selected)}
@@ -157,6 +203,7 @@ export function TransactionList({
                   isActive={txn.id === selectedId}
                   onSelect={handleSelect}
                   onClick={() => select(txn.id)}
+                  onHide={handleHideTransaction}
                 />
               ))}
             </div>
@@ -177,28 +224,39 @@ export function TransactionList({
         )}
       </div>
 
-      {/* Detail Panel Column */}
+      {/* Detail panel — floats above the ledger rather than taking a column
+          out of it, so opening and closing it reflows nothing. The column is
+          click-through; only the card itself takes the pointer. */}
       {isPanelOpen && !isReviewMode && !isTransferReviewMode && (
         <div
           className={cn(
-            "border-l bg-background",
             isMobile
-              ? "fixed inset-0 z-50"
-              : "h-[calc(100vh-8rem)] sticky top-32",
+              ? "fixed inset-0 z-50 bg-background"
+              : "pointer-events-none absolute inset-y-0 right-0 z-30 w-[396px]",
           )}
         >
           {/* Live region for screen readers */}
           <div className="sr-only" aria-live="polite">
             Transaction details opened
           </div>
-          <TransactionDetailPanel
-            transactionId={selectedId}
-            initialData={selectedRow}
-            categories={categories}
-            onClose={handlePanelClose}
-            onTransactionUpdated={handleTransactionUpdated}
-            onSelectTransaction={select}
-          />
+          <div
+            className={cn(
+              !isMobile &&
+                "pointer-events-auto sticky top-4 max-h-[calc(100vh-2rem)] overflow-hidden rounded-xl bg-card shadow-2xl ring-1 ring-foreground/10",
+              isMobile && "h-full",
+            )}
+          >
+            <TransactionDetailPanel
+              transactionId={selectedId}
+              initialData={selectedRow}
+              categories={categories}
+              onClose={handlePanelClose}
+              onTransactionUpdated={handleTransactionUpdated}
+              onSelectTransaction={select}
+              onStepPrev={stepPrev}
+              onStepNext={stepNext}
+            />
+          </div>
         </div>
       )}
 

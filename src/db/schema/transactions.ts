@@ -54,6 +54,11 @@ export const transactions = pgTable(
     notes: text("notes"),
     tags: text("tags"),
     isTransfer: boolean("is_transfer").default(false),
+    // Removes the row from the ledger, reports and totals entirely, unlike
+    // isTransfer which keeps it visible but out of spend. For duplicate
+    // holds, test charges, and other rows a household never wants to see
+    // again. Purely a user decision — nothing sync-side sets this.
+    isHidden: boolean("is_hidden").default(false),
     // Provenance for isTransfer/transferPairId, mirroring categorySource:
     // manual and manual_rejected are user decisions and must never be
     // overwritten by the lower tiers (pfc at ingestion, auto/pattern
@@ -95,6 +100,7 @@ export const transactions = pgTable(
       .where(sql`external_id IS NOT NULL`),
     index("idx_txn_household_reviewed_date").on(table.householdId, table.reviewed, table.date),
     index("idx_txn_household_transfer_date").on(table.householdId, table.isTransfer, table.date),
+    index("idx_txn_household_hidden_date").on(table.householdId, table.isHidden, table.date),
     index("idx_txn_household_date_id").on(table.householdId, table.date, table.id),
     // RLS PILOT — every call site touching `transactions` now runs inside
     // withHousehold() (src/lib/household-context.ts), which sets

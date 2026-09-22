@@ -28,7 +28,8 @@ export type FilterChipKey =
   | "category"
   | "type"
   | "amount"
-  | "reviewed";
+  | "reviewed"
+  | "hidden";
 
 export interface FilterChip {
   key: FilterChipKey;
@@ -52,6 +53,7 @@ export interface ChipInput {
   amountMinDisplay: string;
   amountMaxDisplay: string;
   reviewed: boolean;
+  hidden: boolean;
   accounts: AccountOption[];
   categories: CategoryGroup[];
 }
@@ -130,6 +132,8 @@ export function buildFilterChips(input: ChipInput): FilterChip[] {
   if (amount) chips.push({ key: "amount", label: "Amount", value: amount });
 
   if (input.reviewed) chips.push({ key: "reviewed", label: null, value: "Reviewed" });
+
+  if (input.hidden) chips.push({ key: "hidden", label: null, value: "Hidden" });
 
   return chips;
 }

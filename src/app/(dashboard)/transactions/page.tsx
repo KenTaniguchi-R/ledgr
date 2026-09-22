@@ -24,7 +24,7 @@ export default async function TransactionsPage({
   const { filters } = parseTransactionFilters(params);
 
   const hasAnyFilters = Object.entries(filters)
-    .filter(([k]) => k !== "reviewed")
+    .filter(([k]) => k !== "reviewed" && k !== "hidden")
     .some(([, v]) => v !== undefined);
 
   const [page, allCategories, allAccounts, summary, unreviewedSummary, suggestedTransfers] = await Promise.all([

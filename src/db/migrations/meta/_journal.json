@@ -71,6 +71,13 @@
       "when": 1788305486484,
       "tag": "0009_numerous_monster_badoon",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790058923899,
+      "tag": "0010_sloppy_nebula",
+      "breakpoints": true
     }
   ]
 }

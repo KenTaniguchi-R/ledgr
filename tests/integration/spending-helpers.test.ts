@@ -70,7 +70,7 @@ describe("aggregateSpending", () => {
     expect(result.get("uncategorized")).toBe(750);
   });
 
-  test("excludes income, transfers, pending, deleted, paired, and out-of-range rows", async () => {
+  test("excludes income, transfers, pending, deleted, paired, hidden, and out-of-range rows", async () => {
     await expense({ categoryId: foodCatId, normalizedAmount: -1000 }); // the only one that counts
     await expense({ categoryId: incomeCatId, normalizedAmount: -9999 }); // income category
     await expense({ categoryId: foodCatId, normalizedAmount: 5000 }); // positive → not spend
@@ -78,6 +78,7 @@ describe("aggregateSpending", () => {
     await expense({ categoryId: foodCatId, normalizedAmount: -9999, pending: true });
     await expense({ categoryId: foodCatId, normalizedAmount: -9999, deletedAt: new Date() });
     await expense({ categoryId: foodCatId, normalizedAmount: -9999, transferPairId: "some-pair" });
+    await expense({ categoryId: foodCatId, normalizedAmount: -9999, isHidden: true });
     await expense({ categoryId: foodCatId, normalizedAmount: -9999, date: "2026-06-15" }); // out of window
 
     const result = await aggregateSpending(householdId, filters, db);

@@ -2,7 +2,7 @@ import { eq, ilike, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL } fro
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits, type CategorySource } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
-import { notDeleted, encodeCursor, decodeCursor, countRows } from "@/lib/query-helpers";
+import { notDeleted, notHidden, encodeCursor, decodeCursor, countRows } from "@/lib/query-helpers";
 
 export interface TransactionFilters {
   dateFrom?: string;
@@ -14,6 +14,8 @@ export interface TransactionFilters {
   amountMin?: number;
   amountMax?: number;
   transactionType?: "expense" | "credits" | "transfer";
+  /** `true` shows only hidden rows (an audit view); omitted excludes them — never additive. */
+  hidden?: boolean;
 }
 
 export interface TransactionRow {
@@ -41,6 +43,7 @@ export interface TransactionRow {
   isTransfer: boolean;
   transferPairId: string | null;
   transferSource: string | null;
+  isHidden: boolean;
   categorySource: CategorySource | null;
   externalId: string | null;
 }
@@ -74,6 +77,7 @@ const transactionSelectFields = {
   isTransfer: transactions.isTransfer,
   transferPairId: transactions.transferPairId,
   transferSource: transactions.transferSource,
+  isHidden: transactions.isHidden,
   categorySource: transactions.categorySource,
   externalId: transactions.externalId,
 };
@@ -94,7 +98,13 @@ export function baseTransactionQuery(db: LedgrDb, householdId: string) {
 }
 
 function buildTransactionConditions(filters: TransactionFilters): (SQL | undefined)[] {
-  const conditions: (SQL | undefined)[] = [notDeleted(transactions)];
+  // Hidden rows are excluded by default, same as deleted ones — not just
+  // when some other filter happens to be set. `filters.hidden === true`
+  // flips this into the one dedicated view that shows them.
+  const conditions: (SQL | undefined)[] = [
+    notDeleted(transactions),
+    filters.hidden === true ? eq(transactions.isHidden, true) : notHidden(transactions),
+  ];
 
   if (filters.dateFrom) {
     conditions.push(gte(transactions.date, filters.dateFrom));
@@ -203,6 +213,7 @@ export async function fetchTransactionPage(
     isTransfer: Boolean(row.isTransfer),
     transferPairId: row.transferPairId ?? null,
     transferSource: row.transferSource ?? null,
+    isHidden: Boolean(row.isHidden),
     categorySource: row.categorySource ?? null,
     externalId: row.externalId ?? null,
   }));
@@ -278,7 +289,7 @@ export async function getSuggestedTransfers(
 ): Promise<TransactionRow[]> {
   const { rows } = await fetchTransactionPage(
     householdId,
-    [notDeleted(transactions), eq(transactions.transferSource, "suggested")],
+    [notDeleted(transactions), notHidden(transactions), eq(transactions.transferSource, "suggested")],
     200,
     null,
     db,
@@ -294,7 +305,7 @@ export async function getSuggestedTransferCount(
   const [result] = await db
     .select({ count: countRows() })
     .from(transactions)
-    .where(scoped.where(transactions, notDeleted(transactions), eq(transactions.transferSource, "suggested")))
+    .where(scoped.where(transactions, notDeleted(transactions), notHidden(transactions), eq(transactions.transferSource, "suggested")))
     .limit(1);
   return result?.count ?? 0;
 }
@@ -340,6 +351,7 @@ export async function getTransactionDetail(
     isTransfer: Boolean(row.isTransfer),
     transferPairId: row.transferPairId ?? null,
     transferSource: row.transferSource ?? null,
+    isHidden: Boolean(row.isHidden),
     categorySource: row.categorySource ?? null,
     externalId: row.externalId ?? null,
     hasSplits: splits.length > 0,

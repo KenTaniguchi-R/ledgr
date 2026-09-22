@@ -19,6 +19,8 @@ export function useTransactionDetail(
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(initialData?.reviewed ?? false);
   const [reviewPending, startReviewTransition] = useTransition();
+  const [transferPending, startTransferTransition] = useTransition();
+  const [hiddenPending, startHiddenTransition] = useTransition();
 
   const onCloseRef = useRef(onClose);
   const onUpdatedRef = useRef(onTransactionUpdated);
@@ -51,7 +53,7 @@ export function useTransactionDetail(
   }, [transactionId, resetSplits]);
 
   const handleFieldSave = useCallback(
-    async (field: string, value: string) => {
+    async (field: "name" | "notes" | "date", value: string) => {
       const result = await updateTransactionFields(transactionId, { [field]: value });
       if ("success" in result && txn) {
         const updated = { ...txn, [field]: value };
@@ -59,6 +61,52 @@ export function useTransactionDetail(
         onUpdatedRef.current(updated);
       }
       return result;
+    },
+    [transactionId, txn],
+  );
+
+  // Turning the flag off also unpairs both legs server-side, so the local row
+  // has to drop transferPairId with it or the "Paired with" row keeps offering
+  // a link to a transaction that is no longer paired.
+  const handleTransferToggle = useCallback(
+    (next: boolean) => {
+      if (!txn) return;
+      const prev = txn;
+      const optimistic: TxnRow = {
+        ...txn,
+        isTransfer: next,
+        transferSource: next ? "manual" : "manual_rejected",
+        transferPairId: next ? txn.transferPairId : null,
+      };
+      setTxn(optimistic);
+      onUpdatedRef.current(optimistic);
+
+      startTransferTransition(async () => {
+        const result = await updateTransactionFields(transactionId, { isTransfer: next });
+        if ("error" in result) {
+          setTxn(prev);
+          onUpdatedRef.current(prev);
+        }
+      });
+    },
+    [transactionId, txn],
+  );
+
+  const handleHiddenToggle = useCallback(
+    (next: boolean) => {
+      if (!txn) return;
+      const prev = txn;
+      const optimistic: TxnRow = { ...txn, isHidden: next };
+      setTxn(optimistic);
+      onUpdatedRef.current(optimistic);
+
+      startHiddenTransition(async () => {
+        const result = await updateTransactionFields(transactionId, { isHidden: next });
+        if ("error" in result) {
+          setTxn(prev);
+          onUpdatedRef.current(prev);
+        }
+      });
     },
     [transactionId, txn],
   );
@@ -78,9 +126,13 @@ export function useTransactionDetail(
     splits,
     reviewed,
     reviewPending,
+    transferPending,
+    hiddenPending,
     detailLoaded,
     handleFieldSave,
     handleReviewedToggle,
+    handleTransferToggle,
+    handleHiddenToggle,
     handleAddSplit: addSplit,
     handleSplitUpdate: updateSplit,
     handleSplitDelete: removeSplit,
