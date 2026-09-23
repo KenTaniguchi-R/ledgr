@@ -2,6 +2,7 @@
 
 import { useActionTransition } from "@/hooks/use-action-transition";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { bulkUpdateCategory, bulkMarkReviewed } from "@/actions/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import {
@@ -16,9 +17,11 @@ interface BulkActionBarProps {
   selectedIds: string[];
   categories: CategoryGroup[];
   onComplete: () => void;
+  /** The bar sticks below the page header by default; a sheet passes its own offset. */
+  className?: string;
 }
 
-export function BulkActionBar({ selectedIds, categories, onComplete }: BulkActionBarProps) {
+export function BulkActionBar({ selectedIds, categories, onComplete, className }: BulkActionBarProps) {
   const { isPending, execute } = useActionTransition();
 
   function handleCategorize(categoryId: string | null) {
@@ -38,7 +41,7 @@ export function BulkActionBar({ selectedIds, categories, onComplete }: BulkActio
   }
 
   return (
-    <div className="sticky top-14 z-20 flex items-center gap-3 bg-muted/80 backdrop-blur-sm border rounded-md px-3 py-2 mb-2">
+    <div className={cn("sticky top-14 z-20 flex items-center gap-3 bg-muted/80 backdrop-blur-sm border rounded-md px-3 py-2 mb-2", className)}>
       <span className="text-sm font-medium">{selectedIds.length} selected</span>
 
       <Select onValueChange={handleCategorize} disabled={isPending}>

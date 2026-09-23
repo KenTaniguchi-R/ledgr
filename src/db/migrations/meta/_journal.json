@@ -78,6 +78,13 @@
       "when": 1790058923899,
       "tag": "0010_sloppy_nebula",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790148009699,
+      "tag": "0011_reoffer_stranded_ai_rows",
+      "breakpoints": true
     }
   ]
 }

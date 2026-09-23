@@ -8,6 +8,7 @@ import { SpendingChart } from "@/components/atoms/spending-chart";
 import { ComparisonBadge } from "@/components/molecules/comparison-badge";
 import { ReportStatStrip, type ReportStat } from "@/components/molecules/report-stat-strip";
 import { Button } from "@/components/ui/button";
+import type { CategoryGroup } from "@/queries/categories";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import {
   Table,
@@ -35,6 +36,7 @@ interface ReportSpendingProps {
   dateFrom: string;
   dateTo: string;
   accountIds?: string[];
+  categories: CategoryGroup[];
 }
 
 /** "(3.6×)" once spending has multiplied, "(+14%)" for a smaller move. */
@@ -54,6 +56,7 @@ export function ReportSpending({
   dateFrom,
   dateTo,
   accountIds,
+  categories,
 }: ReportSpendingProps) {
   // Nine categories spanning three orders of magnitude is a size comparison,
   // which bars read directly and a donut does not.
@@ -247,6 +250,7 @@ export function ReportSpending({
         dateFrom={dateFrom}
         dateTo={dateTo}
         accountIds={accountIds}
+        categories={categories}
         onClose={() => setDrillDown(null)}
       />
     </div>

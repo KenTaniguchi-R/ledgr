@@ -11,6 +11,7 @@ import {
   type ReportFilters,
 } from "@/queries/reports";
 import type { CategoryColorMap } from "@/lib/category-colors";
+import type { CategoryGroup } from "@/queries/categories";
 import { ReportSpending } from "@/components/organisms/report-spending";
 import { ReportIncomeExpense } from "@/components/organisms/report-income-expense";
 import { ReportCashFlow } from "@/components/organisms/report-cash-flow";
@@ -30,6 +31,8 @@ export interface ReportContext {
   filters: ReportFilters;
   /** The preceding period of the same length; absent for all-time. */
   compPeriod?: { dateFrom: string; dateTo: string };
+  /** Every category group, for editing transactions from a drill-down. */
+  categories: CategoryGroup[];
   /** e.g. "vs Mar 22 – Jun 22"; null for all-time. */
   compLabel: string | null;
   /** One colour per category, shared by every tab. See lib/category-colors.ts. */
@@ -62,6 +65,7 @@ async function SpendingPanel({ ctx }: { ctx: ReportContext }) {
       dateFrom={filters.dateFrom}
       dateTo={filters.dateTo}
       accountIds={filters.accountIds}
+      categories={ctx.categories}
     />
   );
 }
@@ -79,6 +83,7 @@ async function IncomeExpensePanel({ ctx }: { ctx: ReportContext }) {
       dateFrom={filters.dateFrom}
       dateTo={filters.dateTo}
       accountIds={filters.accountIds}
+      categories={ctx.categories}
     />
   );
 }
@@ -100,6 +105,7 @@ async function CashFlowPanel({ ctx }: { ctx: ReportContext }) {
       dateFrom={filters.dateFrom}
       dateTo={filters.dateTo}
       accountIds={filters.accountIds}
+      categories={ctx.categories}
     />
   );
 }

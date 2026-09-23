@@ -25,6 +25,12 @@ import { cn } from "@/lib/utils";
 export const TRANSACTION_GRID_COLS =
   "grid-cols-[24px_minmax(0,1fr)_auto_80px] sm:grid-cols-[24px_32px_minmax(0,1fr)_auto_100px] lg:grid-cols-[24px_32px_minmax(0,1fr)_128px_minmax(0,150px)_100px]" as const;
 
+// A sheet is ~600px wide at every viewport, so the ledger's viewport breakpoints
+// would hand it the account column at lg and starve the description. Compact
+// rows keep the sm layout throughout, with the account as an inline suffix.
+const COMPACT_GRID_COLS =
+  "grid-cols-[24px_minmax(0,1fr)_auto_80px] sm:grid-cols-[24px_32px_minmax(0,1fr)_minmax(0,140px)_92px]" as const;
+
 interface TransactionRowProps {
   transaction: TxnRow;
   categories: CategoryGroup[];
@@ -39,6 +45,11 @@ interface TransactionRowProps {
   onCategoryUpdated?: (id: string, categoryId: string | null, categoryName: string | null) => void;
   /** Same mirroring, for the reviewed toggle. */
   onReviewedUpdated?: (id: string, reviewed: boolean) => void;
+  /** Sheet layout: no account column at any width. */
+  compact?: boolean;
+  /** Set when an edit moved this row out of the list it is shown in (see
+   * drillDownExitReason); the row stays, dimmed, with this as its caption. */
+  exitReason?: string | null;
 }
 
 export const TransactionRow = memo(function TransactionRow({
@@ -51,6 +62,8 @@ export const TransactionRow = memo(function TransactionRow({
   onHide,
   onCategoryUpdated,
   onReviewedUpdated,
+  compact = false,
+  exitReason = null,
 }: TransactionRowProps) {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -104,8 +117,8 @@ export const TransactionRow = memo(function TransactionRow({
       data-txn-row={txn.id}
       className={cn(
         "group/row relative grid items-center h-11 sm:h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer",
-        TRANSACTION_GRID_COLS,
-        txn.pending && "opacity-60",
+        compact ? COMPACT_GRID_COLS : TRANSACTION_GRID_COLS,
+        (txn.pending || exitReason) && "opacity-60",
         isActive && "bg-muted",
       )}
     >
@@ -160,13 +173,22 @@ export const TransactionRow = memo(function TransactionRow({
               ({txn.originalName})
             </span>
           )}
-          <span className="hidden sm:inline lg:hidden text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate">
-            {txn.accountName && accountDisplayName(txn.accountName)}
-          </span>
+          {exitReason ? (
+            <span className="text-[11px] font-medium text-positive shrink-0">{exitReason}</span>
+          ) : (
+            <span
+              className={cn(
+                "hidden sm:inline text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate",
+                !compact && "lg:hidden",
+              )}
+            >
+              {txn.accountName && accountDisplayName(txn.accountName)}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="hidden min-w-0 pr-2 text-xs text-muted-foreground lg:block">
+      <div className={cn("hidden min-w-0 pr-2 text-xs text-muted-foreground", !compact && "lg:block")}>
         <span className="block truncate">
           {txn.accountName && accountDisplayName(txn.accountName)}
         </span>
