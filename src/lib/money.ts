@@ -23,6 +23,16 @@ export function displayToCents(display: number): number {
   return Math.round(display * 100);
 }
 
+// Whole-dollar display with thousands separators and no cents: "$4,874",
+// "-$212". For a headline figure where two decimals of cents are noise —
+// a chart bar's value label, a Change column's dollar delta — but the
+// abbreviated "$4.9K" of centsToCompact loses too much precision to compare
+// two nearby categories.
+export function centsToWholeDisplay(cents: number): string {
+  const sign = cents < 0 ? "-" : "";
+  return `${sign}$${Math.round(Math.abs(cents) / 100).toLocaleString("en-US")}`;
+}
+
 // Compact axis-label form: $128.3K, $1.2M, $840. Sign is preserved.
 export function centsToCompact(cents: number): string {
   const dollars = cents / 100;

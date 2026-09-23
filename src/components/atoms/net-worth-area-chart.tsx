@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/chart";
 import { centsToDisplay, centsToCompact, axisTickFormatter } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
-import { INCOME_COLOR, EXPENSE_COLOR, POSITIVE_COLOR, UNCOVERED_COLOR } from "@/lib/chart-colors";
+import { CHART_COLORS, EXPENSE_COLOR, POSITIVE_COLOR, UNCOVERED_COLOR } from "@/lib/chart-colors";
 import { coverageBoundary } from "@/lib/net-worth-coverage";
 import type { NetWorthSeriesPoint } from "@/queries/dashboard";
 
@@ -46,7 +46,11 @@ const AXIS_TICK = { fontSize: 11, fill: "var(--muted-foreground)" };
 
 const MULTI_CONFIG = {
   netWorth: { label: "Net Worth", color: POSITIVE_COLOR },
-  assets: { label: "Assets", color: INCOME_COLOR },
+  // Was INCOME_COLOR, which resolves to the same var(--positive) as Net
+  // Worth's POSITIVE_COLOR — dashed vs solid was the only way to tell the two
+  // legend swatches apart. --chart-1 is a distinct, theme-aware hue already
+  // used for categorical series elsewhere.
+  assets: { label: "Assets", color: CHART_COLORS[0] },
   liabilities: { label: "Liabilities", color: EXPENSE_COLOR },
 } satisfies ChartConfig;
 
@@ -169,6 +173,16 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
     );
   }
 
+  // Reports pass coverage fields too now. Before the boundary, some accounts
+  // have no balance yet (carry-forward cannot reach back past a first
+  // snapshot), so that stretch is hatched rather than read as net worth.
+  const multiPoints = data as (NetWorthSeriesPoint & { coveredAccounts?: number; totalAccounts?: number })[];
+  const multiBoundary = coverageBoundary(multiPoints);
+  const partialUntil =
+    multiBoundary.hasPartial
+      ? (multiBoundary.date ?? multiPoints[multiPoints.length - 1].date)
+      : null;
+
   return (
     <ChartContainer config={MULTI_CONFIG} className="aspect-auto h-full w-full">
       <ComposedChart data={data as unknown as ChartDataPoint[]} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
@@ -177,7 +191,19 @@ export function NetWorthAreaChart({ data, mode = "multi", seriesName = "Value" }
             <stop offset="0%" stopColor={POSITIVE_COLOR} stopOpacity={0.25} />
             <stop offset="100%" stopColor={POSITIVE_COLOR} stopOpacity={0} />
           </linearGradient>
+          <pattern id="uncoveredHatchMulti" width={7} height={7} patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="7" stroke={UNCOVERED_COLOR} strokeWidth={1} opacity={0.28} />
+          </pattern>
         </defs>
+        {partialUntil && (
+          <ReferenceArea
+            x1={multiPoints[0].date}
+            x2={partialUntil}
+            fill="url(#uncoveredHatchMulti)"
+            stroke="none"
+            ifOverflow="extendDomain"
+          />
+        )}
         <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis dataKey="date" tickFormatter={formatDateShort} tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={48} />
         <YAxis

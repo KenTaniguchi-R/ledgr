@@ -36,6 +36,8 @@ interface DateRangePopoverProps {
   onFromChange: (value: string | null) => void;
   onToChange: (value: string | null) => void;
   align?: "start" | "center" | "end";
+  /** Extra classes on the trigger button — e.g. letting it grow to fill a row. */
+  triggerClassName?: string;
 }
 
 /**
@@ -56,6 +58,7 @@ export function DateRangePopover({
   onFromChange,
   onToChange,
   align = "start",
+  triggerClassName,
 }: DateRangePopoverProps) {
   const [open, setOpen] = useState(false);
 
@@ -71,7 +74,13 @@ export function DateRangePopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<Button variant={active ? "default" : "outline"} size="sm" className="h-8 text-xs" />}
+        render={
+          <Button
+            variant={active ? "default" : "outline"}
+            size="sm"
+            className={cn("h-8 text-xs", triggerClassName)}
+          />
+        }
       >
         <CalendarDays className="mr-1 h-3.5 w-3.5" />
         {triggerValue ? (
@@ -127,6 +136,8 @@ export function DateRangePopover({
         <div className="flex items-center gap-1.5 px-1">
           <Input
             type="date"
+            id="date-range-from"
+            name="dateFrom"
             aria-label="From date"
             value={from}
             onChange={(e) => onFromChange(e.target.value || null)}
@@ -135,6 +146,8 @@ export function DateRangePopover({
           <span className="text-xs text-muted-foreground">to</span>
           <Input
             type="date"
+            id="date-range-to"
+            name="dateTo"
             aria-label="To date"
             value={to}
             onChange={(e) => onToChange(e.target.value || null)}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, TrendingDown, Scale } from "lucide-react";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
-import { ReportSummaryBar, type SummaryItem } from "@/components/atoms/report-summary-bar";
+import { ReportStatStrip } from "@/components/molecules/report-stat-strip";
 import { IncomeExpenseCategoryTable } from "@/components/molecules/income-expense-category-table";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { resolvedCategoryLabel } from "@/lib/labels";
+import { centsToDisplay, centsToSignedDisplay } from "@/lib/money";
+import { formatDateShort } from "@/lib/date-utils";
 import type { IncomeExpenseRow, IncomeExpenseCategoryRow } from "@/queries/reports";
 
 interface ReportIncomeExpenseProps {
@@ -37,11 +38,7 @@ export function ReportIncomeExpense({
   const totalExpenses = data.reduce((s, r) => s + r.expenses, 0);
   const totalNet = totalIncome - totalExpenses;
 
-  const summaryItems: SummaryItem[] = [
-    { label: "Total Income", value: totalIncome, color: "income", icon: TrendingUp },
-    { label: "Total Expenses", value: totalExpenses, color: "expense", icon: TrendingDown },
-    { label: "Net", value: totalNet, color: "dynamic", icon: Scale },
-  ];
+  const rangeLabel = `${formatDateShort(dateFrom)} – ${formatDateShort(dateTo)}`;
 
   function handleCategoryDrillDown(categoryId: string | null, isIncome: boolean) {
     const cat = categoryData?.find((c) => c.categoryId === categoryId);
@@ -55,7 +52,18 @@ export function ReportIncomeExpense({
 
   return (
     <div className="space-y-4">
-      <ReportSummaryBar items={summaryItems} />
+      <ReportStatStrip
+        items={[
+          { label: `Income · ${rangeLabel}`, value: centsToDisplay(totalIncome), tone: "positive" },
+          // Spending is normal; only the net carries a verdict colour.
+          { label: "Spending", value: centsToDisplay(totalExpenses) },
+          {
+            label: "Net",
+            value: centsToSignedDisplay(totalNet),
+            tone: totalNet < 0 ? "negative" : "positive",
+          },
+        ]}
+      />
       <h3 className="text-lg font-medium">Income vs Expense</h3>
       <div className="h-[300px]">
         <CashFlowBarChart data={chartData} showTrendline />

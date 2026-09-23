@@ -67,7 +67,9 @@ function Section({
           <TableRow className="hover:bg-transparent text-muted-foreground">
             <TableHead className="h-auto px-3 py-1.5">Category</TableHead>
             <TableHead className="h-auto px-3 py-1.5 text-right">Total</TableHead>
-            <TableHead className="h-auto px-3 py-1.5 text-right">Monthly Avg</TableHead>
+            <TableHead className="hidden h-auto px-3 py-1.5 text-right sm:table-cell">
+              Monthly Avg
+            </TableHead>
             <TableHead className="h-auto px-3 py-1.5 text-right w-24">%</TableHead>
           </TableRow>
         </TableHeader>
@@ -98,7 +100,7 @@ function Section({
               <TableCell className="px-3 py-2 text-right tabular-nums font-medium">
                 {centsToDisplay(row.total)}
               </TableCell>
-              <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+              <TableCell className="hidden px-3 py-2 text-right tabular-nums text-muted-foreground sm:table-cell">
                 {centsToDisplay(row.monthlyAverage)}
               </TableCell>
               <TableCell className="px-3 py-2 text-right">

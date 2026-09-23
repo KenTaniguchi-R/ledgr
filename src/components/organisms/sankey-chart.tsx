@@ -1,15 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { sankey, sankeyLinkHorizontal } from "d3-sankey";
+import { useId, useMemo, useState } from "react";
 import { centsToDisplay } from "@/lib/money";
-import { INCOME_COLOR, CHART_COLORS } from "@/lib/chart-colors";
+import { INCOME_COLOR } from "@/lib/chart-colors";
+import { categoryColor, NEUTRAL_CATEGORY_COLOR, type CategoryColorMap } from "@/lib/category-colors";
 import { activateOnKey } from "@/lib/a11y";
 
 export interface SankeyNode {
   id: string;
   name: string;
-  type: "income" | "expense" | "savings";
+  // "shortfall" (a source that makes up income the period didn't actually
+  // have) and "savings" (a target for money left over) are synthetic nodes —
+  // queries/reports.ts adds them so every source's outflow and every target's
+  // inflow balance to the same grand total.
+  type: "income" | "expense" | "savings" | "shortfall";
 }
 
 export interface SankeyLink {
@@ -21,188 +25,381 @@ export interface SankeyLink {
 interface SankeyChartProps {
   nodes: SankeyNode[];
   links: SankeyLink[];
-  onNodeClick?: (nodeId: string, type: "income" | "expense" | "savings") => void;
-  height?: number;
+  categoryColors: CategoryColorMap;
+  onNodeClick?: (nodeId: string, type: SankeyNode["type"]) => void;
 }
 
-interface LayoutNode extends SankeyNode {
-  _index: number;
-  x0?: number;
-  x1?: number;
-  y0?: number;
-  y1?: number;
-  /** Set by d3-sankey: the larger of the node's in- and out-flow. */
-  value?: number;
+// Layout is in SVG user units, not pixels — the element scales to whatever
+// width its container gives it via `viewBox` + `aspect-ratio`.
+const W = 1000;
+const H = 440;
+const NODE_W = 12;
+const GAP = 8;
+const PAD_T = 20;
+const X_SOURCE = 300;
+const X_HUB = 520;
+const X_TARGET = 720;
+const MAX_CATEGORIES = 8;
+// Above this node height a label gets its own second line for the amount;
+// below it the amount rides inline after the name.
+const TWO_LINE_THRESHOLD = 26;
+
+// Whole-dollar amounts for on-diagram labels — cents are too much precision
+// for a label that already has a name and a percentage crowding it. Hover
+// tooltips (`centsToDisplay`) still carry the exact cent amount.
+function wholeDollars(cents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
 }
 
-interface LayoutLink {
-  source: LayoutNode;
-  target: LayoutNode;
+function categoryIdFromExpenseId(nodeId: string): string | null {
+  const raw = nodeId.replace(/^expense-/, "");
+  return raw === "uncategorized" ? null : raw;
+}
+
+interface FlowEntry {
+  /** Absent for the collapsed "Other" node, which represents several categories. */
+  id?: string;
+  name: string;
+  type: SankeyNode["type"] | "other";
   value: number;
-  width?: number;
+  color: string;
+  hatched?: boolean;
+  clickable: boolean;
+  /** Appended to the amount line: "spent beyond income", "6 categories". */
+  sub?: string;
+  y: number;
+  h: number;
 }
 
-const SAVINGS_COLOR = "hsl(142 40% 60%)";
-
-function getNodeColor(node: SankeyNode, expenseIdx: number): string {
-  if (node.type === "income") return INCOME_COLOR;
-  if (node.type === "savings") return SAVINGS_COLOR;
-  return CHART_COLORS[expenseIdx % CHART_COLORS.length];
-}
-
-export function SankeyChart({ nodes, links, onNodeClick, height = 400 }: SankeyChartProps) {
-  const [hoveredLink, setHoveredLink] = useState<number | null>(null);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+/**
+ * The Cash Flow tab's money-flow diagram: sources on the left, a single
+ * "hub" bar in the middle standing for total spend (or total income, on a
+ * surplus month), and destination categories on the right.
+ *
+ * This deliberately isn't a real many-to-many sankey — the query's
+ * source-to-category links are a proportional allocation with no economic
+ * meaning (which paycheck paid for which grocery run isn't a real question),
+ * so drawing every one of those links the way `d3-sankey` would only dressed
+ * up a made-up number as traceable money. Collapsing to one hub says the true
+ * thing: money is fungible once it lands in the account.
+ */
+export function SankeyChart({ nodes, links, categoryColors, onNodeClick }: SankeyChartProps) {
+  const patternId = useId();
+  const [hovered, setHovered] = useState<string | null>(null);
 
   const layout = useMemo(() => {
     if (nodes.length === 0 || links.length === 0) return null;
 
-    const nodeIndexMap = new Map(nodes.map((n, i) => [n.id, i]));
-    const indexedLinks = links
-      .filter((l) => nodeIndexMap.has(l.source) && nodeIndexMap.has(l.target) && l.value > 0)
-      .map((l) => ({
-        source: nodeIndexMap.get(l.source)!,
-        target: nodeIndexMap.get(l.target)!,
-        value: l.value,
-      }));
+    const outflow = (id: string) =>
+      links.filter((l) => l.source === id).reduce((s, l) => s + l.value, 0);
+    const inflow = (id: string) =>
+      links.filter((l) => l.target === id).reduce((s, l) => s + l.value, 0);
 
-    if (indexedLinks.length === 0) return null;
+    const incomeEntries = nodes
+      .filter((n) => n.type === "income")
+      .map((n) => ({ node: n, value: outflow(n.id) }))
+      .filter((e) => e.value > 0)
+      .sort((a, b) => b.value - a.value);
+    const shortfallNode = nodes.find((n) => n.type === "shortfall");
+    const shortfallValue = shortfallNode ? outflow(shortfallNode.id) : 0;
 
-    const indexedNodes = nodes.map((n, i) => ({ ...n, _index: i }));
+    const sources: FlowEntry[] = [
+      ...incomeEntries.map(({ node, value }) => ({
+        id: node.id,
+        name: node.name,
+        type: node.type,
+        value,
+        color: INCOME_COLOR,
+        clickable: true,
+        y: 0,
+        h: 0,
+      })),
+      ...(shortfallNode && shortfallValue > 0
+        ? [
+            {
+              id: shortfallNode.id,
+              name: shortfallNode.name,
+              type: shortfallNode.type,
+              value: shortfallValue,
+              color: NEUTRAL_CATEGORY_COLOR,
+              hatched: true,
+              clickable: false,
+              sub: "spent beyond income",
+              y: 0,
+              h: 0,
+            },
+          ]
+        : []),
+    ];
 
-    const generator = sankey<SankeyNode & { _index: number }, { source: number; target: number; value: number }>()
-      .nodeId((node) => node._index)
-      .nodeWidth(20)
-      .nodePadding(8)
-      .extent([[0, 0], [600, height - 40]]);
+    const categoryEntries = nodes
+      .filter((n) => n.type === "expense" && n.id !== "expense-uncategorized")
+      .map((n) => ({ node: n, value: inflow(n.id) }))
+      .filter((e) => e.value > 0)
+      .sort((a, b) => b.value - a.value);
+    const uncategorizedNode = nodes.find((n) => n.id === "expense-uncategorized");
+    const uncategorizedValue = uncategorizedNode ? inflow(uncategorizedNode.id) : 0;
+    const savingsNode = nodes.find((n) => n.type === "savings");
+    const savingsValue = savingsNode ? inflow(savingsNode.id) : 0;
 
-    const result = generator({ nodes: indexedNodes, links: indexedLinks });
-    return {
-      nodes: result.nodes as LayoutNode[],
-      links: result.links as unknown as LayoutLink[],
+    const topCategories = categoryEntries.slice(0, MAX_CATEGORIES);
+    const restCategories = categoryEntries.slice(MAX_CATEGORIES);
+    const otherValue = restCategories.reduce((s, e) => s + e.value, 0);
+
+    const targets: FlowEntry[] = [
+      ...topCategories.map(({ node, value }) => ({
+        id: node.id,
+        name: node.name,
+        type: node.type,
+        value,
+        color: categoryColor(categoryColors, categoryIdFromExpenseId(node.id)),
+        clickable: true,
+        y: 0,
+        h: 0,
+      })),
+      ...(uncategorizedNode && uncategorizedValue > 0
+        ? [
+            {
+              id: uncategorizedNode.id,
+              name: uncategorizedNode.name,
+              type: uncategorizedNode.type,
+              value: uncategorizedValue,
+              color: NEUTRAL_CATEGORY_COLOR,
+              hatched: true,
+              clickable: true,
+              y: 0,
+              h: 0,
+            },
+          ]
+        : []),
+      ...(restCategories.length > 0
+        ? [
+            {
+              name: "Other",
+              type: "other" as const,
+              value: otherValue,
+              color: NEUTRAL_CATEGORY_COLOR,
+              clickable: false,
+              sub: `${restCategories.length} categor${restCategories.length === 1 ? "y" : "ies"}`,
+              y: 0,
+              h: 0,
+            },
+          ]
+        : []),
+      ...(savingsNode && savingsValue > 0
+        ? [
+            {
+              id: savingsNode.id,
+              name: savingsNode.name,
+              type: savingsNode.type,
+              value: savingsValue,
+              color: INCOME_COLOR,
+              clickable: false,
+              y: 0,
+              h: 0,
+            },
+          ]
+        : []),
+    ];
+
+    if (sources.length === 0 || targets.length === 0) return null;
+
+    const hubTotal = sources.reduce((s, e) => s + e.value, 0);
+    if (hubTotal <= 0) return null;
+
+    const avail = H - PAD_T * 2;
+    // Each column gets its own value-per-unit-height scale (its node count
+    // sets how much of `avail` the inter-node gaps eat), matching the
+    // approved mock rather than forcing both columns onto one scale. The hub
+    // bar reuses the source column's scale, since it visually continues from it.
+    const place = (entries: FlowEntry[]) => {
+      const k = (avail - GAP * (entries.length - 1)) / hubTotal;
+      let y = PAD_T;
+      for (const e of entries) {
+        e.h = Math.max(e.value * k, 2);
+        e.y = y;
+        y += e.h + GAP;
+      }
+      return k;
     };
-  }, [nodes, links, height]);
+    const kSource = place(sources);
+    const kTarget = place(targets);
 
-  if (!layout || layout.nodes.length === 0) {
+    const hubH = avail - GAP * (sources.length - 1);
+    const hubY = (H - hubH) / 2;
+
+    return { sources, targets, kSource, kTarget, hubTotal, hubH, hubY };
+  }, [nodes, links, categoryColors]);
+
+  if (!layout) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+      <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
         Not enough data for cash flow visualization.
       </div>
     );
   }
 
-  const expenseIndexMap = new Map<string, number>();
-  let idx = 0;
-  for (const node of layout.nodes) {
-    if (node.type === "expense") {
-      expenseIndexMap.set(node.id, idx++);
-    }
+  const { sources, targets, kSource, kTarget, hubTotal, hubH, hubY } = layout;
+  const shortfallPresent = sources.some((s) => s.type === "shortfall");
+
+  function amountLine(entry: FlowEntry) {
+    const pct = hubTotal > 0 ? Math.round((entry.value / hubTotal) * 100) : 0;
+    return `${wholeDollars(entry.value)} · ${pct}%${entry.sub ? ` · ${entry.sub}` : ""}`;
   }
 
-  function expenseIdx(nodeId: string) {
-    return expenseIndexMap.get(nodeId) ?? 0;
+  function handleClick(entry: FlowEntry) {
+    if (!entry.clickable || !entry.id || !onNodeClick) return;
+    onNodeClick(entry.id, entry.type as SankeyNode["type"]);
+  }
+
+  function renderLabel(entry: FlowEntry, x: number, alignLeft: boolean) {
+    const textX = alignLeft ? x - 8 : x + NODE_W + 8;
+    const anchor = alignLeft ? "end" : "start";
+    const cy = entry.y + entry.h / 2;
+    if (entry.h > TWO_LINE_THRESHOLD) {
+      return (
+        <>
+          <text x={textX} y={cy - 7} textAnchor={anchor} dominantBaseline="middle" className="text-[11px] fill-foreground">
+            {entry.name}
+          </text>
+          <text x={textX} y={cy + 9} textAnchor={anchor} dominantBaseline="middle" className="text-[10px] fill-muted-foreground">
+            {amountLine(entry)}
+          </text>
+        </>
+      );
+    }
+    return (
+      <text x={textX} y={cy} textAnchor={anchor} dominantBaseline="middle" className="text-[11px] fill-foreground">
+        {entry.name} <tspan className="text-[10px] fill-muted-foreground">{amountLine(entry)}</tspan>
+      </text>
+    );
+  }
+
+  function renderNode(entry: FlowEntry, x: number, key: string) {
+    const clickable = entry.clickable && Boolean(onNodeClick) && Boolean(entry.id);
+    return (
+      <rect
+        x={x}
+        y={entry.y}
+        width={NODE_W}
+        height={entry.h}
+        rx={2}
+        fill={entry.hatched ? `url(#${patternId})` : entry.color}
+        stroke={entry.hatched ? NEUTRAL_CATEGORY_COLOR : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        role={clickable ? "button" : undefined}
+        aria-label={clickable ? `Show ${entry.name} transactions` : undefined}
+        className={clickable ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" : undefined}
+        onClick={clickable ? () => handleClick(entry) : undefined}
+        onKeyDown={activateOnKey(clickable ? () => handleClick(entry) : undefined)}
+        onMouseEnter={() => setHovered(key)}
+        onMouseLeave={() => setHovered((h) => (h === key ? null : h))}
+      />
+    );
+  }
+
+  function bandPath(x0: number, y0: number, x1: number, y1: number): string {
+    const m = (x0 + x1) / 2;
+    return `M${x0},${y0} C${m},${y0} ${m},${y1} ${x1},${y1}`;
+  }
+
+  function bandOpacity(key: string, hatched: boolean) {
+    const base = hatched ? 0.22 : 0.3;
+    if (hovered === null) return base;
+    return hovered === key ? Math.min(base + 0.25, 0.65) : 0.08;
+  }
+
+  // Bands are drawn as one aggregated ribbon per source (into the hub) and
+  // one per target (out of the hub), stacked along the hub's edge in the same
+  // order as the columns beside them.
+  const bands: { key: string; d: string; color: string; width: number; opacity: number; title: string }[] = [];
+  let hy = hubY;
+  for (const s of sources) {
+    const width = s.value * kSource;
+    const key = `src-${s.id ?? s.name}`;
+    bands.push({
+      key,
+      d: bandPath(X_SOURCE + NODE_W, s.y + s.h / 2, X_HUB, hy + width / 2),
+      color: s.color,
+      width,
+      opacity: bandOpacity(key, Boolean(s.hatched)),
+      title: `${s.name}: ${centsToDisplay(s.value)}`,
+    });
+    hy += width;
+  }
+  let ty = hubY;
+  for (const t of targets) {
+    const width = t.value * kTarget;
+    const key = `tgt-${t.id ?? t.name}`;
+    bands.push({
+      key,
+      d: bandPath(X_HUB + NODE_W, ty + width / 2, X_TARGET, t.y + t.h / 2),
+      color: t.color,
+      width,
+      opacity: bandOpacity(key, Boolean(t.hatched)),
+      title: `${t.name}: ${centsToDisplay(t.value)}`,
+    });
+    ty += width;
   }
 
   return (
-    <div className="relative w-full" style={{ height }}>
-      <svg viewBox={`0 0 600 ${height - 40}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+    <div className="overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-auto w-full min-w-[620px]"
+        style={{ aspectRatio: `${W} / ${H}` }}
+        role="img"
+        aria-label="Money flow from income sources, through total spending, to categories"
+      >
         <defs>
-          {layout.links.map((link, i) => (
-            <linearGradient
-              key={i}
-              id={`link-gradient-${i}`}
-              gradientUnits="userSpaceOnUse"
-              x1={link.source.x1 ?? 0}
-              x2={link.target.x0 ?? 0}
-            >
-              <stop offset="0%" stopColor={getNodeColor(link.source, 0)} />
-              <stop offset="100%" stopColor={getNodeColor(link.target, expenseIdx(link.target.id))} />
-            </linearGradient>
-          ))}
+          <pattern id={patternId} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="3" height="7" fill={NEUTRAL_CATEGORY_COLOR} />
+          </pattern>
         </defs>
 
-        {layout.links.map((link, i) => {
-          const path = sankeyLinkHorizontal()(link as never);
-          if (!path) return null;
-          return (
-            <path
-              key={i}
-              d={path}
-              fill="none"
-              stroke={`url(#link-gradient-${i})`}
-              strokeWidth={Math.max(link.width ?? 1, 1)}
-              strokeOpacity={hoveredLink === i ? 0.4 : 0.15}
-              onMouseEnter={(e) => {
-                setHoveredLink(i);
-                setTooltip({
-                  x: e.clientX,
-                  y: e.clientY,
-                  text: `${link.source.name} → ${link.target.name}: ${centsToDisplay(link.value)}`,
-                });
-              }}
-              onMouseLeave={() => {
-                setHoveredLink(null);
-                setTooltip(null);
-              }}
-            />
-          );
-        })}
+        {bands.map((band) => (
+          <path
+            key={band.key}
+            d={band.d}
+            fill="none"
+            stroke={band.color}
+            strokeWidth={Math.max(band.width, 0.8)}
+            strokeOpacity={band.opacity}
+            onMouseEnter={() => setHovered(band.key)}
+            onMouseLeave={() => setHovered((h) => (h === band.key ? null : h))}
+          >
+            <title>{band.title}</title>
+          </path>
+        ))}
 
-        {layout.nodes.map((node) => {
-          const x0 = node.x0 ?? 0;
-          const y0 = node.y0 ?? 0;
-          const x1 = node.x1 ?? 0;
-          const y1 = node.y1 ?? 0;
-          const nodeHeight = y1 - y0;
-          const color = getNodeColor(node, expenseIdx(node.id));
-          const clickable = onNodeClick && node.type !== "savings";
-          return (
-            <g key={node.id}>
-              {/* An SVG rect takes focus only with an explicit tabIndex and a
-                  role — without both, the Sankey was mouse-only. */}
-              <rect
-                x={x0} y={y0}
-                width={x1 - x0} height={nodeHeight}
-                fill={color} rx={2}
-                tabIndex={clickable ? 0 : undefined}
-                role={clickable ? "button" : undefined}
-                aria-label={clickable ? `Show ${node.name} transactions` : undefined}
-                className={clickable ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" : ""}
-                onClick={() => clickable && onNodeClick(node.id, node.type)}
-                onKeyDown={activateOnKey(
-                  clickable ? () => onNodeClick(node.id, node.type) : undefined,
-                )}
-              />
-              {/* A money-flow diagram that never states an amount leaves the
-                  reader guessing whether the widest ribbon is $2,300 or
-                  $23,000. The value sits in muted ink beside the name, not in
-                  the node's own colour, which would read as another encoding.
-                  Nodes too thin for a label keep their value in the tooltip. */}
-              {nodeHeight > 12 && (
-                <text
-                  x={node.type === "income" ? x0 - 4 : x1 + 4}
-                  y={(y0 + y1) / 2}
-                  dy="0.35em"
-                  textAnchor={node.type === "income" ? "end" : "start"}
-                  className="text-[10px] fill-foreground"
-                >
-                  {node.name}
-                  <tspan className="fill-muted-foreground"> · {centsToDisplay(node.value ?? 0)}</tspan>
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+        {sources.map((s) => (
+          <g key={`s-${s.id ?? s.name}`}>
+            {renderNode(s, X_SOURCE, `src-${s.id ?? s.name}`)}
+            {renderLabel(s, X_SOURCE, true)}
+          </g>
+        ))}
 
-      {tooltip && (
-        <div
-          className="fixed z-50 rounded-md border bg-popover px-3 py-1.5 text-xs shadow-md pointer-events-none"
-          style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
+        <rect x={X_HUB} y={hubY} width={NODE_W} height={hubH} rx={2} fill="var(--foreground)" opacity={0.8} />
+        <text
+          x={X_HUB + NODE_W / 2}
+          y={hubY - 8}
+          textAnchor="middle"
+          className="text-[11px] fill-muted-foreground"
         >
-          {tooltip.text}
-        </div>
-      )}
+          {shortfallPresent ? "Spent" : "Income"} {wholeDollars(hubTotal)}
+        </text>
+
+        {targets.map((t) => (
+          <g key={`t-${t.id ?? t.name}`}>
+            {renderNode(t, X_TARGET, `tgt-${t.id ?? t.name}`)}
+            {renderLabel(t, X_TARGET, false)}
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }

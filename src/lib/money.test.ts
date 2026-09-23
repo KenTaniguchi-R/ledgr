@@ -4,6 +4,7 @@ import {
   centsToDisplay,
   centsToSignedDisplay,
   centsToCompact,
+  centsToWholeDisplay,
   displayToCents,
   plaidAmountToCents,
   simplefinAmountToCents,
@@ -41,6 +42,18 @@ describe("money utilities", () => {
     });
     it("preserves the sign", () => {
       expect(centsToCompact(-12830412)).toBe("-$128.3K");
+    });
+  });
+
+  describe("centsToWholeDisplay", () => {
+    it("rounds to whole dollars with thousands separators", () => {
+      expect(centsToWholeDisplay(487367)).toBe("$4,874");
+    });
+    it("preserves the sign without duplicating it inside the number", () => {
+      expect(centsToWholeDisplay(-219200)).toBe("-$2,192");
+    });
+    it("formats zero without a sign", () => {
+      expect(centsToWholeDisplay(0)).toBe("$0");
     });
   });
 

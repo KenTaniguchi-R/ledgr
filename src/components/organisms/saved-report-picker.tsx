@@ -143,6 +143,8 @@ export function SavedReportPicker({
             <DialogTitle>Save Report</DialogTitle>
           </DialogHeader>
           <Input
+            id="saved-report-name"
+            name="reportName"
             value={reportName}
             onChange={(e) => setReportName(e.target.value)}
             placeholder="Report name"

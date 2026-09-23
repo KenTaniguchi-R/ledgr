@@ -1,23 +1,23 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { ReportPanelSkeleton } from "@/components/organisms/report-panel-skeleton";
 
 export default function ReportsLoading() {
   return (
     <div className="space-y-4">
-      <Skeleton className="h-8 w-32" />
-      <div className="flex gap-2">
-        <Skeleton className="h-8 w-[200px]" />
+      <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className="h-8 w-[140px]" />
+          <Skeleton className="h-8 w-[130px]" />
+          <Skeleton className="h-8 w-[130px]" />
+        </div>
         <Skeleton className="h-8 w-[130px]" />
-        <Skeleton className="h-8 w-[130px]" />
-        <Skeleton className="h-8 w-[120px]" />
-        <Skeleton className="h-8 w-[120px]" />
       </div>
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-[300px] w-full" />
-      <div className="space-y-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
-        ))}
-      </div>
+
+      <Skeleton className="h-9 w-full max-w-md" />
+
+      <ReportPanelSkeleton />
     </div>
   );
 }
