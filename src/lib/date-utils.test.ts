@@ -236,4 +236,16 @@ describe("previousDateString", () => {
       process.env.TZ = tz;
     }
   });
+
+  test("is the day before in timezones west of UTC", () => {
+    // A bare "YYYY-MM-DD" parses as UTC midnight, which is still the previous
+    // evening in Los Angeles.
+    const tz = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      expect(previousDateString("2026-05-10")).toBe("2026-05-09");
+    } finally {
+      process.env.TZ = tz;
+    }
+  });
 });
