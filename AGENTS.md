@@ -1,11 +1,10 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository. This is the canonical
-instructions file; `CLAUDE.md` imports it.
-
-## Project Overview
+Guidance for AI coding agents working in this repository.
 
 **Ledgr** — a self-hostable, open-source personal finance app (AGPLv3).
+`README.md` covers the stack, features, and setup; this file is what's
+expensive to rediscover on top of that.
 
 Self-hosting is the only deployment model. There is no hosted product, so there
 is one audience and one setup path; `docs/superpowers/specs/2026-07-07-ledgr-hosted-beta-design.md`
@@ -15,24 +14,7 @@ Design docs live in `docs/superpowers/specs/` (design) and
 `docs/superpowers/plans/` (execution). They are point-in-time records, not a
 maintained spec — when a doc and the code disagree, the code wins.
 
-## Stack
-
-| Layer | Choice |
-|-------|--------|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript |
-| UI | shadcn/ui v4 (`base-nova` style, Base UI primitives) + Tailwind v4 |
-| Charts | Recharts v3 via shadcn Chart (`components/ui/chart.tsx`) |
-| ORM | Drizzle ORM 0.45 |
-| Database | PostgreSQL 18 (via node-postgres Pool) |
-| Auth | Better Auth (+ passkeys) |
-| Bank Sync | Plaid Node SDK and SimpleFIN — both first-class; CSV/OFX import for the rest |
-| AI | Vercel AI SDK (BYOK — user brings own API key) |
-| MCP | Ledgr exposes itself as an MCP server (`src/lib/mcp/`) with OAuth |
-| Scheduling | `node-cron` scheduler (`src/lib/scheduler/`) driving job functions |
-| Testing | Vitest + fast-check + Playwright + Stryker + MSW |
-
-Note the UI primitives are **Base UI**, not Radix. APIs differ — `ToggleGroup`
+The UI primitives are **Base UI**, not Radix. APIs differ — `ToggleGroup`
 takes `value: string[]` and hands back an empty array when the active item is
 clicked again, `PopoverTrigger` takes a `render` prop, and so on. Read the
 component in `src/components/ui/` before assuming a Radix signature.
@@ -64,29 +46,11 @@ component in `src/components/ui/` before assuming a Radix signature.
 
 ## Commands
 
+`README.md`'s Development section has the day-to-day commands (`pnpm dev`,
+`pnpm test`, `pnpm lint`, `pnpm db:studio`, …). Operator/maintenance scripts
+that aren't there:
+
 ```bash
-# Development
-pnpm install                     # Install dependencies
-pnpm dev:db                      # Start Postgres (Docker)
-pnpm dev:setup                   # Start Postgres + migrate + dev server
-pnpm dev                         # Next.js dev server (requires running Postgres)
-pnpm db:generate                 # Generate Drizzle migrations
-pnpm db:migrate                  # Run migrations
-pnpm db:studio                   # Open Drizzle Studio
-
-# Testing
-pnpm test                        # Vitest unit + integration
-pnpm test:changed                # Only tests related to changed files (fast loop)
-pnpm test:watch                  # Watch mode
-pnpm test:coverage               # v8 coverage report
-pnpm test:e2e                    # Playwright
-pnpm test:mutate                 # Stryker (full)
-pnpm test:mutate:incremental     # Stryker (changed files)
-pnpm test:mutate:diff            # Stryker (diff vs main) — what CI runs on PRs
-pnpm lint                        # ESLint
-pnpm typecheck                   # tsc --noEmit
-
-# Operations
 pnpm reset-password --check|--set <email>   # Operator password check/reset
 pnpm rotate-keys                            # Re-wrap encrypted columns to a new key version
 pnpm backfill-clean-names                   # Backfill merchant-cleaned names

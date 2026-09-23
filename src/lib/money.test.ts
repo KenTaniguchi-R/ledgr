@@ -85,7 +85,7 @@ describe("money utilities", () => {
     });
     it("returns 0, not -0, for a zero amount", () => {
       // -0 breaks equality comparisons downstream; see the -0 gotcha in
-      // CLAUDE.md.
+      // AGENTS.md.
       expect(normalizeAmount(0)).toBe(0);
       expect(Object.is(normalizeAmount(0), -0)).toBe(false);
     });
