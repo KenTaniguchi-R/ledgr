@@ -41,7 +41,7 @@ export function InvestmentsWidget({
           {centsToDisplay(totalValue)}
         </span>
         {dayChange !== null && (
-          <ComparisonBadge current={totalValue} previous={totalValue - dayChange} pill />
+          <ComparisonBadge current={totalValue} previous={totalValue - dayChange} pill invertColor />
         )}
       </div>
 

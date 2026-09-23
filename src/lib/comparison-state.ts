@@ -22,3 +22,14 @@ export function comparisonState(current: number, previous: number | null): Compa
   if (Math.abs(percent) < FLAT_THRESHOLD_PERCENT) return { kind: "flat", percent };
   return { kind: percent > 0 ? "up" : "down", percent };
 }
+
+export type ComparisonTone = "good" | "bad" | "neutral";
+
+/**
+ * Whether a move is good news. By default a rise is bad (spending); pass
+ * `upIsGood` for values where growth is the goal (portfolio value, gains).
+ */
+export function comparisonTone(state: ComparisonState, upIsGood = false): ComparisonTone {
+  if (state.kind === "new" || state.kind === "flat") return "neutral";
+  return (state.kind === "up") === upIsGood ? "good" : "bad";
+}

@@ -172,8 +172,10 @@ function resolveCostBasisCents(holding: SimplefinHolding, quantity: number): num
   const reported = holding.cost_basis ? simplefinAmountToCents(holding.cost_basis) : null;
   if (reported) return reported;
   const purchasePriceCents = holding.purchase_price ? simplefinAmountToCents(holding.purchase_price) : null;
-  if (purchasePriceCents !== null) return Math.round(purchasePriceCents * quantity);
-  return reported;
+  if (purchasePriceCents) return Math.round(purchasePriceCents * quantity);
+  // SimpleFIN sends "0.00" for both when it has no basis (crypto, transfers-in).
+  // Storing 0 would count the whole position as gain, so report it as unknown.
+  return null;
 }
 
 export function processHoldings(simplefinAccounts: SimplefinAccount[]): HoldingRow[] {

@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { comparisonState } from "@/lib/comparison-state";
+import { comparisonState, comparisonTone } from "@/lib/comparison-state";
 
 interface ComparisonBadgeProps {
   current: number;
@@ -29,13 +29,14 @@ export function ComparisonBadge({ current, previous, periodLabel, pill, invertCo
   const change = state.percent;
   const isUp = state.kind === "up";
   const isFlat = state.kind === "flat";
+  const tone = comparisonTone(state, invertColor);
 
   return (
     <span
       className={`inline-flex items-center gap-1 text-xs ${
-        isFlat
+        tone === "neutral"
           ? "text-muted-foreground"
-          : (isUp !== invertColor)
+          : tone === "bad"
             ? "text-destructive"
             : "text-green-600"
       }${pill ? " rounded-full bg-muted px-2 py-0.5" : ""}`}

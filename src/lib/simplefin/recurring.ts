@@ -121,6 +121,19 @@ export function detectRecurringGroups(candidates: RecurringCandidate[], today: s
   return results;
 }
 
+/** The most common non-null category, or null when none are categorized. */
+export function dominantCategory(categoryIds: (string | null | undefined)[]): string | null {
+  const counts = new Map<string, number>();
+  let best: string | null = null;
+  for (const id of categoryIds) {
+    if (!id) continue;
+    const n = (counts.get(id) ?? 0) + 1;
+    counts.set(id, n);
+    if (best === null || n > counts.get(best)!) best = id;
+  }
+  return best;
+}
+
 /**
  * Applies detectRecurringGroups to a household's SimpleFIN-sourced
  * transactions and upserts the result into recurring_transactions. SimpleFIN
@@ -146,6 +159,7 @@ export async function applyRecurringDetection(householdId: string, db: LedgrDb =
           name: transactions.name,
           date: transactions.date,
           normalizedAmount: transactions.normalizedAmount,
+          categoryId: transactions.categoryId,
         })
         .from(transactions)
         .where(
@@ -159,12 +173,13 @@ export async function applyRecurringDetection(householdId: string, db: LedgrDb =
         );
 
       const groups = detectRecurringGroups(rows, todayDateString());
+      const categoryByTxnId = new Map(rows.map((r) => [r.id, r.categoryId]));
       const now = new Date();
       const upsertedIds: string[] = [];
 
       for (const group of groups) {
         const [existing] = await tx
-          .select({ id: recurringTransactions.id })
+          .select({ id: recurringTransactions.id, categoryId: recurringTransactions.categoryId })
           .from(recurringTransactions)
           .where(
             and(
@@ -180,7 +195,10 @@ export async function applyRecurringDetection(householdId: string, db: LedgrDb =
           accountId: group.accountId,
           name: group.name,
           merchantId: null,
-          categoryId: null,
+          // A category the user picked on the Bills page wins; otherwise take
+          // the one its occurrences were filed under.
+          categoryId:
+            existing?.categoryId ?? dominantCategory(group.occurrenceIds.map((id) => categoryByTxnId.get(id))),
           averageAmount: group.averageAmount,
           lastAmount: group.lastAmount,
           frequency: group.frequency,
