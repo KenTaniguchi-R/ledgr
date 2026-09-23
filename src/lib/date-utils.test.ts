@@ -1,7 +1,7 @@
-import { describe, test, expect, vi, afterEach } from "vitest";
+import { describe, test, it, expect, vi, afterEach } from "vitest";
 import { test as fcTest } from "@fast-check/vitest";
 import { fc } from "@fast-check/vitest";
-import { rangeToDateBounds, previousDateString, monthBounds, shiftDateRange, comparisonLabel, formatTxnSpan, todayDateString, formatDateShort } from "./date-utils";
+import { rangeToDateBounds, previousDateString, monthBounds, shiftDateRange, comparisonLabel, formatTxnSpan, todayDateString, formatDateShort, monthsSpanned } from "./date-utils";
 
 describe("todayDateString", () => {
   afterEach(() => {
@@ -247,5 +247,15 @@ describe("previousDateString", () => {
     } finally {
       process.env.TZ = tz;
     }
+  });
+});
+
+describe("monthsSpanned", () => {
+  it("counts a three-month range as about three months, not the four it touches", () => {
+    expect(monthsSpanned("2026-06-23", "2026-09-23")).toBeCloseTo(3.06, 2);
+  });
+
+  it("never returns less than one month", () => {
+    expect(monthsSpanned("2026-09-01", "2026-09-05")).toBe(1);
   });
 });

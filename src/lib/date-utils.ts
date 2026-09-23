@@ -152,7 +152,18 @@ export function comparisonLabel(from: string, to: string): string {
   return `vs ${fmt(fromDate)} – ${fmt(toDate)}`;
 }
 
-export type BillStatus = "overdue" | "due-soon" | "upcoming" | "inactive";
+/**
+ * Length of an inclusive `YYYY-MM-DD` range in average months (30.4375 days),
+ * never less than one. The divisor for a "monthly average": counting the
+ * calendar months a range touches made Jun 23 – Sep 23 four months, not three.
+ */
+export function monthsSpanned(from: string, to: string): number {
+  const days =
+    (Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86_400_000 + 1;
+  return Math.max(days / 30.4375, 1);
+}
+
+export type BillStatus ="overdue" | "due-soon" | "upcoming" | "inactive";
 
 export function deriveBillStatus(
   nextDate: string | null,

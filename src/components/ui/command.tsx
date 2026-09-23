@@ -49,10 +49,6 @@ function CommandDialog({
 }) {
   return (
     <Dialog {...props}>
-      <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
       <DialogContent
         className={cn(
           "top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0",
@@ -60,6 +56,14 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
+        {/* Title/description must live inside the popup, not as a sibling of
+            it — Dialog.Root renders its children unconditionally, so a
+            sibling stays mounted (sr-only, but present) even while closed and
+            shows up in the accessibility tree with the dialog hidden. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
         {children}
       </DialogContent>
     </Dialog>
