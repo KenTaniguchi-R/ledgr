@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CashFlowBarChart } from "@/components/atoms/cash-flow-bar-chart";
 import { ReportStatStrip } from "@/components/molecules/report-stat-strip";
 import { IncomeExpenseCategoryTable } from "@/components/molecules/income-expense-category-table";
+import type { CategoryGroup } from "@/queries/categories";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { resolvedCategoryLabel } from "@/lib/labels";
 import { centsToDisplay, centsToSignedDisplay } from "@/lib/money";
@@ -16,6 +17,7 @@ interface ReportIncomeExpenseProps {
   dateFrom: string;
   dateTo: string;
   accountIds?: string[];
+  categories: CategoryGroup[];
 }
 
 export function ReportIncomeExpense({
@@ -24,6 +26,7 @@ export function ReportIncomeExpense({
   dateFrom,
   dateTo,
   accountIds,
+  categories,
 }: ReportIncomeExpenseProps) {
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
 
@@ -79,6 +82,7 @@ export function ReportIncomeExpense({
         dateFrom={dateFrom}
         dateTo={dateTo}
         accountIds={accountIds}
+        categories={categories}
         onClose={() => setDrillDown(null)}
       />
     </div>

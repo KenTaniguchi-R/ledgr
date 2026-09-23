@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SankeyChart, type SankeyNode, type SankeyLink } from "@/components/organisms/sankey-chart";
 import { ReportStatStrip } from "@/components/molecules/report-stat-strip";
 import { Card, CardContent } from "@/components/ui/card";
+import type { CategoryGroup } from "@/queries/categories";
 import { DrillDownSheet, type DrillDownFilter } from "@/components/organisms/drill-down-sheet";
 import { resolvedCategoryLabel } from "@/lib/labels";
 import { centsToDisplay, centsToSignedDisplay } from "@/lib/money";
@@ -21,6 +22,7 @@ interface ReportCashFlowProps {
   dateFrom: string;
   dateTo: string;
   accountIds?: string[];
+  categories: CategoryGroup[];
 }
 
 export function ReportCashFlow({
@@ -32,6 +34,7 @@ export function ReportCashFlow({
   dateFrom,
   dateTo,
   accountIds,
+  categories,
 }: ReportCashFlowProps) {
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null);
 
@@ -168,6 +171,7 @@ export function ReportCashFlow({
         dateFrom={dateFrom}
         dateTo={dateTo}
         accountIds={accountIds}
+        categories={categories}
         onClose={() => setDrillDown(null)}
       />
     </div>

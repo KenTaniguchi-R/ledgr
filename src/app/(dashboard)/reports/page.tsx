@@ -76,6 +76,7 @@ export default async function ReportsPage({
     filters,
     compPeriod,
     compLabel,
+    categories: allCategories,
     categoryColors: buildCategoryColorMap(rangeSpending),
   };
 
