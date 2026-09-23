@@ -66,7 +66,13 @@ export function ReviewNudge({ unreviewedCount, share, monthLabel }: ReviewNudgeP
   return (
     // Caution, not alarm: an untidy ledger is not an emergency, so this is the
     // warning variant rather than destructive.
-    <Alert variant="warning" className="mb-6 pr-2 sm:pr-44">
+    // The padding must carry the same has-data-[slot=alert-action] variant as
+    // the Alert base's pr-18, or that one wins and the text runs under the
+    // buttons. Below sm the action flows under the text instead.
+    <Alert
+      variant="warning"
+      className="mb-6 has-data-[slot=alert-action]:pr-2.5 sm:has-data-[slot=alert-action]:pr-44"
+    >
       <CircleAlert />
       <AlertTitle>
         {unreviewedCount.toLocaleString()}{" "}
@@ -78,7 +84,7 @@ export function ReviewNudge({ unreviewedCount, share, monthLabel }: ReviewNudgeP
           uncategorized, so budgets and reports are under-counting.
         </AlertDescription>
       )}
-      <AlertAction className="flex items-center gap-1">
+      <AlertAction className="static col-start-2 mt-2 flex items-center gap-1 sm:absolute sm:mt-0">
         <Link href="/transactions?mode=review" className={cn(buttonVariants({ size: "sm" }))}>
           Start reviewing
         </Link>

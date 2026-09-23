@@ -6,6 +6,25 @@ export interface GridItem {
   h: number;
 }
 
+/** Keep only the fields we persist; RGL hands back items padded with its own. */
+export function toGridItems(items: readonly GridItem[]): GridItem[] {
+  return items.map(({ i, x, y, w, h }) => ({ i, x, y, w, h }));
+}
+
+/**
+ * Whether two layouts place every widget identically. RGL fires
+ * onLayoutChange on mount with the layout it was given, so saving without
+ * this check wrote the dashboard layout twice on every page view.
+ */
+export function sameLayout(a: readonly GridItem[], b: readonly GridItem[]): boolean {
+  if (a.length !== b.length) return false;
+  const byId = new Map(b.map((item) => [item.i, item]));
+  return a.every((item) => {
+    const other = byId.get(item.i);
+    return !!other && other.x === item.x && other.y === item.y && other.w === item.w && other.h === item.h;
+  });
+}
+
 export interface DashboardLayout {
   desktop: GridItem[];
   tablet: GridItem[];

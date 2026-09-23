@@ -3,7 +3,7 @@ import { db as defaultDb, type LedgrDb } from "@/db";
 import { investmentHoldings, holdingsHistory, investmentTransactions, accounts } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { encodeCursor, decodeCursor, sumCol, countRows } from "@/lib/query-helpers";
-import { todayDateString } from "@/lib/date-utils";
+import { todayDateString, previousDateString } from "@/lib/date-utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -189,9 +189,7 @@ export async function getPortfolioSummary(
   const cashValue = Math.max(0, totalValue - holdingsValue);
 
   const todayStr = today ?? todayDateString();
-  const prevDate = new Date(todayStr + "T00:00:00");
-  prevDate.setDate(prevDate.getDate() - 1);
-  const yesterdayStr = prevDate.toISOString().slice(0, 10);
+  const yesterdayStr = previousDateString(todayStr);
 
   const [hasToday] = await db
     .select({ id: holdingsHistory.id })

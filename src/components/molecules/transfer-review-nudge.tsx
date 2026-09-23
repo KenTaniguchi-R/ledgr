@@ -54,7 +54,13 @@ export function TransferReviewNudge({ suggestedCount }: TransferReviewNudgeProps
   if (suggestedCount === 0 || dismissed) return null;
 
   return (
-    <Alert variant="warning" className="mb-6 pr-2 sm:pr-44">
+    // The padding must carry the same has-data-[slot=alert-action] variant as
+    // the Alert base's pr-18, or that one wins and the text runs under the
+    // buttons. Below sm the action flows under the text instead.
+    <Alert
+      variant="warning"
+      className="mb-6 has-data-[slot=alert-action]:pr-2.5 sm:has-data-[slot=alert-action]:pr-44"
+    >
       <ArrowLeftRight />
       <AlertTitle>
         {suggestedCount.toLocaleString()}{" "}
@@ -64,7 +70,7 @@ export function TransferReviewNudge({ suggestedCount }: TransferReviewNudgeProps
         Payments like Zelle or Venmo can be real spending or just money moving between your own
         accounts — confirm which before they skew your totals.
       </AlertDescription>
-      <AlertAction className="flex items-center gap-1">
+      <AlertAction className="static col-start-2 mt-2 flex items-center gap-1 sm:absolute sm:mt-0">
         <Link href="/transactions?mode=review-transfers" className={cn(buttonVariants({ size: "sm" }))}>
           Review
         </Link>

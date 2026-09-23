@@ -14,7 +14,14 @@ import { AccountBalancesWidget } from "./widgets/account-balances";
 import { UpcomingBillsWidget } from "./widgets/upcoming-bills";
 import { InvestmentsWidget } from "./widgets/investments-widget";
 import { WidgetPlaceholder } from "@/components/molecules/widget-placeholder";
-import { WIDGET_TITLE_MAP, RETIRED_WIDGET_IDS, type GridItem, type DashboardLayout } from "./widgets/registry";
+import {
+  WIDGET_TITLE_MAP,
+  RETIRED_WIDGET_IDS,
+  sameLayout,
+  toGridItems,
+  type GridItem,
+  type DashboardLayout,
+} from "./widgets/registry";
 import { saveLayout } from "@/actions/dashboard";
 import type { MonthlySpendingRow, CashFlowRow } from "@/queries/dashboard";
 import type { TransactionRow } from "@/queries/transactions";
@@ -66,10 +73,18 @@ export function DashboardGrid({ layout, data }: DashboardGridProps) {
   const handleLayoutChange = useCallback(
     (_layout: readonly unknown[], allLayouts: Partial<Record<string, readonly GridItem[]>>) => {
       const newLayout = {
-        desktop: [...(allLayouts.lg ?? layouts.lg)],
-        tablet: [...(allLayouts.md ?? layouts.md)],
-        mobile: [...(allLayouts.sm ?? layouts.sm)],
+        desktop: toGridItems(allLayouts.lg ?? layouts.lg),
+        tablet: toGridItems(allLayouts.md ?? layouts.md),
+        mobile: toGridItems(allLayouts.sm ?? layouts.sm),
       };
+      // Mount and resize fire this too, with nothing moved.
+      if (
+        sameLayout(newLayout.desktop, layouts.lg) &&
+        sameLayout(newLayout.tablet, layouts.md) &&
+        sameLayout(newLayout.mobile, layouts.sm)
+      ) {
+        return;
+      }
       setLayouts({ lg: newLayout.desktop, md: newLayout.tablet, sm: newLayout.mobile });
       saveLayout(newLayout);
     },

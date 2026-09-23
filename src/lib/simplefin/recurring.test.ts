@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { test, fc } from "@fast-check/vitest";
-import { detectRecurringGroups, type RecurringCandidate } from "./recurring";
+import { detectRecurringGroups, dominantCategory, type RecurringCandidate } from "./recurring";
 
 function candidate(overrides: Partial<RecurringCandidate> = {}): RecurringCandidate {
   return {
@@ -141,4 +141,28 @@ describe("detectRecurringGroups", () => {
       expect(new Set(allIds).size).toBe(allIds.length);
     },
   );
+});
+
+describe("dominantCategory", () => {
+  it("picks the category most occurrences are filed under", () => {
+    expect(dominantCategory(["subs", "travel", "subs"])).toBe("subs");
+  });
+
+  it("ignores uncategorized occurrences rather than letting them win", () => {
+    expect(dominantCategory([null, null, undefined, "subs"])).toBe("subs");
+  });
+
+  it("is null when nothing is categorized", () => {
+    expect(dominantCategory([null, undefined])).toBeNull();
+    expect(dominantCategory([])).toBeNull();
+  });
+
+  it("on a tie, keeps whichever category reached the top count first", () => {
+    expect(dominantCategory(["travel", "subs"])).toBe("travel");
+    expect(dominantCategory(["travel", "subs", "subs", "travel"])).toBe("subs");
+  });
+
+  it("switches to a later category once it pulls ahead", () => {
+    expect(dominantCategory(["travel", "subs", "subs"])).toBe("subs");
+  });
 });

@@ -156,6 +156,14 @@ describe("processHoldings", () => {
     expect(result[0].costBasis).toBe(50000);
   });
 
+  it("reports an unknown basis as null when cost_basis and purchase_price are both zero", () => {
+    // Stored as 0, the whole position counted as gain in the portfolio total.
+    const result = processHoldings([
+      makeAccount({ holdings: [makeHolding({ symbol: "ETH", cost_basis: "0.00", purchase_price: "0.00" })] }),
+    ]);
+    expect(result[0].costBasis).toBeNull();
+  });
+
   it("classifies a known crypto ticker as type crypto", () => {
     const result = processHoldings([
       makeAccount({ holdings: [makeHolding({ symbol: "BTC", description: "Bitcoin Crypto Currency" })] }),

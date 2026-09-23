@@ -49,22 +49,31 @@ function formatLocalDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** The calendar day before a YYYY-MM-DD date, in the same local terms. */
+export function previousDateString(date: string): string {
+  // Noon, not midnight: local midnight read back through toISOString() lands
+  // on the day before in any timezone east of UTC.
+  const d = new Date(date + "T12:00:00");
+  d.setDate(d.getDate() - 1);
+  return formatLocalDate(d);
+}
+
 export function rangeToDateBounds(range: string): { from: string | null; to: string } {
   const to = todayDateString();
   const now = new Date();
   switch (range) {
     case "1M":
       now.setMonth(now.getMonth() - 1);
-      return { from: now.toISOString().slice(0, 10), to };
+      return { from: formatLocalDate(now), to };
     case "3M":
       now.setMonth(now.getMonth() - 3);
-      return { from: now.toISOString().slice(0, 10), to };
+      return { from: formatLocalDate(now), to };
     case "6M":
       now.setMonth(now.getMonth() - 6);
-      return { from: now.toISOString().slice(0, 10), to };
+      return { from: formatLocalDate(now), to };
     case "1Y":
       now.setFullYear(now.getFullYear() - 1);
-      return { from: now.toISOString().slice(0, 10), to };
+      return { from: formatLocalDate(now), to };
     case "all":
       return { from: null, to };
     default:
@@ -121,7 +130,10 @@ export function shiftDateRange(
     };
   }
 
-  const daySpan = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
+  // Both ends are inclusive in every report query, so the window covers
+  // daySpan + 1 days. Shifting by daySpan alone put the boundary day in both
+  // the window and its baseline.
+  const daySpan = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1;
   const newFrom = new Date(fromDate);
   newFrom.setDate(newFrom.getDate() + sign * daySpan);
   const newTo = new Date(toDate);

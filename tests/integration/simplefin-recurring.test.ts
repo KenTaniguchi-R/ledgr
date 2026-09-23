@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { createTestDb } from "./setup";
-import { insertHousehold, insertAccount, insertTransaction } from "./helpers";
+import { insertHousehold, insertAccount, insertTransaction, insertCategoryGroup, insertCategory } from "./helpers";
 import { applyRecurringDetection } from "@/lib/simplefin/recurring";
 import { recurringTransactions, transactions } from "@/db/schema";
 
@@ -280,6 +280,56 @@ describe("applyRecurringDetection", () => {
 
       expect(txns).toHaveLength(3);
       expect(txns.every((t) => t.recurringTransactionId === recurring.id)).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  it("files a detected bill under its occurrences' category instead of leaving it uncategorized", async () => {
+    const { db, close } = await createTestDb();
+    try {
+      const { householdId } = await insertHousehold(db);
+      const { accountId } = await insertAccount(db, householdId, { type: "credit" });
+      const { groupId } = await insertCategoryGroup(db, householdId);
+      const { categoryId: subscriptions } = await insertCategory(db, householdId, groupId, { name: "Subscriptions" });
+
+      for (const date of [monthsAgoDate(2), monthsAgoDate(1), monthsAgoDate(0)]) {
+        await insertTransaction(db, householdId, accountId, {
+          date, name: "X Corp", normalizedAmount: -583, amount: 583, provider: "simplefin", categoryId: subscriptions,
+        });
+      }
+
+      await applyRecurringDetection(householdId, db);
+
+      const [row] = await db.select().from(recurringTransactions).where(eq(recurringTransactions.householdId, householdId));
+      expect(row.categoryId).toBe(subscriptions);
+    } finally {
+      await close();
+    }
+  });
+
+  it("keeps a category the user set on the bill across re-detection", async () => {
+    const { db, close } = await createTestDb();
+    try {
+      const { householdId } = await insertHousehold(db);
+      const { accountId } = await insertAccount(db, householdId, { type: "credit" });
+      const { groupId } = await insertCategoryGroup(db, householdId);
+      const { categoryId: txnCategory } = await insertCategory(db, householdId, groupId, { name: "Subscriptions" });
+      const { categoryId: userChoice } = await insertCategory(db, householdId, groupId, { name: "Software" });
+
+      for (const date of [monthsAgoDate(2), monthsAgoDate(1), monthsAgoDate(0)]) {
+        await insertTransaction(db, householdId, accountId, {
+          date, name: "X Corp", normalizedAmount: -583, amount: 583, provider: "simplefin", categoryId: txnCategory,
+        });
+      }
+
+      await applyRecurringDetection(householdId, db);
+      await db.update(recurringTransactions).set({ categoryId: userChoice }).where(eq(recurringTransactions.householdId, householdId));
+      // The old upsert wrote categoryId: null on every sync, wiping this.
+      await applyRecurringDetection(householdId, db);
+
+      const [row] = await db.select().from(recurringTransactions).where(eq(recurringTransactions.householdId, householdId));
+      expect(row.categoryId).toBe(userChoice);
     } finally {
       await close();
     }
