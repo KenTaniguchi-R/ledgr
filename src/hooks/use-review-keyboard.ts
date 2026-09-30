@@ -2,8 +2,9 @@
 
 import { useEffect } from "react";
 import type { ReviewPhase } from "@/hooks/use-review-queue";
+import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 
-interface ReviewKeyboardHandlers {
+export interface ReviewKeyboardHandlers {
   onConfirm: () => void;
   onSkip: () => void;
   onRetreat: () => void;
@@ -26,8 +27,7 @@ export function useReviewKeyboard(
       // above all. Without this, Enter both picks the highlighted category
       // *and* confirms/advances the queue, since this listener is capture-
       // phase on `document` and fires ahead of the popover's own handling.
-      const target = e.target as HTMLElement | null;
-      if (target?.closest('input, textarea, [contenteditable], [role="listbox"], [role="menu"]')) {
+      if (isEditableShortcutTarget(e.target)) {
         return;
       }
 

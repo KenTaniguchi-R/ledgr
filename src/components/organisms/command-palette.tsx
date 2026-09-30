@@ -13,6 +13,7 @@ import {
   Upload,
   Settings,
   Tag,
+  Shapes,
 } from "lucide-react";
 import {
   Command,
@@ -32,6 +33,7 @@ const PAGES = [
   { href: "/accounts", label: "Accounts", icon: Building2 },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/rules", label: "Rules", icon: Tag },
+  { href: "/categories", label: "Categories", icon: Shapes },
   { href: "/investments", label: "Investments", icon: TrendingUp },
   { href: "/budgets", label: "Budgets", icon: Wallet },
   { href: "/bills", label: "Bills", icon: Receipt },

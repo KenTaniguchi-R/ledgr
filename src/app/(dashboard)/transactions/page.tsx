@@ -13,6 +13,8 @@ import { FilterSummaryBar } from "@/components/molecules/filter-summary-bar";
 import { ReviewEntryButton } from "@/components/molecules/review-entry-button";
 import { TransactionList } from "@/components/organisms/transaction-list";
 import { TransactionEmptyState } from "@/components/molecules/transaction-empty-state";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { EyeOff } from "lucide-react";
 
 export default async function TransactionsPage({
   searchParams,
@@ -53,6 +55,15 @@ export default async function TransactionsPage({
         resultCount={summary?.count ?? 0}
       />
 
+      {filters.hidden && (
+        <Alert>
+          <EyeOff />
+          <AlertTitle>Hidden transactions</AlertTitle>
+          <AlertDescription>
+            These transactions are excluded from the regular ledger. Use Unhide to restore one.
+          </AlertDescription>
+        </Alert>
+      )}
       {summary && (
         <FilterSummaryBar
           count={summary.count}
