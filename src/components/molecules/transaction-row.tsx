@@ -2,12 +2,13 @@
 
 import { accountDisplayName } from "@/lib/account-name";
 import { memo, useCallback } from "react";
-import { Clock, EyeOff } from "lucide-react";
+import { Clock, Eye, EyeOff } from "lucide-react";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { EntityAvatar } from "@/components/molecules/entity-avatar";
 import { CategoryPill } from "@/components/molecules/category-pill";
 import { ReviewedDot } from "@/components/molecules/reviewed-dot";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import { cn } from "@/lib/utils";
@@ -39,7 +40,7 @@ interface TransactionRowProps {
   onSelect: (id: string, checked: boolean) => void;
   onClick?: () => void;
   /** Hides the row without opening the detail panel — a quick declutter action. */
-  onHide?: (id: string) => void;
+  onVisibilityChange?: (id: string, hidden: boolean) => void;
   /** CategoryPill saves itself; this just mirrors the result into list state
    * so the detail panel doesn't reopen this row on the pre-edit category. */
   onCategoryUpdated?: (id: string, categoryId: string | null, categoryName: string | null) => void;
@@ -59,7 +60,7 @@ export const TransactionRow = memo(function TransactionRow({
   isActive = false,
   onSelect,
   onClick,
-  onHide,
+  onVisibilityChange,
   onCategoryUpdated,
   onReviewedUpdated,
   compact = false,
@@ -86,12 +87,12 @@ export const TransactionRow = memo(function TransactionRow({
     e.stopPropagation();
   }, []);
 
-  const handleHideClick = useCallback(
+  const handleVisibilityClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onHide?.(txn.id);
+      onVisibilityChange?.(txn.id, !txn.isHidden);
     },
-    [txn.id, onHide],
+    [txn.id, txn.isHidden, onVisibilityChange],
   );
 
   const handleCategorySaved = useCallback(
@@ -122,15 +123,21 @@ export const TransactionRow = memo(function TransactionRow({
         isActive && "bg-muted",
       )}
     >
-      {onHide && (
+      {onVisibilityChange && (
         <button
           type="button"
-          onClick={handleHideClick}
-          title="Hide transaction"
-          aria-label="Hide transaction"
-          className="absolute right-2 top-1/2 z-10 flex size-6 -translate-y-1/2 scale-90 items-center justify-center rounded-full border border-border bg-card opacity-0 shadow-sm transition-all group-hover/row:scale-100 group-hover/row:opacity-100 hover:bg-muted"
+          onClick={handleVisibilityClick}
+          title={txn.isHidden ? "Unhide transaction" : "Hide transaction"}
+          aria-label={txn.isHidden ? "Unhide transaction" : "Hide transaction"}
+          className={cn(
+            "absolute right-2 top-1/2 z-10 flex h-7 -translate-y-1/2 items-center justify-center gap-1 rounded-full border border-border bg-card shadow-sm transition-all hover:bg-muted",
+            txn.isHidden
+              ? "px-2 text-xs font-medium"
+              : "w-7 scale-90 opacity-0 group-hover/row:scale-100 group-hover/row:opacity-100",
+          )}
         >
-          <EyeOff className="size-3.5" />
+          {txn.isHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+          {txn.isHidden && <span>Unhide</span>}
         </button>
       )}
 
@@ -168,6 +175,9 @@ export const TransactionRow = memo(function TransactionRow({
           >
             {txn.name}
           </span>
+          {txn.isHidden && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Hidden</Badge>
+          )}
           {txn.originalName !== txn.name && (
             <span className="text-xs text-muted-foreground hidden group-hover/row:inline truncate">
               ({txn.originalName})

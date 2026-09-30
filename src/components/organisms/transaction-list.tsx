@@ -61,6 +61,7 @@ export function TransactionList({
   const mode = urlSearchParams.get("mode");
   const isReviewMode = mode === "review";
   const isTransferReviewMode = mode === "review-transfers";
+  const showingHidden = filters.hidden === true;
 
   const groups = useMemo(() => groupByDate(rows), [rows]);
 
@@ -137,8 +138,13 @@ export function TransactionList({
   }
 
   const handleTransactionUpdated = useCallback((updated: TxnRow) => {
-    setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-  }, []);
+    setRows((prev) => {
+      if (updated.isHidden !== showingHidden) {
+        return prev.filter((r) => r.id !== updated.id);
+      }
+      return prev.map((r) => (r.id === updated.id ? updated : r));
+    });
+  }, [showingHidden]);
 
   const handleCategoryUpdated = useCallback(
     (id: string, categoryId: string | null, categoryName: string | null) => {
@@ -155,13 +161,13 @@ export function TransactionList({
   // hidden rows, hiding one has to drop it from `rows` immediately rather
   // than wait for a refetch — the same reason the panel below closes when
   // it was showing the row being hidden.
-  const handleHideTransaction = useCallback(
-    (id: string) => {
+  const handleVisibilityChange = useCallback(
+    (id: string, hidden: boolean) => {
       const prevRows = rows;
       setRows((prev) => prev.filter((r) => r.id !== id));
       if (selectedId === id) clear();
 
-      updateTransactionFields(id, { isHidden: true }).then((result) => {
+      updateTransactionFields(id, { isHidden: hidden }).then((result) => {
         if ("error" in result) setRows(prevRows);
       });
     },
@@ -229,7 +235,7 @@ export function TransactionList({
                   isActive={txn.id === selectedId}
                   onSelect={handleSelect}
                   onClick={() => select(txn.id)}
-                  onHide={handleHideTransaction}
+                  onVisibilityChange={handleVisibilityChange}
                   onCategoryUpdated={handleCategoryUpdated}
                   onReviewedUpdated={handleReviewedUpdated}
                 />

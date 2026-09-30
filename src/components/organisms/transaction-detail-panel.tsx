@@ -16,6 +16,7 @@ import { SplitEditor } from "@/components/molecules/split-editor";
 import { useTransactionDetail } from "@/hooks/use-transaction-detail";
 import { centsToDisplay } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
+import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 
@@ -107,6 +108,7 @@ export function TransactionDetailPanel({
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
+      if (isEditableShortcutTarget(e.target)) return;
       if (e.key === "Escape") {
         onClose();
         return;
