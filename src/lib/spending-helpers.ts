@@ -9,7 +9,7 @@ import {
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, notHidden, sumAbs, sumCol } from "@/lib/query-helpers";
 import { UNCATEGORIZED, resolvedCategoryLabel } from "@/lib/labels";
-import { includedInSpending, notIncome, getIncomeCategoryIds } from "@/queries/shared-conditions";
+import { getIncomeCategoryIds, includedInCashFlow, includedInSpending, notIncome } from "@/queries/shared-conditions";
 import type { ReportFilters } from "@/queries/reports";
 
 export interface SpendingChartItem {
@@ -35,6 +35,28 @@ export async function spendingBaseConditions(householdId: string, filters: Repor
     lt(transactions.normalizedAmount, 0),
     eq(transactions.pending, false),
     await includedInSpending(householdId, db),
+    gte(transactions.date, filters.dateFrom),
+    lte(transactions.date, filters.dateTo),
+    await notIncome(householdId, db),
+  ];
+  if (filters.accountIds?.length) {
+    conditions.push(inArray(transactions.accountId, filters.accountIds));
+  }
+  return conditions;
+}
+
+/** Expense population used only by the Cash Flow summary and drill-down. */
+export async function cashFlowExpenseBaseConditions(
+  householdId: string,
+  filters: ReportFilters,
+  db: LedgrDb,
+) {
+  const conditions = [
+    notDeleted(transactions),
+    notHidden(transactions),
+    lt(transactions.normalizedAmount, 0),
+    eq(transactions.pending, false),
+    await includedInCashFlow(householdId, db),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
     await notIncome(householdId, db),

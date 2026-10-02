@@ -64,3 +64,41 @@ export async function includedInSpending(householdId: string, db: LedgrDb): Prom
     ),
   )!;
 }
+
+
+const getCashFlowTransferCategoryIds = cache(
+  async (householdId: string, db: LedgrDb): Promise<string[]> => {
+    const scoped = scopedQuery(householdId, db);
+    const rows = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        scoped.where(
+          categories,
+          eq(categories.includeTransferInCashFlow, true),
+          eq(categories.isIncome, false),
+        ),
+      );
+    return rows.map((row) => row.id);
+  },
+);
+
+/** Cash Flow transfer inclusion, independent from spending reporting. */
+export async function includedInCashFlow(householdId: string, db: LedgrDb): Promise<SQL> {
+  const categoryIds = await getCashFlowTransferCategoryIds(householdId, db);
+  const ordinaryTransaction = and(
+    eq(transactions.isTransfer, false),
+    isNull(transactions.transferPairId),
+  )!;
+
+  if (categoryIds.length === 0) return ordinaryTransaction;
+
+  return or(
+    ordinaryTransaction,
+    and(
+      eq(transactions.isTransfer, true),
+      lt(transactions.normalizedAmount, 0),
+      inArray(transactions.categoryId, categoryIds),
+    ),
+  )!;
+}

@@ -29,6 +29,7 @@ const categoryInputSchema = z.object({
   name: nameSchema,
   isIncome: z.boolean().default(false),
   includeTransferInSpending: z.boolean().default(false),
+  includeTransferInCashFlow: z.boolean().default(false),
 });
 
 function revalidateCategoryConsumers() {
@@ -122,6 +123,7 @@ export async function createCategoryScoped(
     name: parsed.data.name,
     isIncome: parsed.data.isIncome,
     includeTransferInSpending: parsed.data.includeTransferInSpending,
+    includeTransferInCashFlow: parsed.data.includeTransferInCashFlow,
     isSystem: false,
     sortOrder: (last?.sortOrder ?? -1) + 1,
   });
@@ -219,15 +221,15 @@ export async function updateCategoryReportingScoped(
   householdId: string,
   categoryId: string,
   includeTransferInSpending: boolean,
+  includeTransferInCashFlow: boolean,
   db: LedgrDb = defaultDb,
 ): Promise<ActionResult> {
   const parsedId = idSchema.safeParse(categoryId);
   if (!parsedId.success) return { error: "Invalid input." };
-
   const scoped = scopedQuery(householdId, db);
   const updated = await db
     .update(categories)
-    .set({ includeTransferInSpending })
+    .set({ includeTransferInSpending, includeTransferInCashFlow })
     .where(
       scoped.where(
         categories,
@@ -236,7 +238,6 @@ export async function updateCategoryReportingScoped(
       ),
     )
     .returning({ id: categories.id });
-
   if (updated.length === 0) return { error: "Only custom categories can be changed." };
   revalidateCategoryConsumers();
   return { success: true };
@@ -245,6 +246,7 @@ export async function updateCategoryReportingScoped(
 export async function updateCategoryReporting(
   categoryId: string,
   includeTransferInSpending: boolean,
+  includeTransferInCashFlow: boolean,
   db: LedgrDb = defaultDb,
 ): Promise<ActionResult> {
   const auth = await authorizeAction();
@@ -253,6 +255,7 @@ export async function updateCategoryReporting(
     auth.householdId,
     categoryId,
     includeTransferInSpending,
+    includeTransferInCashFlow,
     db,
   );
 }

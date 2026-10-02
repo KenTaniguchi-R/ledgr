@@ -69,6 +69,7 @@ describe("category actions", () => {
       name: "Childcare",
       isSystem: false,
       includeTransferInSpending: false,
+      includeTransferInCashFlow: false,
     });
   });
 
@@ -130,27 +131,50 @@ describe("category actions", () => {
     );
 
     expect(
-      await updateCategoryReportingScoped(householdId, categoryId, true, db),
+      await updateCategoryReportingScoped(householdId, categoryId, true, false, db),
     ).toEqual({ success: true });
     expect(
-      await updateCategoryReportingScoped(householdId, systemCategoryId, true, db),
+      await updateCategoryReportingScoped(householdId, systemCategoryId, true, true, db),
     ).toHaveProperty("error");
     expect(
-      await updateCategoryReportingScoped(householdId, otherCategoryId, true, db),
+      await updateCategoryReportingScoped(householdId, otherCategoryId, true, true, db),
     ).toHaveProperty("error");
 
     const rows = await db
       .select({
         id: categories.id,
         includeTransferInSpending: categories.includeTransferInSpending,
+        includeTransferInCashFlow: categories.includeTransferInCashFlow,
       })
       .from(categories);
-    const values = new Map(
-      rows.map((row) => [row.id, row.includeTransferInSpending]),
-    );
-    expect(values.get(categoryId)).toBe(true);
-    expect(values.get(systemCategoryId)).toBe(false);
-    expect(values.get(otherCategoryId)).toBe(false);
+    const values = new Map(rows.map((row) => [row.id, row]));
+    expect(values.get(categoryId)).toMatchObject({
+      includeTransferInSpending: true,
+      includeTransferInCashFlow: false,
+    });
+    expect(values.get(systemCategoryId)).toMatchObject({
+      includeTransferInSpending: false,
+      includeTransferInCashFlow: false,
+    });
+    expect(values.get(otherCategoryId)).toMatchObject({
+      includeTransferInSpending: false,
+      includeTransferInCashFlow: false,
+    });
+
+    expect(
+      await updateCategoryReportingScoped(householdId, categoryId, false, true, db),
+    ).toEqual({ success: true });
+    const [cashFlowOnly] = await db
+      .select({
+        includeTransferInSpending: categories.includeTransferInSpending,
+        includeTransferInCashFlow: categories.includeTransferInCashFlow,
+      })
+      .from(categories)
+      .where(eq(categories.id, categoryId));
+    expect(cashFlowOnly).toEqual({
+      includeTransferInSpending: false,
+      includeTransferInCashFlow: true,
+    });
   });
 
   it("deletes an unused custom category but refuses one referenced by a transaction", async () => {
