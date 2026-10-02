@@ -15,6 +15,7 @@ vi.mock("@/actions/categories", () => ({
   deleteCategoryGroup: vi.fn(),
   renameCategory: vi.fn(),
   renameCategoryGroup: vi.fn(),
+  updateCategoryReporting: vi.fn(),
 }));
 
 const groups: CategoryGroup[] = [
@@ -30,6 +31,7 @@ const groups: CategoryGroup[] = [
         name: "Groceries",
         icon: null,
         isIncome: false,
+        includeTransferInSpending: false,
         isSystem: true,
         sortOrder: 0,
       },
@@ -47,6 +49,7 @@ const groups: CategoryGroup[] = [
         name: "Childcare",
         icon: null,
         isIncome: false,
+        includeTransferInSpending: false,
         isSystem: false,
         sortOrder: 0,
       },

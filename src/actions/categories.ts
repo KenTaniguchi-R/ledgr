@@ -28,6 +28,7 @@ const categoryInputSchema = z.object({
   groupId: idSchema,
   name: nameSchema,
   isIncome: z.boolean().default(false),
+  includeTransferInSpending: z.boolean().default(false),
 });
 
 function revalidateCategoryConsumers() {
@@ -120,6 +121,7 @@ export async function createCategoryScoped(
     groupId: parsed.data.groupId,
     name: parsed.data.name,
     isIncome: parsed.data.isIncome,
+    includeTransferInSpending: parsed.data.includeTransferInSpending,
     isSystem: false,
     sortOrder: (last?.sortOrder ?? -1) + 1,
   });
@@ -211,6 +213,48 @@ export async function renameCategory(
   const auth = await authorizeAction();
   if ("error" in auth) return auth;
   return renameCategoryScoped(auth.householdId, categoryId, name, db);
+}
+
+export async function updateCategoryReportingScoped(
+  householdId: string,
+  categoryId: string,
+  includeTransferInSpending: boolean,
+  db: LedgrDb = defaultDb,
+): Promise<ActionResult> {
+  const parsedId = idSchema.safeParse(categoryId);
+  if (!parsedId.success) return { error: "Invalid input." };
+
+  const scoped = scopedQuery(householdId, db);
+  const updated = await db
+    .update(categories)
+    .set({ includeTransferInSpending })
+    .where(
+      scoped.where(
+        categories,
+        eq(categories.id, parsedId.data),
+        eq(categories.isSystem, false),
+      ),
+    )
+    .returning({ id: categories.id });
+
+  if (updated.length === 0) return { error: "Only custom categories can be changed." };
+  revalidateCategoryConsumers();
+  return { success: true };
+}
+
+export async function updateCategoryReporting(
+  categoryId: string,
+  includeTransferInSpending: boolean,
+  db: LedgrDb = defaultDb,
+): Promise<ActionResult> {
+  const auth = await authorizeAction();
+  if ("error" in auth) return auth;
+  return updateCategoryReportingScoped(
+    auth.householdId,
+    categoryId,
+    includeTransferInSpending,
+    db,
+  );
 }
 
 async function categoryHasDependencies(

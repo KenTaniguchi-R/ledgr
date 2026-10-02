@@ -1,0 +1,1 @@
+ALTER TABLE "categories" ADD COLUMN "include_transfer_in_spending" boolean DEFAULT false NOT NULL;

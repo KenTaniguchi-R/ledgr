@@ -85,6 +85,13 @@
       "when": 1790148009699,
       "tag": "0011_reoffer_stranded_ai_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790961266062,
+      "tag": "0012_shocking_galactus",
+      "breakpoints": true
     }
   ]
 }

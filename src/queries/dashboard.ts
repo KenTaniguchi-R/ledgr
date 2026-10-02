@@ -1,4 +1,4 @@
-import { eq, gte, lte, lt, and, desc, inArray, isNull, sql } from "drizzle-orm";
+import { eq, gte, lte, lt, and, desc, inArray, sql } from "drizzle-orm";
 export { getInvestmentsSummary } from "./investments";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
@@ -8,7 +8,7 @@ import {
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, notHidden } from "@/lib/query-helpers";
-import { getIncomeCategoryIds } from "@/queries/shared-conditions";
+import { getIncomeCategoryIds, includedInSpending } from "@/queries/shared-conditions";
 import { aggregateSpending, enrichSpendingMap } from "@/lib/spending-helpers";
 import type { ReportFilters } from "@/queries/reports";
 import { classifyAccountType } from "@/lib/account-utils";
@@ -105,8 +105,7 @@ export async function getDashboardSummary(
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
         eq(transactions.pending, false),
-        eq(transactions.isTransfer, false),
-        isNull(transactions.transferPairId)
+        await includedInSpending(householdId, db),
       )
     );
 
@@ -373,8 +372,7 @@ export async function getCashFlow(
         notHidden(transactions),
         gte(transactions.date, dateFrom),
         eq(transactions.pending, false),
-        eq(transactions.isTransfer, false),
-        isNull(transactions.transferPairId)
+        await includedInSpending(householdId, db),
       )
     )
     .groupBy(monthExpr)
