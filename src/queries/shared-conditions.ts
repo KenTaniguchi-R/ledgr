@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { eq, isNull, or, sql, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql, notInArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
 import { transactions, categories } from "@/db/schema";
@@ -22,5 +22,45 @@ export async function notIncome(householdId: string, db: LedgrDb): Promise<SQL> 
   return or(
     isNull(transactions.categoryId),
     notInArray(transactions.categoryId, ids),
+  )!;
+}
+
+const getTransferReportingCategoryIds = cache(
+  async (householdId: string, db: LedgrDb): Promise<string[]> => {
+    const scoped = scopedQuery(householdId, db);
+    const rows = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        scoped.where(
+          categories,
+          eq(categories.includeTransferInSpending, true),
+          eq(categories.isIncome, false),
+        ),
+      );
+    return rows.map((row) => row.id);
+  },
+);
+
+/**
+ * Preserve the normal transfer exclusion, but allow a negative transaction in
+ * an explicitly opted-in category through even when it has a transfer pair.
+ */
+export async function includedInSpending(householdId: string, db: LedgrDb): Promise<SQL> {
+  const categoryIds = await getTransferReportingCategoryIds(householdId, db);
+  const ordinaryTransaction = and(
+    eq(transactions.isTransfer, false),
+    isNull(transactions.transferPairId),
+  )!;
+
+  if (categoryIds.length === 0) return ordinaryTransaction;
+
+  return or(
+    ordinaryTransaction,
+    and(
+      eq(transactions.isTransfer, true),
+      lt(transactions.normalizedAmount, 0),
+      inArray(transactions.categoryId, categoryIds),
+    ),
   )!;
 }

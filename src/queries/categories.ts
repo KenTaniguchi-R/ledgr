@@ -7,6 +7,7 @@ interface CategoryOption {
   name: string;
   icon: string | null;
   isIncome: boolean;
+  includeTransferInSpending: boolean;
   isSystem: boolean;
   sortOrder: number;
 }
@@ -46,6 +47,7 @@ export async function getCategories(
       name: cat.name,
       icon: cat.icon,
       isIncome: cat.isIncome ?? false,
+      includeTransferInSpending: cat.includeTransferInSpending ?? false,
       isSystem: cat.isSystem ?? false,
       sortOrder: cat.sortOrder ?? 0,
     });

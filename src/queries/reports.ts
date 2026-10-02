@@ -10,7 +10,7 @@ import {
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, notHidden, sumAbs, sumCol, countRows } from "@/lib/query-helpers";
-import { getIncomeCategoryIds, notIncome } from "@/queries/shared-conditions";
+import { getIncomeCategoryIds, includedInSpending, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import { resolvedCategoryLabel, UNCATEGORIZED } from "@/lib/labels";
 import {
@@ -99,8 +99,7 @@ export async function getIncomeVsExpense(
     notDeleted(transactions),
     notHidden(transactions),
     eq(transactions.pending, false),
-    eq(transactions.isTransfer, false),
-    isNull(transactions.transferPairId),
+    await includedInSpending(householdId, db),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
   ];
@@ -163,8 +162,7 @@ export async function getCategoryTrends(
     notHidden(transactions),
     lt(transactions.normalizedAmount, 0),
     eq(transactions.pending, false),
-    eq(transactions.isTransfer, false),
-    isNull(transactions.transferPairId),
+    await includedInSpending(householdId, db),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
     await notIncome(householdId, db),
@@ -285,8 +283,7 @@ export async function getIncomeExpenseByCategory(
     notDeleted(transactions),
     notHidden(transactions),
     eq(transactions.pending, false),
-    eq(transactions.isTransfer, false),
-    isNull(transactions.transferPairId),
+    await includedInSpending(householdId, db),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
   ];
@@ -585,8 +582,7 @@ export async function getCashFlowSankey(
     notDeleted(transactions),
     notHidden(transactions),
     eq(transactions.pending, false),
-    eq(transactions.isTransfer, false),
-    isNull(transactions.transferPairId),
+    await includedInSpending(householdId, db),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
   ];
@@ -845,8 +841,7 @@ export async function getSafeToSpend(
         gte(transactions.date, dateFrom),
         lte(transactions.date, dateTo),
         eq(transactions.pending, false),
-        eq(transactions.isTransfer, false),
-        isNull(transactions.transferPairId),
+        await includedInSpending(householdId, db),
         isNull(transactions.recurringTransactionId),
         // A charge is a NEGATIVE normalized amount, as everywhere else in
         // Reports. Selecting positives instead collected the refunds and left
