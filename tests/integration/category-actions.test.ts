@@ -131,7 +131,7 @@ describe("category actions", () => {
     );
 
     expect(
-      await updateCategoryReportingScoped(householdId, categoryId, true, true, db),
+      await updateCategoryReportingScoped(householdId, categoryId, true, false, db),
     ).toEqual({ success: true });
     expect(
       await updateCategoryReportingScoped(householdId, systemCategoryId, true, true, db),
@@ -147,15 +147,34 @@ describe("category actions", () => {
         includeTransferInCashFlow: categories.includeTransferInCashFlow,
       })
       .from(categories);
-    const values = new Map(
-      rows.map((row) => [
-        row.id,
-        [row.includeTransferInSpending, row.includeTransferInCashFlow],
-      ]),
-    );
-    expect(values.get(categoryId)).toEqual([true, true]);
-    expect(values.get(systemCategoryId)).toEqual([false, false]);
-    expect(values.get(otherCategoryId)).toEqual([false, false]);
+    const values = new Map(rows.map((row) => [row.id, row]));
+    expect(values.get(categoryId)).toMatchObject({
+      includeTransferInSpending: true,
+      includeTransferInCashFlow: false,
+    });
+    expect(values.get(systemCategoryId)).toMatchObject({
+      includeTransferInSpending: false,
+      includeTransferInCashFlow: false,
+    });
+    expect(values.get(otherCategoryId)).toMatchObject({
+      includeTransferInSpending: false,
+      includeTransferInCashFlow: false,
+    });
+
+    expect(
+      await updateCategoryReportingScoped(householdId, categoryId, false, true, db),
+    ).toEqual({ success: true });
+    const [cashFlowOnly] = await db
+      .select({
+        includeTransferInSpending: categories.includeTransferInSpending,
+        includeTransferInCashFlow: categories.includeTransferInCashFlow,
+      })
+      .from(categories)
+      .where(eq(categories.id, categoryId));
+    expect(cashFlowOnly).toEqual({
+      includeTransferInSpending: false,
+      includeTransferInCashFlow: true,
+    });
   });
 
   it("deletes an unused custom category but refuses one referenced by a transaction", async () => {

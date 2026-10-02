@@ -10,20 +10,15 @@ import {
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, notHidden, sumAbs, sumCol, countRows } from "@/lib/query-helpers";
-import {
-  getIncomeCategoryIds,
-  includedInCashFlow,
-  includedInSpending,
-  notIncome,
-} from "@/queries/shared-conditions";
+import { getIncomeCategoryIds, includedInCashFlow, includedInSpending, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import { resolvedCategoryLabel, UNCATEGORIZED } from "@/lib/labels";
 import {
   aggregateSpending,
+  cashFlowExpenseBaseConditions,
   enrichSpendingMap,
   spendingBaseConditions,
   incomeBaseConditions,
-  cashFlowExpenseBaseConditions,
 } from "@/lib/spending-helpers";
 import { fetchTransactionPage, type TransactionRow } from "@/queries/transactions";
 import type { NetWorthPoint } from "@/queries/dashboard";
@@ -157,7 +152,6 @@ export async function getIncomeVsExpense(
   }));
 }
 
-/** Monthly income/outflow totals for the Cash Flow tab only. */
 export async function getCashFlowSummary(
   householdId: string,
   filters: ReportFilters,
@@ -172,7 +166,6 @@ export async function getCashFlowSummary(
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
   ];
-
   if (filters.accountIds?.length) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
   }
@@ -182,9 +175,7 @@ export async function getCashFlowSummary(
 
   const incomeCatIds = [...(await getIncomeCategoryIds(householdId, db))];
   const inIncomeCat =
-    incomeCatIds.length > 0
-      ? inArray(transactions.categoryId, incomeCatIds)
-      : sql`false`;
+    incomeCatIds.length > 0 ? inArray(transactions.categoryId, incomeCatIds) : sql`false`;
   const isIncome = sql`(
     COALESCE(${inIncomeCat}, false)
     OR (${transactions.categoryId} IS NULL AND ${transactions.normalizedAmount} > 0)
@@ -929,7 +920,6 @@ export interface DrillDownFilters extends ReportFilters {
   categoryId?: string | null;
   /** Which side of the report the clicked figure came from. */
   type?: "income" | "expense";
-  /** Cash Flow expenses use their own category-level transfer override. */
   reportContext?: "cash-flow";
 }
 

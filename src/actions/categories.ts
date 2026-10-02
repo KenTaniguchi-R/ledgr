@@ -226,7 +226,6 @@ export async function updateCategoryReportingScoped(
 ): Promise<ActionResult> {
   const parsedId = idSchema.safeParse(categoryId);
   if (!parsedId.success) return { error: "Invalid input." };
-
   const scoped = scopedQuery(householdId, db);
   const updated = await db
     .update(categories)
@@ -239,7 +238,6 @@ export async function updateCategoryReportingScoped(
       ),
     )
     .returning({ id: categories.id });
-
   if (updated.length === 0) return { error: "Only custom categories can be changed." };
   revalidateCategoryConsumers();
   return { success: true };

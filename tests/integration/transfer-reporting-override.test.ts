@@ -38,6 +38,7 @@ describe("category transfer reporting override", () => {
     ({ categoryId: debtCategoryId } = await insertCategory(db, householdId, groupId, {
       name: "Installment payment",
       includeTransferInSpending: true,
+      includeTransferInCashFlow: false,
     }));
 
     const { groupId: incomeGroupId } = await insertCategoryGroup(db, householdId, {
@@ -99,20 +100,19 @@ describe("category transfer reporting override", () => {
     });
     await insertTransaction(db, householdId, accountId, {
       date: "2026-09-07",
+      normalizedAmount: 8000,
+      amount: -8000,
+      categoryId: cardPaymentCategoryId,
+      name: "Positive payment transfer",
+      isTransfer: true,
+    });
+    await insertTransaction(db, householdId, accountId, {
+      date: "2026-09-07",
       normalizedAmount: 9000,
       amount: -9000,
       categoryId: incomeCategoryId,
       name: "Income transfer",
       isTransfer: true,
-    });
-    await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-07",
-      normalizedAmount: 8000,
-      amount: -8000,
-      categoryId: cardPaymentCategoryId,
-      name: "Payment transfer inflow",
-      isTransfer: true,
-      transferPairId: "paired-card-inflow",
     });
 
     const { householdId: otherHouseholdId } = await insertHousehold(db, "Other");
@@ -147,16 +147,16 @@ describe("category transfer reporting override", () => {
     expect(rows.reduce((total, row) => total + row.total, 0)).toBe(5000);
   });
 
-  test("uses the cash-flow flag for summary math and Sankey outflows", async () => {
+  test("uses the independent override for Cash Flow summary and Sankey", async () => {
     const { getCashFlowSankey, getCashFlowSummary, getIncomeVsExpense } = await import(
       "../../src/queries/reports"
     );
 
-    const [spendingMonth] = await getIncomeVsExpense(householdId, RANGE, db);
-    expect(spendingMonth).toMatchObject({ income: 10000, expenses: 5000, net: 5000 });
+    const [month] = await getIncomeVsExpense(householdId, RANGE, db);
+    expect(month).toMatchObject({ income: 10000, expenses: 5000, net: 5000 });
 
-    const [cashFlowMonth] = await getCashFlowSummary(householdId, RANGE, db);
-    expect(cashFlowMonth).toMatchObject({ income: 10000, expenses: 4000, net: 6000 });
+    const [cashFlow] = await getCashFlowSummary(householdId, RANGE, db);
+    expect(cashFlow).toMatchObject({ income: 10000, expenses: 4000, net: 6000 });
 
     const { links } = await getCashFlowSankey(householdId, RANGE, db);
     expect(
@@ -176,29 +176,7 @@ describe("category transfer reporting override", () => {
     ).toBe(6000);
   });
 
-  test("keeps the cash-only transfer out of ordinary spending drill-downs", async () => {
-    const { getDrillDownTransactions } = await import("../../src/queries/reports");
-
-    const cashFlow = await getDrillDownTransactions(
-      householdId,
-      { ...RANGE, categoryId: cardPaymentCategoryId, type: "expense", reportContext: "cash-flow" },
-      50,
-      db,
-    );
-    const spending = await getDrillDownTransactions(
-      householdId,
-      { ...RANGE, categoryId: cardPaymentCategoryId, type: "expense" },
-      50,
-      db,
-    );
-
-    expect(cashFlow.total).toBe(3000);
-    expect(cashFlow.rows.map((row) => row.name)).toEqual(["Payment transfer"]);
-    expect(spending.total).toBe(0);
-    expect(spending.rows).toEqual([]);
-  });
-
-  test("includes the opted-in debt payment in Safe to Spend", async () => {
+  test("keeps Safe to Spend on ordinary spending semantics", async () => {
     const { getSafeToSpend } = await import("../../src/queries/reports");
     const result = await getSafeToSpend(householdId, db, "2026-09");
 
@@ -211,12 +189,33 @@ describe("category transfer reporting override", () => {
   });
 
   test("does not honor an override category owned by another household", async () => {
-    const { getCashFlowSummary, getCategoryTrends } = await import("../../src/queries/reports");
+    const { getCategoryTrends } = await import("../../src/queries/reports");
     const rows = await getCategoryTrends(householdId, RANGE, db);
 
     expect(rows.reduce((total, row) => total + row.total, 0)).toBe(5000);
+  });
+  test("uses Cash Flow inclusion for outflow drill-downs only", async () => {
+    const { getDrillDownTransactions } = await import("../../src/queries/reports");
 
-    const [cashFlow] = await getCashFlowSummary(householdId, RANGE, db);
-    expect(cashFlow.expenses).toBe(4000);
+    const cashFlow = await getDrillDownTransactions(
+      householdId,
+      {
+        ...RANGE,
+        categoryId: cardPaymentCategoryId,
+        type: "expense",
+        reportContext: "cash-flow",
+      },
+      50,
+      db,
+    );
+    const spending = await getDrillDownTransactions(
+      householdId,
+      { ...RANGE, categoryId: cardPaymentCategoryId, type: "expense" },
+      50,
+      db,
+    );
+
+    expect(cashFlow).toMatchObject({ total: 3000, matchCount: 1 });
+    expect(spending).toMatchObject({ total: 0, matchCount: 0 });
   });
 });

@@ -42,23 +42,6 @@ const getTransferReportingCategoryIds = cache(
   },
 );
 
-const getCashFlowTransferCategoryIds = cache(
-  async (householdId: string, db: LedgrDb): Promise<string[]> => {
-    const scoped = scopedQuery(householdId, db);
-    const rows = await db
-      .select({ id: categories.id })
-      .from(categories)
-      .where(
-        scoped.where(
-          categories,
-          eq(categories.includeTransferInCashFlow, true),
-          eq(categories.isIncome, false),
-        ),
-      );
-    return rows.map((row) => row.id);
-  },
-);
-
 /**
  * Preserve the normal transfer exclusion, but allow a negative transaction in
  * an explicitly opted-in category through even when it has a transfer pair.
@@ -82,10 +65,25 @@ export async function includedInSpending(householdId: string, db: LedgrDb): Prom
   )!;
 }
 
-/**
- * Include ordinary unpaired transactions plus negative transfers whose
- * category explicitly opts into cash-flow reporting.
- */
+
+const getCashFlowTransferCategoryIds = cache(
+  async (householdId: string, db: LedgrDb): Promise<string[]> => {
+    const scoped = scopedQuery(householdId, db);
+    const rows = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        scoped.where(
+          categories,
+          eq(categories.includeTransferInCashFlow, true),
+          eq(categories.isIncome, false),
+        ),
+      );
+    return rows.map((row) => row.id);
+  },
+);
+
+/** Cash Flow transfer inclusion, independent from spending reporting. */
 export async function includedInCashFlow(householdId: string, db: LedgrDb): Promise<SQL> {
   const categoryIds = await getCashFlowTransferCategoryIds(householdId, db);
   const ordinaryTransaction = and(

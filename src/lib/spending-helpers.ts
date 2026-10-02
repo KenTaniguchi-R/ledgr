@@ -9,12 +9,7 @@ import {
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, notHidden, sumAbs, sumCol } from "@/lib/query-helpers";
 import { UNCATEGORIZED, resolvedCategoryLabel } from "@/lib/labels";
-import {
-  getIncomeCategoryIds,
-  includedInCashFlow,
-  includedInSpending,
-  notIncome,
-} from "@/queries/shared-conditions";
+import { getIncomeCategoryIds, includedInCashFlow, includedInSpending, notIncome } from "@/queries/shared-conditions";
 import type { ReportFilters } from "@/queries/reports";
 
 export interface SpendingChartItem {
@@ -50,7 +45,7 @@ export async function spendingBaseConditions(householdId: string, filters: Repor
   return conditions;
 }
 
-/** The expense population used only by the Cash Flow tab and its drill-down. */
+/** Expense population used only by the Cash Flow summary and drill-down. */
 export async function cashFlowExpenseBaseConditions(
   householdId: string,
   filters: ReportFilters,

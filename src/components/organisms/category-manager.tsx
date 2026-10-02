@@ -184,17 +184,9 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
     return result;
   }
 
-  function handleReportingChange(
-    id: string,
-    includeTransferInSpending: boolean,
-    includeTransferInCashFlow: boolean,
-  ) {
+  function handleReportingChange(id: string, spending: boolean, cashFlow: boolean) {
     startTransition(async () => {
-      const result = await updateCategoryReporting(
-        id,
-        includeTransferInSpending,
-        includeTransferInCashFlow,
-      );
+      const result = await updateCategoryReporting(id, spending, cashFlow);
       if ("error" in result) {
         setError(result.error);
         return;
@@ -357,38 +349,34 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
                       )}
                     </div>
                     {!category.isSystem && (
-                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                        <label className="flex items-center gap-2">
-                          <Checkbox
-                            checked={category.includeTransferInSpending}
-                            onCheckedChange={(checked) =>
-                              handleReportingChange(
-                                category.id,
-                                checked,
-                                category.includeTransferInCashFlow,
-                              )
-                            }
-                            aria-label={`Count transfers in spending reports for ${category.name}`}
-                            disabled={pending}
-                          />
-                          Count transfers in spending reports
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <Checkbox
-                            checked={category.includeTransferInCashFlow}
-                            onCheckedChange={(checked) =>
-                              handleReportingChange(
-                                category.id,
-                                category.includeTransferInSpending,
-                                checked,
-                              )
-                            }
-                            aria-label={`Count transfers in cash flow for ${category.name}`}
-                            disabled={pending}
-                          />
-                          Count transfers in cash flow
-                        </label>
-                      </div>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={category.includeTransferInSpending}
+                          onCheckedChange={(checked) =>
+                            handleReportingChange(category.id, checked, category.includeTransferInCashFlow)
+                          }
+                          aria-label={`Count transfers in spending reports for ${category.name}`}
+                          disabled={pending}
+                        />
+                        Count transfers in spending reports
+                      </label>
+                    )}
+                    {!category.isSystem && (
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={category.includeTransferInCashFlow}
+                          onCheckedChange={(checked) =>
+                            handleReportingChange(
+                              category.id,
+                              category.includeTransferInSpending,
+                              checked,
+                            )
+                          }
+                          aria-label={`Count transfers in cash flow for ${category.name}`}
+                          disabled={pending}
+                        />
+                        Count transfers in cash flow
+                      </label>
                     )}
                     {category.isIncome && <Badge variant="secondary">Income</Badge>}
                     <Badge variant={category.isSystem ? "secondary" : "outline"}>
