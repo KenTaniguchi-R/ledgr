@@ -31,6 +31,7 @@ export interface DrillDownFilter {
   categoryName: string;
   month?: string;
   type?: "income" | "expense";
+  reportContext?: "cash-flow";
   tabContext: string;
 }
 
@@ -85,6 +86,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
         accountIds: accountKey ? accountKey.split(",") : undefined,
         // The Spending tab has one side only, so an absent type means expense.
         type: filter.type ?? "expense",
+        reportContext: filter.reportContext,
       });
       setRows(result.rows);
       setHasMore(result.hasMore);

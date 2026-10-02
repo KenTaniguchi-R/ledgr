@@ -33,6 +33,9 @@ export const categories = pgTable(
     includeTransferInSpending: boolean("include_transfer_in_spending")
       .default(false)
       .notNull(),
+    includeTransferInCashFlow: boolean("include_transfer_in_cash_flow")
+      .default(false)
+      .notNull(),
     isSystem: boolean("is_system").default(false),
     sortOrder: integer("sort_order").default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
