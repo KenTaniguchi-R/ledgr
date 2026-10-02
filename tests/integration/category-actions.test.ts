@@ -69,6 +69,7 @@ describe("category actions", () => {
       name: "Childcare",
       isSystem: false,
       includeTransferInSpending: false,
+      includeTransferInCashFlow: false,
     });
   });
 
@@ -130,27 +131,31 @@ describe("category actions", () => {
     );
 
     expect(
-      await updateCategoryReportingScoped(householdId, categoryId, true, db),
+      await updateCategoryReportingScoped(householdId, categoryId, true, true, db),
     ).toEqual({ success: true });
     expect(
-      await updateCategoryReportingScoped(householdId, systemCategoryId, true, db),
+      await updateCategoryReportingScoped(householdId, systemCategoryId, true, true, db),
     ).toHaveProperty("error");
     expect(
-      await updateCategoryReportingScoped(householdId, otherCategoryId, true, db),
+      await updateCategoryReportingScoped(householdId, otherCategoryId, true, true, db),
     ).toHaveProperty("error");
 
     const rows = await db
       .select({
         id: categories.id,
         includeTransferInSpending: categories.includeTransferInSpending,
+        includeTransferInCashFlow: categories.includeTransferInCashFlow,
       })
       .from(categories);
     const values = new Map(
-      rows.map((row) => [row.id, row.includeTransferInSpending]),
+      rows.map((row) => [
+        row.id,
+        [row.includeTransferInSpending, row.includeTransferInCashFlow],
+      ]),
     );
-    expect(values.get(categoryId)).toBe(true);
-    expect(values.get(systemCategoryId)).toBe(false);
-    expect(values.get(otherCategoryId)).toBe(false);
+    expect(values.get(categoryId)).toEqual([true, true]);
+    expect(values.get(systemCategoryId)).toEqual([false, false]);
+    expect(values.get(otherCategoryId)).toEqual([false, false]);
   });
 
   it("deletes an unused custom category but refuses one referenced by a transaction", async () => {
