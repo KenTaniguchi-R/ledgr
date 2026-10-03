@@ -1,4 +1,4 @@
-import { eq, lt, gte, lte, inArray, notInArray, isNull, sql } from "drizzle-orm";
+import { and, eq, lt, gte, lte, inArray, notInArray, isNull, sql } from "drizzle-orm";
 import { db as defaultDb, type LedgrDb } from "@/db";
 import {
   transactions,
@@ -121,10 +121,16 @@ export async function aggregateSpending(
   const splitParentIds = await findSplitParentIds(scoped, conditions, db);
 
   // Non-split transactions
-  const nonSplitConditions =
+  let nonSplitConditions =
     splitParentIds.length > 0
       ? [...conditions, notInArray(transactions.id, splitParentIds)]
       : conditions;
+  if (filters.categoryIds?.length) {
+    nonSplitConditions = [
+      ...nonSplitConditions,
+      inArray(transactions.categoryId, filters.categoryIds),
+    ];
+  }
 
   const nonSplitRows = await db
     .select({
@@ -149,7 +155,14 @@ export async function aggregateSpending(
         total: sumCol(transactionSplits.amount),
       })
       .from(transactionSplits)
-      .where(inArray(transactionSplits.transactionId, splitParentIds))
+      .where(
+        filters.categoryIds?.length
+          ? and(
+              inArray(transactionSplits.transactionId, splitParentIds),
+              inArray(transactionSplits.categoryId, filters.categoryIds),
+            )
+          : inArray(transactionSplits.transactionId, splitParentIds),
+      )
       .groupBy(transactionSplits.categoryId);
 
     for (const row of splitRows) {

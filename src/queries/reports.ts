@@ -89,6 +89,54 @@ export async function getSpendingByCategory(
   }));
 }
 
+export interface ToolSpendingCategory {
+  categoryId: string | null;
+  categoryName: string;
+  groupName: string | null;
+  amountCents: number;
+}
+
+export interface ToolSpendingSummary {
+  dateFrom: string;
+  dateTo: string;
+  totalSpendingCents: number;
+  categories: ToolSpendingCategory[];
+}
+
+/**
+ * Read-only tool DTO over the canonical Spending report query. Keeping this
+ * transformation downstream of getSpendingByCategory ensures tool totals use
+ * the same transfer overrides, visibility rules, and split attribution.
+ */
+export async function getToolSpendingSummary(
+  householdId: string,
+  filters: ReportFilters,
+  db: LedgrDb = defaultDb,
+): Promise<ToolSpendingSummary> {
+  const categories = (await getSpendingByCategory(householdId, filters, db))
+    .map((row) => ({
+      categoryId: row.categoryId,
+      categoryName: row.categoryName,
+      groupName: row.groupName,
+      amountCents: row.total,
+    }))
+    .sort(
+      (a, b) =>
+        b.amountCents - a.amountCents ||
+        (a.categoryId ?? "").localeCompare(b.categoryId ?? ""),
+    );
+
+  return {
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    totalSpendingCents: categories.reduce(
+      (total, category) => total + category.amountCents,
+      0,
+    ),
+    categories,
+  };
+}
+
 export async function getIncomeVsExpense(
   householdId: string,
   filters: ReportFilters,
