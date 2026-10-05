@@ -14,7 +14,7 @@ import { todayDateString } from "@/lib/date-utils";
 import { eq, and, isNull } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
 import { accounts, bankConnections } from "@/db/schema";
-import type { PlaidHolding, PlaidInvestmentTxn } from "./schemas";
+import type { PlaidHolding, PlaidInvestmentTxn, PlaidAccountBalances } from "./schemas";
 import type { InvestmentSyncResult } from "./investments-process";
 import { processHoldings, processInvestmentTransactions } from "./investments-process";
 import { applyInvestmentsToDb } from "./investments-apply";
@@ -26,12 +26,12 @@ const MAX_INV_TXN_PAGES = 50;
 async function fetchHoldings(
   client: PlaidApi,
   accessToken: string,
-): Promise<{ holdings: PlaidHolding[]; securities: PlaidSecurity[] }> {
+): Promise<{ holdings: PlaidHolding[]; securities: PlaidSecurity[]; accounts: PlaidAccountBalances[] }> {
   const response = await retryWithBackoff(() =>
     client.investmentsHoldingsGet({ access_token: accessToken })
   );
   const parsed = PlaidHoldingsResponseSchema.parse(response.data);
-  return { holdings: parsed.holdings, securities: parsed.securities };
+  return { holdings: parsed.holdings, securities: parsed.securities, accounts: parsed.accounts };
 }
 
 async function fetchAllInvestmentTransactionPages(
@@ -120,7 +120,7 @@ async function doInvestmentSync(
   }
 
   try {
-    const { holdings: rawHoldings, securities: holdingSecurities } =
+    const { holdings: rawHoldings, securities: holdingSecurities, accounts: accountBalances } =
       await fetchHoldings(client, accessToken);
 
     const endDate = todayDateString();
@@ -139,7 +139,7 @@ async function doInvestmentSync(
     const holdingRows = processHoldings(rawHoldings, mergedSecurities, householdId, plaidToInternalAccount);
     const txnRows = processInvestmentTransactions(rawTxns, mergedSecurities, plaidToInternalAccount);
 
-    const result = await applyInvestmentsToDb(db, holdingRows, txnRows, itemId);
+    const result = await applyInvestmentsToDb(db, holdingRows, txnRows, itemId, accountBalances);
 
     return {
       success: true,
