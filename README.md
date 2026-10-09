@@ -200,15 +200,15 @@ Read, write, and sync tools are gated by OAuth scopes (`ledgr:read`, `ledgr:writ
 
 ## Comparison
 
-| | Ledgr | Actual Budget | Firefly III | Maybe Finance |
-|---|:---:|:---:|:---:|:---:|
-| Automatic bank sync | Plaid (12,000+ banks) or SimpleFIN | GoCardless (EU) | Spectre/GoCardless | -- |
-| AI agent (MCP) | Yes | -- | -- | -- |
-| AI categorization | Yes (BYOK) | -- | -- | -- |
-| Investment tracking | Yes | -- | -- | Yes |
-| Self-hostable | Yes | Yes | Yes | Yes |
-| Database | PostgreSQL | SQLite | MySQL/Postgres | Postgres |
-| License | AGPL-3.0 | MIT | AGPL-3.0 | AGPL-3.0 |
+| | Ledgr | Actual Budget | Firefly III |
+|---|:---:|:---:|:---:|
+| Automatic bank sync | Plaid (12,000+ banks) or SimpleFIN | SimpleFIN (US/CA), GoCardless (EU/UK) | SimpleFIN, GoCardless, Spectre (via Data Importer) |
+| Built-in MCP server | Yes | -- | -- |
+| AI categorization | Yes (BYOK) | -- | -- |
+| Investment tracking | Yes | -- | -- |
+| Self-hostable | Yes | Yes | Yes |
+| Database | PostgreSQL | SQLite | MySQL/Postgres |
+| License | AGPL-3.0 | MIT | AGPL-3.0 |
 
 ## Updating
 
@@ -297,10 +297,10 @@ pnpm db:studio              # Drizzle Studio (DB browser)
 - [x] AI chat assistant (in-app)
 - [x] OFX/QFX import
 - [x] SimpleFIN bank sync (Plaid alternative)
+- [x] Automatic transfer detection between accounts
 - [ ] Mobile-responsive UI
 - [ ] Multi-currency support
 - [ ] Custom report builder
-- [ ] Automatic transfer detection between accounts
 - [ ] Goal tracking (savings goals, debt payoff)
 - [ ] Recurring budget templates
 

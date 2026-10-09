@@ -70,6 +70,17 @@ describe("money utilities", () => {
     it("formats large amounts with comma separators", () => {
       expect(centsToDisplay(1000000)).toBe("$10,000.00");
     });
+    // #170: SimpleFIN institutions can send currency: "", and the spec allows
+    // a URL for a custom currency. Intl throws on both.
+    it("falls back to USD for an empty currency code", () => {
+      expect(centsToDisplay(1250, "")).toBe("$12.50");
+    });
+    it("falls back to USD for a currency that is not an ISO 4217 code", () => {
+      expect(centsToDisplay(1250, "https://example.com/points")).toBe("$12.50");
+    });
+    it("keeps a valid non-USD currency", () => {
+      expect(centsToDisplay(1250, "EUR")).toBe("€12.50");
+    });
   });
 
   describe("displayToCents", () => {
