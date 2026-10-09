@@ -34,7 +34,10 @@ jobs:
           mkdir -p "$cfg"
           echo "DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')" >> "$GITHUB_ENV"
           if [ -d "$HOME/.docker/cli-plugins" ]; then ln -s "$HOME/.docker/cli-plugins" "$cfg/cli-plugins"; fi
-          echo '{}' > "$cfg/config.json"
+          # Not '{}': with no auths at all, the CLI auto-detects the platform
+          # helper and writes credsStore: osxkeychain right back. A placeholder
+          # entry turns that detection off.
+          echo '{"auths":{"ghcr.io":{}}}' > "$cfg/config.json"
           echo "DOCKER_CONFIG=$cfg" >> "$GITHUB_ENV"
 
       - uses: docker/setup-qemu-action@v4
