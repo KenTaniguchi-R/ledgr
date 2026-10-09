@@ -21,6 +21,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The mini's ~/.docker/config.json stores logins in the macOS Keychain
+      # (credsStore: osxkeychain), which a runner service can't unlock:
+      # login-action fails with "User interaction is not allowed. (-25308)".
+      # Give the job its own Docker config so the token lands in a file. It
+      # has to come before setup-buildx, which records its builder under
+      # DOCKER_CONFIG, and has to carry over the active context's daemon and
+      # the CLI plugins that the old config dir provided.
+      - name: Use a job-local Docker config
+        run: |
+          cfg="$RUNNER_TEMP/docker-config"
+          mkdir -p "$cfg"
+          echo "DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')" >> "$GITHUB_ENV"
+          if [ -d "$HOME/.docker/cli-plugins" ]; then ln -s "$HOME/.docker/cli-plugins" "$cfg/cli-plugins"; fi
+          echo '{}' > "$cfg/config.json"
+          echo "DOCKER_CONFIG=$cfg" >> "$GITHUB_ENV"
+
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
