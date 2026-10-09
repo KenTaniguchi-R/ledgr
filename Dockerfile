@@ -29,7 +29,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 FROM base AS runner
-RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
+# Upgrade first: the node:*-slim tag lags Debian security updates, and the
+# release gate fails on any fixable CRITICAL (perl-base blocked v0.3.3).
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
 # The runtime is pure node (entrypoint runs migrate.mjs then server.js), so npm
 # is dead weight that only widens the attack surface — its bundled dependencies
 # are a recurring source of CVEs in image scans. Drop it from the final image.
