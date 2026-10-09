@@ -155,11 +155,11 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
     [patchRow],
   );
 
-  const handleHide = useCallback(
-    (id: string) => {
-      patchRow(id, { isHidden: true });
-      updateTransactionFields(id, { isHidden: true }).then((result) => {
-        if ("error" in result) patchRow(id, { isHidden: false });
+  const handleVisibilityChange = useCallback(
+    (id: string, hidden: boolean) => {
+      patchRow(id, { isHidden: hidden });
+      updateTransactionFields(id, { isHidden: hidden }).then((result) => {
+        if ("error" in result) patchRow(id, { isHidden: !hidden });
       });
     },
     [patchRow],
@@ -290,7 +290,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
                         isSelected={selected.has(txn.id)}
                         onSelect={handleSelect}
                         onClick={() => setOpenId(txn.id)}
-                        onHide={exitReasons.has(txn.id) ? undefined : handleHide}
+                        onVisibilityChange={exitReasons.has(txn.id) ? undefined : handleVisibilityChange}
                         onCategoryUpdated={handleCategoryUpdated}
                         onReviewedUpdated={handleReviewedUpdated}
                         compact

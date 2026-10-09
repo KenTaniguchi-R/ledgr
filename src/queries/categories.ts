@@ -7,6 +7,7 @@ interface CategoryOption {
   name: string;
   icon: string | null;
   isIncome: boolean;
+  isSystem: boolean;
   sortOrder: number;
 }
 
@@ -15,6 +16,7 @@ export interface CategoryGroup {
   name: string;
   icon: string | null;
   sortOrder: number;
+  isSystem: boolean;
   categories: CategoryOption[];
 }
 
@@ -44,6 +46,7 @@ export async function getCategories(
       name: cat.name,
       icon: cat.icon,
       isIncome: cat.isIncome ?? false,
+      isSystem: cat.isSystem ?? false,
       sortOrder: cat.sortOrder ?? 0,
     });
     catsByGroup.set(cat.groupId, list);
@@ -54,6 +57,7 @@ export async function getCategories(
     name: g.name,
     icon: g.icon,
     sortOrder: g.sortOrder ?? 0,
+    isSystem: g.isSystem ?? false,
     categories: catsByGroup.get(g.id) ?? [],
   }));
 }

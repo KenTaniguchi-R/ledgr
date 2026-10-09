@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useTransition } from "react";
+import { Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,7 @@ interface EditableTextProps {
   className?: string;
   inputClassName?: string;
   disabled?: boolean;
+  editLabel?: string;
 }
 
 export function EditableText({
@@ -20,6 +22,7 @@ export function EditableText({
   className,
   inputClassName,
   disabled = false,
+  editLabel,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -79,8 +82,10 @@ export function EditableText({
       type="button"
       onClick={handleClick}
       disabled={disabled}
+      aria-label={editLabel}
+      title={editLabel}
       className={cn(
-        "text-left text-sm cursor-pointer rounded px-1 py-0.5 -mx-1",
+        "inline-flex items-center gap-1.5 text-left text-sm cursor-pointer rounded px-1 py-0.5 -mx-1",
         "hover:bg-muted/50 hover:underline decoration-muted-foreground/40 underline-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-50",
         !displayValue && "text-muted-foreground italic",
@@ -88,7 +93,10 @@ export function EditableText({
         className,
       )}
     >
-      {displayValue || placeholder}
+      <span>{displayValue || placeholder}</span>
+      {editLabel && (
+        <Pencil aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+      )}
     </button>
   );
 }

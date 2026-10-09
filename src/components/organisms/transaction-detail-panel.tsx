@@ -16,6 +16,7 @@ import { SplitEditor } from "@/components/molecules/split-editor";
 import { useTransactionDetail } from "@/hooks/use-transaction-detail";
 import { centsToDisplay } from "@/lib/money";
 import { formatDateShort } from "@/lib/date-utils";
+import { escapeKeyAction, isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 
@@ -108,16 +109,15 @@ export function TransactionDetailPanel({
     const handleKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       if (e.key === "Escape") {
-        onClose();
+        // Blur first, close second: Escape in a text field only leaves the
+        // field. Open popups handle their own Escape (see escapeKeyAction).
+        const action = escapeKeyAction(e.target);
+        if (action === "blur") (e.target as HTMLElement).blur();
+        else if (action === "close") onClose();
         return;
       }
+      if (isEditableShortcutTarget(e.target)) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-      // Arrow keys belong to whatever the user is actually typing in or
-      // choosing from — the category popover's own list, above all.
-      const target = e.target as HTMLElement | null;
-      if (target?.closest('input, textarea, [contenteditable], [role="listbox"], [role="menu"]')) {
-        return;
-      }
       const step = e.key === "ArrowUp" ? onStepPrev : onStepNext;
       if (!step) return;
       e.preventDefault();

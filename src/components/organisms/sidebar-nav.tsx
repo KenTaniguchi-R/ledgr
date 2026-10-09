@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Tags,
+  Shapes,
   LayoutDashboard,
   Building2,
   ArrowLeftRight,
@@ -53,6 +54,7 @@ const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
       { href: "/accounts", label: "Accounts", icon: Building2 },
       { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
       { href: "/rules", label: "Rules", icon: Tags },
+      { href: "/categories", label: "Categories", icon: Shapes },
       { href: "/investments", label: "Investments", icon: TrendingUp },
     ],
   },
