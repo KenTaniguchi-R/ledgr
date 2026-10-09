@@ -1,6 +1,6 @@
 "use server";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
@@ -56,6 +56,53 @@ async function getOwnedCategory(householdId: string, categoryId: string, db: Led
   return category;
 }
 
+function normalizeName(name: string) {
+  return name.trim().toLowerCase();
+}
+
+/**
+ * Category names must be unique per household, system or custom. The
+ * categorization engine maps Plaid PFC categories to IDs by name, so a custom
+ * category shadowing a system name would capture that categorization.
+ */
+async function categoryNameTaken(
+  householdId: string,
+  name: string,
+  db: LedgrDb,
+  excludeId?: string,
+): Promise<boolean> {
+  const scoped = scopedQuery(householdId, db);
+  const rows = await db
+    .select({ name: categories.name })
+    .from(categories)
+    .where(
+      excludeId
+        ? scoped.where(categories, ne(categories.id, excludeId))
+        : scoped.where(categories),
+    );
+  const wanted = normalizeName(name);
+  return rows.some((row) => normalizeName(row.name) === wanted);
+}
+
+async function groupNameTaken(
+  householdId: string,
+  name: string,
+  db: LedgrDb,
+  excludeId?: string,
+): Promise<boolean> {
+  const scoped = scopedQuery(householdId, db);
+  const rows = await db
+    .select({ name: categoryGroups.name })
+    .from(categoryGroups)
+    .where(
+      excludeId
+        ? scoped.where(categoryGroups, ne(categoryGroups.id, excludeId))
+        : scoped.where(categoryGroups),
+    );
+  const wanted = normalizeName(name);
+  return rows.some((row) => normalizeName(row.name) === wanted);
+}
+
 export async function createCategoryGroupScoped(
   householdId: string,
   name: string,
@@ -63,6 +110,9 @@ export async function createCategoryGroupScoped(
 ): Promise<CreateResult> {
   const parsed = nameSchema.safeParse(name);
   if (!parsed.success) return { error: "Enter a group name between 1 and 80 characters." };
+  if (await groupNameTaken(householdId, parsed.data, db)) {
+    return { error: "A category group with that name already exists." };
+  }
 
   const scoped = scopedQuery(householdId, db);
   const [last] = await db
@@ -104,6 +154,9 @@ export async function createCategoryScoped(
 
   const group = await getOwnedGroup(householdId, parsed.data.groupId, db);
   if (!group) return { error: "Category group not found." };
+  if (await categoryNameTaken(householdId, parsed.data.name, db)) {
+    return { error: "A category with that name already exists." };
+  }
 
   const scoped = scopedQuery(householdId, db);
   const [last] = await db
@@ -147,6 +200,10 @@ export async function renameCategoryGroupScoped(
   const parsedName = nameSchema.safeParse(name);
   if (!parsedId.success || !parsedName.success) return { error: "Invalid input." };
 
+  if (await groupNameTaken(householdId, parsedName.data, db, parsedId.data)) {
+    return { error: "A category group with that name already exists." };
+  }
+
   const scoped = scopedQuery(householdId, db);
   const updated = await db
     .update(categoryGroups)
@@ -184,6 +241,10 @@ export async function renameCategoryScoped(
   const parsedId = idSchema.safeParse(categoryId);
   const parsedName = nameSchema.safeParse(name);
   if (!parsedId.success || !parsedName.success) return { error: "Invalid input." };
+
+  if (await categoryNameTaken(householdId, parsedName.data, db, parsedId.data)) {
+    return { error: "A category with that name already exists." };
+  }
 
   const scoped = scopedQuery(householdId, db);
   const updated = await db
