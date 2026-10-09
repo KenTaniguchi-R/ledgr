@@ -59,6 +59,18 @@ describe("SimplefinAccountsResponseSchema", () => {
     expect(parsed.connections).toHaveLength(1);
     expect(parsed.accounts[0].transactions).toHaveLength(1);
   });
+
+  // #170: some institutions behind SimpleFIN Bridge send an empty currency.
+  it("stores an empty account currency as USD", () => {
+    const parsed = SimplefinAccountsResponseSchema.parse({
+      errlist: [],
+      accounts: [
+        { id: "a-1", name: "Checking", currency: "", balance: "10.00", "balance-date": 978366153 },
+        { id: "a-2", name: "Savings", currency: "  ", balance: "10.00", "balance-date": 978366153 },
+      ],
+    });
+    expect(parsed.accounts.map((a) => a.currency)).toEqual(["USD", "USD"]);
+  });
 });
 
 describe("resolveInstitution", () => {
