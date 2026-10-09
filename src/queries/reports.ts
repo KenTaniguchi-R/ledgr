@@ -10,12 +10,11 @@ import {
 } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, notHidden, sumAbs, sumCol, countRows } from "@/lib/query-helpers";
-import { getIncomeCategoryIds, includedInCashFlow, includedInSpending, notIncome } from "@/queries/shared-conditions";
+import { getIncomeCategoryIds, includedInSpending, notIncome } from "@/queries/shared-conditions";
 import { classifyAccountType } from "@/lib/account-utils";
 import { resolvedCategoryLabel, UNCATEGORIZED } from "@/lib/labels";
 import {
   aggregateSpending,
-  cashFlowExpenseBaseConditions,
   enrichSpendingMap,
   spendingBaseConditions,
   incomeBaseConditions,
@@ -186,56 +185,6 @@ export async function getIncomeVsExpense(
       period: monthExpr,
       income: sql<number>`COALESCE(SUM(CASE WHEN ${isIncome} THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`.mapWith(Number),
       expenses: sql<number>`COALESCE(SUM(CASE WHEN ${isSpending} THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
-    })
-    .from(transactions)
-    .where(scoped.where(transactions, ...conditions))
-    .groupBy(monthExpr)
-    .orderBy(monthExpr);
-
-  return rows.map(({ period, income, expenses }) => ({
-    period,
-    income,
-    expenses,
-    net: income - expenses,
-  }));
-}
-
-export async function getCashFlowSummary(
-  householdId: string,
-  filters: ReportFilters,
-  db: LedgrDb = defaultDb,
-): Promise<IncomeExpenseRow[]> {
-  const scoped = scopedQuery(householdId, db);
-  const conditions = [
-    notDeleted(transactions),
-    notHidden(transactions),
-    eq(transactions.pending, false),
-    await includedInCashFlow(householdId, db),
-    gte(transactions.date, filters.dateFrom),
-    lte(transactions.date, filters.dateTo),
-  ];
-  if (filters.accountIds?.length) {
-    conditions.push(inArray(transactions.accountId, filters.accountIds));
-  }
-  if (filters.categoryIds?.length) {
-    conditions.push(inArray(transactions.categoryId, filters.categoryIds));
-  }
-
-  const incomeCatIds = [...(await getIncomeCategoryIds(householdId, db))];
-  const inIncomeCat =
-    incomeCatIds.length > 0 ? inArray(transactions.categoryId, incomeCatIds) : sql`false`;
-  const isIncome = sql`(
-    COALESCE(${inIncomeCat}, false)
-    OR (${transactions.categoryId} IS NULL AND ${transactions.normalizedAmount} > 0)
-  )`;
-  const isOutflow = sql`(NOT (${isIncome}) AND ${transactions.normalizedAmount} < 0)`;
-  const monthExpr = sql<string>`substring(${transactions.date}, 1, 7)`;
-
-  const rows = await db
-    .select({
-      period: monthExpr,
-      income: sql<number>`COALESCE(SUM(CASE WHEN ${isIncome} THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`.mapWith(Number),
-      expenses: sql<number>`COALESCE(SUM(CASE WHEN ${isOutflow} THEN ABS(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
     })
     .from(transactions)
     .where(scoped.where(transactions, ...conditions))
@@ -681,7 +630,7 @@ export async function getCashFlowSankey(
     notDeleted(transactions),
     notHidden(transactions),
     eq(transactions.pending, false),
-    await includedInCashFlow(householdId, db),
+    await includedInSpending(householdId, db),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
   ];
@@ -968,7 +917,6 @@ export interface DrillDownFilters extends ReportFilters {
   categoryId?: string | null;
   /** Which side of the report the clicked figure came from. */
   type?: "income" | "expense";
-  reportContext?: "cash-flow";
 }
 
 export interface DrillDownResult {
@@ -1004,9 +952,7 @@ export async function getDrillDownTransactions(
   const conditions =
     filters.type === "income"
       ? await incomeBaseConditions(householdId, filters, db)
-      : filters.reportContext === "cash-flow"
-        ? await cashFlowExpenseBaseConditions(householdId, filters, db)
-        : await spendingBaseConditions(householdId, filters, db);
+      : await spendingBaseConditions(householdId, filters, db);
 
   if (filters.categoryId === null) {
     conditions.push(isNull(transactions.categoryId));

@@ -69,7 +69,6 @@ describe("category actions", () => {
       name: "Childcare",
       isSystem: false,
       includeTransferInSpending: false,
-      includeTransferInCashFlow: false,
     });
   });
 
@@ -117,7 +116,7 @@ describe("category actions", () => {
     );
   });
 
-  it("updates transfer reporting only for custom categories in the household", async () => {
+  it("updates the transfer-as-spending flag only for custom categories in the household", async () => {
     const { groupId } = await insertCategoryGroup(db, householdId);
     const { categoryId } = await insertCategory(db, householdId, groupId);
     const { categoryId: systemCategoryId } = await insertCategory(db, householdId, groupId, {
@@ -130,51 +129,48 @@ describe("category actions", () => {
       otherGroupId,
     );
 
-    expect(
-      await updateCategoryReportingScoped(householdId, categoryId, true, false, db),
-    ).toEqual({ success: true });
-    expect(
-      await updateCategoryReportingScoped(householdId, systemCategoryId, true, true, db),
-    ).toHaveProperty("error");
-    expect(
-      await updateCategoryReportingScoped(householdId, otherCategoryId, true, true, db),
-    ).toHaveProperty("error");
+    expect(await updateCategoryReportingScoped(householdId, categoryId, true, db)).toEqual({
+      success: true,
+    });
+    expect(await updateCategoryReportingScoped(householdId, systemCategoryId, true, db)).toHaveProperty(
+      "error",
+    );
+    expect(await updateCategoryReportingScoped(householdId, otherCategoryId, true, db)).toHaveProperty(
+      "error",
+    );
 
     const rows = await db
-      .select({
-        id: categories.id,
-        includeTransferInSpending: categories.includeTransferInSpending,
-        includeTransferInCashFlow: categories.includeTransferInCashFlow,
-      })
+      .select({ id: categories.id, flag: categories.includeTransferInSpending })
       .from(categories);
-    const values = new Map(rows.map((row) => [row.id, row]));
-    expect(values.get(categoryId)).toMatchObject({
-      includeTransferInSpending: true,
-      includeTransferInCashFlow: false,
-    });
-    expect(values.get(systemCategoryId)).toMatchObject({
-      includeTransferInSpending: false,
-      includeTransferInCashFlow: false,
-    });
-    expect(values.get(otherCategoryId)).toMatchObject({
-      includeTransferInSpending: false,
-      includeTransferInCashFlow: false,
-    });
+    const flags = new Map(rows.map((row) => [row.id, row.flag]));
+    expect(flags.get(categoryId)).toBe(true);
+    expect(flags.get(systemCategoryId)).toBe(false);
+    expect(flags.get(otherCategoryId)).toBe(false);
 
-    expect(
-      await updateCategoryReportingScoped(householdId, categoryId, false, true, db),
-    ).toEqual({ success: true });
-    const [cashFlowOnly] = await db
-      .select({
-        includeTransferInSpending: categories.includeTransferInSpending,
-        includeTransferInCashFlow: categories.includeTransferInCashFlow,
-      })
+    expect(await updateCategoryReportingScoped(householdId, categoryId, false, db)).toEqual({
+      success: true,
+    });
+    const [cleared] = await db
+      .select({ flag: categories.includeTransferInSpending })
       .from(categories)
       .where(eq(categories.id, categoryId));
-    expect(cashFlowOnly).toEqual({
-      includeTransferInSpending: false,
-      includeTransferInCashFlow: true,
-    });
+    expect(cleared.flag).toBe(false);
+  });
+
+  it("never stores the flag on an income category", async () => {
+    const { groupId } = await insertCategoryGroup(db, householdId);
+    const result = await createCategoryScoped(householdId, {
+      groupId,
+      name: "Side income",
+      isIncome: true,
+      includeTransferInSpending: true,
+    }, db);
+    expect(result).toHaveProperty("success", true);
+    const [row] = await db
+      .select({ flag: categories.includeTransferInSpending })
+      .from(categories)
+      .where(eq(categories.id, (result as { id: string }).id));
+    expect(row.flag).toBe(false);
   });
 
   it("deletes an unused custom category but refuses one referenced by a transaction", async () => {
@@ -212,5 +208,45 @@ describe("category actions", () => {
 
     expect(await deleteCategoryScoped(householdId, categoryId, db)).toEqual({ success: true });
     expect(await deleteCategoryGroupScoped(householdId, groupId, db)).toEqual({ success: true });
+  });
+
+  describe("duplicate names", () => {
+    it("rejects a custom category that duplicates a system name, ignoring case and whitespace", async () => {
+      const { groupId } = await insertCategoryGroup(db, householdId, { isSystem: true });
+      await insertCategory(db, householdId, groupId, { name: "Groceries", isSystem: true });
+
+      const result = await createCategoryScoped(
+        householdId,
+        { groupId, name: "  gROCERIES ", isIncome: false },
+        db,
+      );
+      expect(result).toEqual({ error: "A category with that name already exists." });
+    });
+
+    it("rejects renaming to another category's name but allows a case change of its own", async () => {
+      const { groupId } = await insertCategoryGroup(db, householdId);
+      await insertCategory(db, householdId, groupId, { name: "Pets" });
+      const { categoryId } = await insertCategory(db, householdId, groupId, { name: "Hobbies" });
+
+      expect(await renameCategoryScoped(householdId, categoryId, "pets", db)).toEqual({
+        error: "A category with that name already exists.",
+      });
+      expect(await renameCategoryScoped(householdId, categoryId, "HOBBIES", db)).toEqual({
+        success: true,
+      });
+    });
+
+    it("does not treat another household's category name as a duplicate", async () => {
+      const { groupId: otherGroupId } = await insertCategoryGroup(db, otherHouseholdId);
+      await insertCategory(db, otherHouseholdId, otherGroupId, { name: "Shared Name" });
+      const { groupId } = await insertCategoryGroup(db, householdId);
+
+      const result = await createCategoryScoped(
+        householdId,
+        { groupId, name: "Shared Name", isIncome: false },
+        db,
+      );
+      expect(result).toHaveProperty("id");
+    });
   });
 });

@@ -41,6 +41,12 @@ import type { CategoryGroup } from "@/queries/categories";
 
 type ActionResult = { success: true } | { error: string };
 
+const TRANSFER_SPENDING_HELP =
+  "Use \"Count transfers as spending\" for transfers that are really spending, such as rent or " +
+  "paying a person by Zelle or Venmo. Leave it off for credit card payments: the card's own " +
+  "purchases are already counted, so including the payment would count them twice. Brokerage " +
+  "activity is never counted.";
+
 interface CategoryManagerProps {
   groups: CategoryGroup[];
 }
@@ -115,7 +121,6 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const [isIncome, setIsIncome] = useState(false);
   const [includeTransferInSpending, setIncludeTransferInSpending] = useState(false);
-  const [includeTransferInCashFlow, setIncludeTransferInCashFlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -156,7 +161,6 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
         name: categoryName,
         isIncome,
         includeTransferInSpending,
-        includeTransferInCashFlow,
       });
       if ("error" in result) {
         setError(result.error);
@@ -165,7 +169,6 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
       setCategoryName("");
       setIsIncome(false);
       setIncludeTransferInSpending(false);
-      setIncludeTransferInCashFlow(false);
       refresh();
     });
   }
@@ -184,9 +187,9 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
     return result;
   }
 
-  function handleReportingChange(id: string, spending: boolean, cashFlow: boolean) {
+  function handleReportingChange(id: string, spending: boolean) {
     startTransition(async () => {
-      const result = await updateCategoryReporting(id, spending, cashFlow);
+      const result = await updateCategoryReporting(id, spending);
       if ("error" in result) {
         setError(result.error);
         return;
@@ -274,17 +277,10 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
                     <Checkbox
                       checked={includeTransferInSpending}
                       onCheckedChange={setIncludeTransferInSpending}
-                      aria-label="Count transfers in spending reports"
+                      disabled={isIncome}
+                      aria-label="Count transfers as spending"
                     />
-                    Count transfers in spending reports
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={includeTransferInCashFlow}
-                      onCheckedChange={setIncludeTransferInCashFlow}
-                      aria-label="Count transfers in cash flow"
-                    />
-                    Count transfers in cash flow
+                    Count transfers as spending
                   </label>
                 </div>
                 <Button type="submit" size="sm" disabled={pending || groups.length === 0}>
@@ -292,6 +288,7 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
                   Add category
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">{TRANSFER_SPENDING_HELP}</p>
             </form>
           </CardContent>
         </Card>
@@ -348,34 +345,15 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
                         />
                       )}
                     </div>
-                    {!category.isSystem && (
+                    {!category.isSystem && !category.isIncome && (
                       <label className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Checkbox
                           checked={category.includeTransferInSpending}
-                          onCheckedChange={(checked) =>
-                            handleReportingChange(category.id, checked, category.includeTransferInCashFlow)
-                          }
-                          aria-label={`Count transfers in spending reports for ${category.name}`}
+                          onCheckedChange={(checked) => handleReportingChange(category.id, checked)}
+                          aria-label={`Count transfers as spending for ${category.name}`}
                           disabled={pending}
                         />
-                        Count transfers in spending reports
-                      </label>
-                    )}
-                    {!category.isSystem && (
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox
-                          checked={category.includeTransferInCashFlow}
-                          onCheckedChange={(checked) =>
-                            handleReportingChange(
-                              category.id,
-                              category.includeTransferInSpending,
-                              checked,
-                            )
-                          }
-                          aria-label={`Count transfers in cash flow for ${category.name}`}
-                          disabled={pending}
-                        />
-                        Count transfers in cash flow
+                        Count transfers as spending
                       </label>
                     )}
                     {category.isIncome && <Badge variant="secondary">Income</Badge>}

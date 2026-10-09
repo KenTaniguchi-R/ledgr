@@ -6,7 +6,6 @@ import {
   getCategoryTrends,
   getReportNetWorthHistory,
   getCashFlowSankey,
-  getCashFlowSummary,
   getSafeToSpend,
   countAccountsStartingAfter,
   type ReportFilters,
@@ -94,7 +93,7 @@ async function CashFlowPanel({ ctx }: { ctx: ReportContext }) {
   const [sankey, safeToSpend, monthly] = await Promise.all([
     withHousehold(householdId, (tx) => getCashFlowSankey(householdId, filters, tx)),
     withHousehold(householdId, (tx) => getSafeToSpend(householdId, tx)),
-    withHousehold(householdId, (tx) => getCashFlowSummary(householdId, filters, tx)),
+    withHousehold(householdId, (tx) => getIncomeVsExpense(householdId, filters, tx)),
   ]);
   return (
     <ReportCashFlow

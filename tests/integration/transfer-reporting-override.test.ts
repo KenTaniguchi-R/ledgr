@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { LedgrDb } from "../../src/db";
+import { getCurrentMonth, monthBounds } from "../../src/lib/date-utils";
 import {
   insertAccount,
+  insertBudget,
+  insertBudgetCategory,
   insertCategory,
   insertCategoryGroup,
   insertHousehold,
@@ -9,125 +12,144 @@ import {
 } from "./helpers";
 import { createTestDb } from "./setup";
 
-const RANGE = { dateFrom: "2026-09-01", dateTo: "2026-09-30" };
+// Fixtures are derived from the current month: queries compute their own
+// windows from `new Date()`, so a hardcoded date would rot.
+const month = getCurrentMonth();
+const { from: dateFrom, to: dateTo } = monthBounds(month);
+const RANGE = { dateFrom, dateTo };
+const day = (n: number) => `${month}-${String(n).padStart(2, "0")}`;
 
-describe("category transfer reporting override", () => {
+/** Plaid convention: a debit has a positive `amount`; normalizedAmount flips it. */
+const debit = (cents: number) => ({ amount: cents, normalizedAmount: -cents });
+const credit = (cents: number) => ({ amount: -cents, normalizedAmount: cents });
+
+describe("category transfer-as-spending override", () => {
   let db: LedgrDb;
   let close: () => Promise<void>;
   let householdId: string;
+  let otherHouseholdId: string;
   let accountId: string;
-  let ordinaryCategoryId: string;
-  let cardPaymentCategoryId: string;
-  let debtCategoryId: string;
-  let incomeCategoryId: string;
+  let everydayId: string;
+  let rentId: string;
+  let systemOptInId: string;
+  let incomeId: string;
+  let otherRentId: string;
 
   beforeAll(async () => {
     ({ db, close } = await createTestDb());
     ({ householdId } = await insertHousehold(db, "Primary"));
+    ({ householdId: otherHouseholdId } = await insertHousehold(db, "Other"));
     ({ accountId } = await insertAccount(db, householdId));
+    const { accountId: otherAccountId } = await insertAccount(db, otherHouseholdId);
 
     const { groupId } = await insertCategoryGroup(db, householdId, { name: "Expenses" });
-    ({ categoryId: ordinaryCategoryId } = await insertCategory(db, householdId, groupId, {
+    ({ categoryId: everydayId } = await insertCategory(db, householdId, groupId, {
       name: "Everyday",
     }));
-    ({ categoryId: cardPaymentCategoryId } = await insertCategory(db, householdId, groupId, {
-      name: "Card payment",
-      includeTransferInSpending: false,
-      includeTransferInCashFlow: true,
-    }));
-    ({ categoryId: debtCategoryId } = await insertCategory(db, householdId, groupId, {
-      name: "Installment payment",
+    ({ categoryId: rentId } = await insertCategory(db, householdId, groupId, {
+      name: "Rent (Zelle)",
       includeTransferInSpending: true,
-      includeTransferInCashFlow: false,
     }));
-
+    // A system category can never opt in, even if its row is edited by hand.
+    ({ categoryId: systemOptInId } = await insertCategory(db, householdId, groupId, {
+      name: "System opt-in",
+      includeTransferInSpending: true,
+      isSystem: true,
+    }));
     const { groupId: incomeGroupId } = await insertCategoryGroup(db, householdId, {
       name: "Income",
     });
-    ({ categoryId: incomeCategoryId } = await insertCategory(db, householdId, incomeGroupId, {
+    ({ categoryId: incomeId } = await insertCategory(db, householdId, incomeGroupId, {
       name: "Pay",
       isIncome: true,
     }));
 
+    // Counted: ordinary spending 1,000.
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-02",
-      normalizedAmount: -1000,
-      amount: 1000,
-      categoryId: ordinaryCategoryId,
-      name: "Ordinary expense",
+      date: day(2),
+      ...debit(1000),
+      categoryId: everydayId,
+      name: "Groceries",
     });
+    // Counted: opted-in outgoing transfer 5,000.
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-03",
-      normalizedAmount: -2000,
-      amount: 2000,
-      categoryId: ordinaryCategoryId,
-      name: "Ordinary transfer",
+      date: day(3),
+      ...debit(5000),
+      categoryId: rentId,
+      name: "Zelle to landlord",
+      isTransfer: true,
+      transferSource: "pattern",
+    });
+    // Counted: the paired leg that sits in the opted-in category, 4,000.
+    await insertTransaction(db, householdId, accountId, {
+      date: day(4),
+      ...debit(4000),
+      categoryId: rentId,
+      name: "Zelle to roommate (paired)",
+      isTransfer: true,
+      transferSource: "auto",
+      transferPairId: "paired-leg-elsewhere",
+    });
+    // Excluded: transfer in a category that did not opt in.
+    await insertTransaction(db, householdId, accountId, {
+      date: day(5),
+      ...debit(2000),
+      categoryId: everydayId,
+      name: "Move to savings",
       isTransfer: true,
     });
+    // Excluded: brokerage activity, even in an opted-in category.
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-04",
-      normalizedAmount: -3000,
-      amount: 3000,
-      categoryId: cardPaymentCategoryId,
-      name: "Payment transfer",
+      date: day(6),
+      ...debit(7000),
+      categoryId: rentId,
+      name: "Brokerage buy",
       isTransfer: true,
-      transferPairId: "paired-card-row",
+      transferSource: "investment_account",
     });
+    // Excluded: incoming transfer in an opted-in category. It is not spending,
+    // and it must not turn into income on the dashboard.
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-05",
-      normalizedAmount: -4000,
-      amount: 4000,
-      categoryId: debtCategoryId,
-      name: "Debt payment",
+      date: day(7),
+      ...credit(3000),
+      categoryId: rentId,
+      name: "Zelle from roommate",
       isTransfer: true,
-      transferPairId: "paired-debt-row",
     });
+    // Excluded: system category with the flag set by hand.
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-05",
-      normalizedAmount: -6000,
-      amount: 6000,
-      categoryId: debtCategoryId,
-      name: "Paired non-transfer row",
-      isTransfer: false,
-      transferPairId: "paired-non-transfer-row",
+      date: day(8),
+      ...debit(6000),
+      categoryId: systemOptInId,
+      name: "System category transfer",
+      isTransfer: true,
     });
+    // Income.
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-06",
-      normalizedAmount: 10000,
-      amount: -10000,
-      categoryId: incomeCategoryId,
+      date: day(9),
+      ...credit(20000),
+      categoryId: incomeId,
       name: "Paycheck",
     });
-    await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-07",
-      normalizedAmount: 8000,
-      amount: -8000,
-      categoryId: cardPaymentCategoryId,
-      name: "Positive payment transfer",
-      isTransfer: true,
-    });
-    await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-07",
-      normalizedAmount: 9000,
-      amount: -9000,
-      categoryId: incomeCategoryId,
-      name: "Income transfer",
-      isTransfer: true,
-    });
 
-    const { householdId: otherHouseholdId } = await insertHousehold(db, "Other");
+    // Another household's opted-in category must not leak in either direction.
     const { groupId: otherGroupId } = await insertCategoryGroup(db, otherHouseholdId);
-    const { categoryId: otherOverrideCategoryId } = await insertCategory(
-      db,
-      otherHouseholdId,
-      otherGroupId,
-      { includeTransferInSpending: true, includeTransferInCashFlow: true },
-    );
+    ({ categoryId: otherRentId } = await insertCategory(db, otherHouseholdId, otherGroupId, {
+      name: "Other rent",
+      includeTransferInSpending: true,
+    }));
+    await insertTransaction(db, otherHouseholdId, otherAccountId, {
+      date: day(3),
+      ...debit(9000),
+      categoryId: otherRentId,
+      name: "Other household transfer",
+      isTransfer: true,
+    });
+    // A row in this household that points at the other household's category.
     await insertTransaction(db, householdId, accountId, {
-      date: "2026-09-08",
-      normalizedAmount: -7000,
-      amount: 7000,
-      categoryId: otherOverrideCategoryId,
+      date: day(10),
+      ...debit(8000),
+      categoryId: otherRentId,
       name: "Cross-household category",
       isTransfer: true,
     });
@@ -137,85 +159,101 @@ describe("category transfer reporting override", () => {
     await close();
   });
 
-  test("includes only opted-in negative transfers and preserves ordinary spending", async () => {
-    const { getSpendingByCategory } = await import("../../src/queries/reports");
+  const SPENT = 1000 + 5000 + 4000;
+
+  test("Reports spending counts the opted-in outgoing transfer, nothing else", async () => {
+    const { getSpendingByCategory, getCategoryTrends } = await import("../../src/queries/reports");
     const rows = await getSpendingByCategory(householdId, RANGE, db);
 
-    expect(rows.find((row) => row.categoryId === ordinaryCategoryId)?.total).toBe(1000);
-    expect(rows.find((row) => row.categoryId === cardPaymentCategoryId)).toBeUndefined();
-    expect(rows.find((row) => row.categoryId === debtCategoryId)?.total).toBe(4000);
-    expect(rows.reduce((total, row) => total + row.total, 0)).toBe(5000);
+    expect(rows.find((r) => r.categoryId === everydayId)?.total).toBe(1000);
+    expect(rows.find((r) => r.categoryId === rentId)?.total).toBe(9000);
+    expect(rows.find((r) => r.categoryId === systemOptInId)).toBeUndefined();
+    expect(rows.find((r) => r.categoryId === otherRentId)).toBeUndefined();
+    expect(rows.reduce((t, r) => t + r.total, 0)).toBe(SPENT);
+
+    const trends = await getCategoryTrends(householdId, RANGE, db);
+    expect(trends.reduce((t, r) => t + r.total, 0)).toBe(SPENT);
   });
 
-  test("uses the independent override for Cash Flow summary and Sankey", async () => {
-    const { getCashFlowSankey, getCashFlowSummary, getIncomeVsExpense } = await import(
-      "../../src/queries/reports"
-    );
+  test("Income vs expense and the Sankey agree with the Spending tab", async () => {
+    const { getIncomeVsExpense, getCashFlowSankey } = await import("../../src/queries/reports");
 
-    const [month] = await getIncomeVsExpense(householdId, RANGE, db);
-    expect(month).toMatchObject({ income: 10000, expenses: 5000, net: 5000 });
-
-    const [cashFlow] = await getCashFlowSummary(householdId, RANGE, db);
-    expect(cashFlow).toMatchObject({ income: 10000, expenses: 4000, net: 6000 });
+    const [row] = await getIncomeVsExpense(householdId, RANGE, db);
+    expect(row).toMatchObject({ income: 20000, expenses: SPENT, net: 20000 - SPENT });
 
     const { links } = await getCashFlowSankey(householdId, RANGE, db);
-    expect(
-      links
-        .filter((link) => link.target === `expense-${cardPaymentCategoryId}`)
-        .reduce((total, link) => total + link.value, 0),
-    ).toBe(3000);
-    expect(
-      links
-        .filter((link) => link.target === `expense-${debtCategoryId}`)
-        .reduce((total, link) => total + link.value, 0),
-    ).toBe(0);
-    expect(
-      links
-        .filter((link) => link.target === "savings")
-        .reduce((total, link) => total + link.value, 0),
-    ).toBe(6000);
+    const into = (id: string) =>
+      links.filter((l) => l.target === `expense-${id}`).reduce((t, l) => t + l.value, 0);
+    expect(into(rentId)).toBe(9000);
+    expect(into(everydayId)).toBe(1000);
   });
 
-  test("keeps Safe to Spend on ordinary spending semantics", async () => {
+  test("budgets count the opted-in transfer in its category", async () => {
+    const { getBudgetForMonth } = await import("../../src/queries/budgets");
+    const { budgetId } = await insertBudget(db, householdId, { month });
+    await insertBudgetCategory(db, budgetId, rentId, { limitAmount: 20000 });
+
+    const result = await getBudgetForMonth(householdId, month, db);
+    const rent = result.groups.flatMap((g) => g.categories).find((c) => c.categoryId === rentId);
+    expect(rent?.spent).toBe(9000);
+    expect(result.summary.totalSpent).toBe(SPENT);
+  });
+
+  test("dashboard summary and cash-flow chart use the same population", async () => {
+    const { getDashboardSummary, getCashFlow } = await import("../../src/queries/dashboard");
+
+    const summary = await getDashboardSummary(householdId, month, db);
+    expect(summary.monthlyExpenses).toBe(SPENT);
+    // The incoming opted-in transfer is not income.
+    expect(summary.monthlyIncome).toBe(20000);
+
+    const flow = await getCashFlow(householdId, 3, db);
+    const current = flow.find((r) => r.month === month);
+    expect(current).toMatchObject({ income: 20000, expenses: SPENT });
+  });
+
+  test("Safe to Spend counts it as discretionary spending", async () => {
     const { getSafeToSpend } = await import("../../src/queries/reports");
-    const result = await getSafeToSpend(householdId, db, "2026-09");
-
-    expect(result).toMatchObject({
-      monthlyIncome: 10000,
-      recurringExpenses: 0,
-      discretionarySpent: 5000,
-      safeToSpend: 5000,
-    });
+    const result = await getSafeToSpend(householdId, db, month);
+    expect(result.monthlyIncome).toBe(20000);
+    expect(result.discretionarySpent).toBe(SPENT);
   });
 
-  test("does not honor an override category owned by another household", async () => {
-    const { getCategoryTrends } = await import("../../src/queries/reports");
-    const rows = await getCategoryTrends(householdId, RANGE, db);
+  test("Transactions totals and the Expenses filter match", async () => {
+    const { getTransactionSummary, getTransactions } = await import(
+      "../../src/queries/transactions"
+    );
+    const filters = { dateFrom, dateTo };
 
-    expect(rows.reduce((total, row) => total + row.total, 0)).toBe(5000);
+    const summary = await getTransactionSummary(householdId, filters, db);
+    expect(summary.totalExpense).toBe(SPENT);
+    expect(summary.totalIncome).toBe(20000);
+
+    const page = await getTransactions(
+      householdId,
+      { ...filters, transactionType: "expense" },
+      50,
+      null,
+      db,
+    );
+    expect(page.rows.reduce((t, r) => t + Math.abs(r.normalizedAmount), 0)).toBe(SPENT);
   });
-  test("uses Cash Flow inclusion for outflow drill-downs only", async () => {
+
+  test("drill-down total matches the chart and omits brokerage rows", async () => {
     const { getDrillDownTransactions } = await import("../../src/queries/reports");
-
-    const cashFlow = await getDrillDownTransactions(
+    const result = await getDrillDownTransactions(
       householdId,
-      {
-        ...RANGE,
-        categoryId: cardPaymentCategoryId,
-        type: "expense",
-        reportContext: "cash-flow",
-      },
+      { ...RANGE, categoryId: rentId, type: "expense" },
       50,
       db,
     );
-    const spending = await getDrillDownTransactions(
-      householdId,
-      { ...RANGE, categoryId: cardPaymentCategoryId, type: "expense" },
-      50,
-      db,
-    );
+    expect(result).toMatchObject({ total: 9000, matchCount: 2 });
+    expect(result.rows.every((r) => r.transferSource !== "investment_account")).toBe(true);
+  });
 
-    expect(cashFlow).toMatchObject({ total: 3000, matchCount: 1 });
-    expect(spending).toMatchObject({ total: 0, matchCount: 0 });
+  test("the other household's own flag still works for that household", async () => {
+    const { getSpendingByCategory } = await import("../../src/queries/reports");
+    const rows = await getSpendingByCategory(otherHouseholdId, RANGE, db);
+    expect(rows.find((r) => r.categoryId === otherRentId)?.total).toBe(9000);
   });
 });

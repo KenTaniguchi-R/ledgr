@@ -2,6 +2,7 @@ import { eq, and, ilike, gte, lte, lt, gt, isNull, desc, sql, inArray, type SQL 
 import { db as defaultDb, type LedgrDb } from "@/db";
 import { transactions, categories, categoryGroups, merchants, accounts, transactionSplits, type CategorySource } from "@/db/schema";
 import { scopedQuery } from "@/lib/scoped-query";
+import { includedInSpending } from "@/queries/shared-conditions";
 import { notDeleted, notHidden, encodeCursor, decodeCursor, countRows } from "@/lib/query-helpers";
 
 export interface TransactionFilters {
@@ -51,62 +52,6 @@ export interface TransactionRow {
 export interface TransactionPage {
   rows: TransactionRow[];
   nextCursor: string | null;
-}
-
-/**
- * Narrow transaction fact exposed to read-only finance tool consumers.
- *
- * amountCents uses Ledgr's normalized, human-facing sign convention and remains
- * an integer number of cents.
- */
-export interface ToolTransaction {
-  id: string;
-  date: string;
-  name: string;
-  amountCents: number;
-  currency: string;
-  accountId: string;
-  accountName: string;
-  categoryId: string | null;
-  categoryName: string | null;
-  isTransfer: boolean;
-  pending: boolean;
-  notes: string | null;
-  hasSplits: boolean;
-}
-
-export interface ToolTransactionPage {
-  transactions: ToolTransaction[];
-  nextCursor: string | null;
-}
-
-export async function getToolTransactions(
-  householdId: string,
-  filters: TransactionFilters = {},
-  limit = 50,
-  cursor: string | null = null,
-  db: LedgrDb = defaultDb,
-): Promise<ToolTransactionPage> {
-  const page = await getTransactions(householdId, filters, limit, cursor, db);
-
-  return {
-    transactions: page.rows.map((transaction) => ({
-      id: transaction.id,
-      date: transaction.date,
-      name: transaction.name,
-      amountCents: transaction.normalizedAmount,
-      currency: transaction.currency,
-      accountId: transaction.accountId,
-      accountName: transaction.accountName,
-      categoryId: transaction.categoryId,
-      categoryName: transaction.categoryName,
-      isTransfer: transaction.isTransfer,
-      pending: transaction.pending,
-      notes: transaction.notes,
-      hasSplits: transaction.hasSplits,
-    })),
-    nextCursor: page.nextCursor,
-  };
 }
 
 const transactionSelectFields = {
@@ -177,7 +122,10 @@ export function baseTransactionQuery(db: LedgrDb, householdId: string) {
   return { scoped, select, from, joins };
 }
 
-function buildTransactionConditions(filters: TransactionFilters): (SQL | undefined)[] {
+function buildTransactionConditions(
+  filters: TransactionFilters,
+  spendingIncluded: SQL,
+): (SQL | undefined)[] {
   // Hidden rows are excluded by default, same as deleted ones — not just
   // when some other filter happens to be set. `filters.hidden === true`
   // flips this into the one dedicated view that shows them.
@@ -213,8 +161,10 @@ function buildTransactionConditions(filters: TransactionFilters): (SQL | undefin
     conditions.push(sql`abs(${transactions.normalizedAmount}) <= ${filters.amountMax}`);
   }
   if (filters.transactionType === "expense") {
+    // Same population as the summary's expense total and the Reports spending
+    // figures: transfers count only when their category opts in.
     conditions.push(lt(transactions.normalizedAmount, 0));
-    conditions.push(eq(transactions.isTransfer, false));
+    conditions.push(spendingIncluded);
   }
   if (filters.transactionType === "credits") {
     conditions.push(gt(transactions.normalizedAmount, 0));
@@ -234,7 +184,8 @@ export async function getTransactions(
   cursor: string | null = null,
   db: LedgrDb = defaultDb,
 ): Promise<TransactionPage> {
-  return fetchTransactionPage(householdId, buildTransactionConditions(filters), limit, cursor, db);
+  const spendingIncluded = await includedInSpending(householdId, db);
+  return fetchTransactionPage(householdId, buildTransactionConditions(filters, spendingIncluded), limit, cursor, db);
 }
 
 /**
@@ -330,14 +281,15 @@ export async function getTransactionSummary(
   filters: TransactionFilters,
   db: LedgrDb = defaultDb,
 ): Promise<TransactionSummary> {
-  const conditions = buildTransactionConditions(filters);
+  const spendingIncluded = await includedInSpending(householdId, db);
+  const conditions = buildTransactionConditions(filters, spendingIncluded);
   const base = baseTransactionQuery(db, householdId);
 
   const [result] = await base.joins(
     db
       .select({
         count: countRows(),
-        totalExpense: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} < 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN abs(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
+        totalExpense: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} < 0 AND ${spendingIncluded} AND ${transactions.pending} = false THEN abs(${transactions.normalizedAmount}) ELSE 0 END), 0)`.mapWith(Number),
         totalIncome: sql<number>`coalesce(sum(CASE WHEN ${transactions.normalizedAmount} > 0 AND ${transactions.isTransfer} = false AND ${transactions.pending} = false THEN ${transactions.normalizedAmount} ELSE 0 END), 0)`.mapWith(Number),
       })
       .from(transactions)

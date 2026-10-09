@@ -1,1 +1,0 @@
-ALTER TABLE "categories" ADD COLUMN "include_transfer_in_cash_flow" boolean DEFAULT false NOT NULL;
