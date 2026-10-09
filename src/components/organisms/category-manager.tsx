@@ -10,6 +10,7 @@ import {
   deleteCategoryGroup,
   renameCategory,
   renameCategoryGroup,
+  updateCategoryReporting,
 } from "@/actions/categories";
 import { CategoryIcon } from "@/components/atoms/category-icon";
 import { EditableText } from "@/components/molecules/editable-text";
@@ -39,6 +40,12 @@ import {
 import type { CategoryGroup } from "@/queries/categories";
 
 type ActionResult = { success: true } | { error: string };
+
+const TRANSFER_SPENDING_HELP =
+  "Use \"Count transfers as spending\" for transfers that are really spending, such as rent or " +
+  "paying a person by Zelle or Venmo. Leave it off for credit card payments: the card's own " +
+  "purchases are already counted, so including the payment would count them twice. Brokerage " +
+  "activity is never counted.";
 
 interface CategoryManagerProps {
   groups: CategoryGroup[];
@@ -113,6 +120,7 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
   const [categoryName, setCategoryName] = useState("");
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const [isIncome, setIsIncome] = useState(false);
+  const [includeTransferInSpending, setIncludeTransferInSpending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -152,6 +160,7 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
         groupId: selectedGroupId,
         name: categoryName,
         isIncome,
+        includeTransferInSpending,
       });
       if ("error" in result) {
         setError(result.error);
@@ -159,6 +168,7 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
       }
       setCategoryName("");
       setIsIncome(false);
+      setIncludeTransferInSpending(false);
       refresh();
     });
   }
@@ -175,6 +185,17 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
     if ("error" in result) setError(result.error);
     else refresh();
     return result;
+  }
+
+  function handleReportingChange(id: string, spending: boolean) {
+    startTransition(async () => {
+      const result = await updateCategoryReporting(id, spending);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      refresh();
+    });
   }
 
   return (
@@ -242,20 +263,32 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={isIncome}
-                    onCheckedChange={setIsIncome}
-                    aria-label="Income category"
-                  />
-                  Income category
-                </label>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={isIncome}
+                      onCheckedChange={setIsIncome}
+                      aria-label="Income category"
+                    />
+                    Income category
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={includeTransferInSpending}
+                      onCheckedChange={setIncludeTransferInSpending}
+                      disabled={isIncome}
+                      aria-label="Count transfers as spending"
+                    />
+                    Count transfers as spending
+                  </label>
+                </div>
                 <Button type="submit" size="sm" disabled={pending || groups.length === 0}>
                   <Plus className="size-4" />
                   Add category
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">{TRANSFER_SPENDING_HELP}</p>
             </form>
           </CardContent>
         </Card>
@@ -312,6 +345,17 @@ export function CategoryManager({ groups }: CategoryManagerProps) {
                         />
                       )}
                     </div>
+                    {!category.isSystem && !category.isIncome && (
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={category.includeTransferInSpending}
+                          onCheckedChange={(checked) => handleReportingChange(category.id, checked)}
+                          aria-label={`Count transfers as spending for ${category.name}`}
+                          disabled={pending}
+                        />
+                        Count transfers as spending
+                      </label>
+                    )}
                     {category.isIncome && <Badge variant="secondary">Income</Badge>}
                     <Badge variant={category.isSystem ? "secondary" : "outline"}>
                       {category.isSystem ? "System" : "Custom"}

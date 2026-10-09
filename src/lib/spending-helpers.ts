@@ -9,7 +9,7 @@ import {
 import { scopedQuery } from "@/lib/scoped-query";
 import { notDeleted, notHidden, sumAbs, sumCol } from "@/lib/query-helpers";
 import { UNCATEGORIZED, resolvedCategoryLabel } from "@/lib/labels";
-import { notIncome, getIncomeCategoryIds } from "@/queries/shared-conditions";
+import { getIncomeCategoryIds, includedInSpending, notIncome } from "@/queries/shared-conditions";
 import type { ReportFilters } from "@/queries/reports";
 
 export interface SpendingChartItem {
@@ -25,8 +25,8 @@ export interface SpendingChartItem {
 /**
  * The one definition of spending. Every Reports tab that answers "how much did
  * I spend?" builds on this, and so does the drill-down that explains any of
- * those figures: a settled, non-transfer, negative charge outside an income
- * category.
+ * those figures: a settled negative charge outside an income category. Transfer
+ * rows count only when their category explicitly opts into spending reports.
  */
 export async function spendingBaseConditions(householdId: string, filters: ReportFilters, db: LedgrDb) {
   const conditions = [
@@ -34,8 +34,7 @@ export async function spendingBaseConditions(householdId: string, filters: Repor
     notHidden(transactions),
     lt(transactions.normalizedAmount, 0),
     eq(transactions.pending, false),
-    eq(transactions.isTransfer, false),
-    isNull(transactions.transferPairId),
+    await includedInSpending(householdId, db),
     gte(transactions.date, filters.dateFrom),
     lte(transactions.date, filters.dateTo),
     await notIncome(householdId, db),

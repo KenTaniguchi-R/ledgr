@@ -15,6 +15,7 @@ vi.mock("@/actions/categories", () => ({
   deleteCategoryGroup: vi.fn(),
   renameCategory: vi.fn(),
   renameCategoryGroup: vi.fn(),
+  updateCategoryReporting: vi.fn(),
 }));
 
 const groups: CategoryGroup[] = [
@@ -30,6 +31,7 @@ const groups: CategoryGroup[] = [
         name: "Groceries",
         icon: null,
         isIncome: false,
+        includeTransferInSpending: false,
         isSystem: true,
         sortOrder: 0,
       },
@@ -47,6 +49,7 @@ const groups: CategoryGroup[] = [
         name: "Childcare",
         icon: null,
         isIncome: false,
+        includeTransferInSpending: false,
         isSystem: false,
         sortOrder: 0,
       },
@@ -93,5 +96,15 @@ describe("CategoryManager group selection", () => {
 
     fireEvent.click(renameCategory);
     expect(await screen.findByDisplayValue("Childcare")).not.toBeNull();
+  });
+  it("shows the transfer-as-spending control for custom categories only", async () => {
+    const { CategoryManager } = await import("./category-manager");
+    render(<CategoryManager groups={groups} />);
+
+    // One in the create form, one on the custom category row (none for the
+    // system Groceries row).
+    expect(screen.getAllByRole("checkbox", { name: /^Count transfers as spending/ })).toHaveLength(2);
+    expect(screen.queryByRole("checkbox", { name: /cash flow/i })).toBeNull();
+    expect(screen.getByText(/credit card payments/i)).not.toBeNull();
   });
 });

@@ -30,6 +30,9 @@ export const categories = pgTable(
     name: text("name").notNull(),
     icon: text("icon"),
     isIncome: boolean("is_income").default(false),
+    includeTransferInSpending: boolean("include_transfer_in_spending")
+      .default(false)
+      .notNull(),
     isSystem: boolean("is_system").default(false),
     sortOrder: integer("sort_order").default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

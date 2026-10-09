@@ -15,6 +15,7 @@ import {
   deleteCategoryScoped,
   renameCategoryGroupScoped,
   renameCategoryScoped,
+  updateCategoryReportingScoped,
 } from "../../src/actions/categories";
 import { categories, categoryGroups } from "../../src/db/schema";
 import type { LedgrDb } from "../../src/db";
@@ -67,6 +68,7 @@ describe("category actions", () => {
       groupId: groupResult.id,
       name: "Childcare",
       isSystem: false,
+      includeTransferInSpending: false,
     });
   });
 
@@ -112,6 +114,63 @@ describe("category actions", () => {
     expect(await renameCategoryGroupScoped(householdId, otherGroupId, "Changed", db)).toHaveProperty(
       "error",
     );
+  });
+
+  it("updates the transfer-as-spending flag only for custom categories in the household", async () => {
+    const { groupId } = await insertCategoryGroup(db, householdId);
+    const { categoryId } = await insertCategory(db, householdId, groupId);
+    const { categoryId: systemCategoryId } = await insertCategory(db, householdId, groupId, {
+      isSystem: true,
+    });
+    const { groupId: otherGroupId } = await insertCategoryGroup(db, otherHouseholdId);
+    const { categoryId: otherCategoryId } = await insertCategory(
+      db,
+      otherHouseholdId,
+      otherGroupId,
+    );
+
+    expect(await updateCategoryReportingScoped(householdId, categoryId, true, db)).toEqual({
+      success: true,
+    });
+    expect(await updateCategoryReportingScoped(householdId, systemCategoryId, true, db)).toHaveProperty(
+      "error",
+    );
+    expect(await updateCategoryReportingScoped(householdId, otherCategoryId, true, db)).toHaveProperty(
+      "error",
+    );
+
+    const rows = await db
+      .select({ id: categories.id, flag: categories.includeTransferInSpending })
+      .from(categories);
+    const flags = new Map(rows.map((row) => [row.id, row.flag]));
+    expect(flags.get(categoryId)).toBe(true);
+    expect(flags.get(systemCategoryId)).toBe(false);
+    expect(flags.get(otherCategoryId)).toBe(false);
+
+    expect(await updateCategoryReportingScoped(householdId, categoryId, false, db)).toEqual({
+      success: true,
+    });
+    const [cleared] = await db
+      .select({ flag: categories.includeTransferInSpending })
+      .from(categories)
+      .where(eq(categories.id, categoryId));
+    expect(cleared.flag).toBe(false);
+  });
+
+  it("never stores the flag on an income category", async () => {
+    const { groupId } = await insertCategoryGroup(db, householdId);
+    const result = await createCategoryScoped(householdId, {
+      groupId,
+      name: "Side income",
+      isIncome: true,
+      includeTransferInSpending: true,
+    }, db);
+    expect(result).toHaveProperty("success", true);
+    const [row] = await db
+      .select({ flag: categories.includeTransferInSpending })
+      .from(categories)
+      .where(eq(categories.id, (result as { id: string }).id));
+    expect(row.flag).toBe(false);
   });
 
   it("deletes an unused custom category but refuses one referenced by a transaction", async () => {

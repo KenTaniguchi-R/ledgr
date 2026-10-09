@@ -105,15 +105,27 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
     setOpenId(null);
   }
 
+  const transferOptIn = useMemo(
+    () =>
+      new Set(
+        categories.flatMap((g) =>
+          g.categories
+            .filter((c) => c.includeTransferInSpending && !c.isIncome && !c.isSystem)
+            .map((c) => c.id),
+        ),
+      ),
+    [categories],
+  );
+
   const exitReasons = useMemo(() => {
     const map = new Map<string, string>();
     if (!filter) return map;
     for (const r of rows) {
-      const reason = drillDownExitReason(r, filter.categoryId);
+      const reason = drillDownExitReason(r, filter.categoryId, transferOptIn);
       if (reason) map.set(r.id, reason);
     }
     return map;
-  }, [rows, filter]);
+  }, [rows, filter, transferOptIn]);
 
   const exitedTotal = useMemo(
     () => rows.reduce((s, r) => (exitReasons.has(r.id) ? s + Math.abs(r.normalizedAmount) : s), 0),
