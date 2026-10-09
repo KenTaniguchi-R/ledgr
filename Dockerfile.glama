@@ -1,0 +1,12 @@
+# Glama-only image: serves Ledgr's MCP tool catalog over stdio so Glama can
+# start it and call tools/list. It needs no Postgres, secrets or OAuth, and
+# its tools return an error instead of data. The app image is ./Dockerfile.
+FROM node:24-slim
+WORKDIR /app
+# Pinned: a bare `corepack enable` picks up whatever pnpm is newest.
+RUN corepack enable && corepack prepare pnpm@11.17.0 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY . .
+USER node
+CMD ["node", "--import", "tsx", "scripts/mcp-catalog.ts"]
