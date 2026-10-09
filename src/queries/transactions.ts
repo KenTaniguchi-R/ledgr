@@ -53,62 +53,6 @@ export interface TransactionPage {
   nextCursor: string | null;
 }
 
-/**
- * Narrow transaction fact exposed to read-only finance tool consumers.
- *
- * amountCents uses Ledgr's normalized, human-facing sign convention and remains
- * an integer number of cents.
- */
-export interface ToolTransaction {
-  id: string;
-  date: string;
-  name: string;
-  amountCents: number;
-  currency: string;
-  accountId: string;
-  accountName: string;
-  categoryId: string | null;
-  categoryName: string | null;
-  isTransfer: boolean;
-  pending: boolean;
-  notes: string | null;
-  hasSplits: boolean;
-}
-
-export interface ToolTransactionPage {
-  transactions: ToolTransaction[];
-  nextCursor: string | null;
-}
-
-export async function getToolTransactions(
-  householdId: string,
-  filters: TransactionFilters = {},
-  limit = 50,
-  cursor: string | null = null,
-  db: LedgrDb = defaultDb,
-): Promise<ToolTransactionPage> {
-  const page = await getTransactions(householdId, filters, limit, cursor, db);
-
-  return {
-    transactions: page.rows.map((transaction) => ({
-      id: transaction.id,
-      date: transaction.date,
-      name: transaction.name,
-      amountCents: transaction.normalizedAmount,
-      currency: transaction.currency,
-      accountId: transaction.accountId,
-      accountName: transaction.accountName,
-      categoryId: transaction.categoryId,
-      categoryName: transaction.categoryName,
-      isTransfer: transaction.isTransfer,
-      pending: transaction.pending,
-      notes: transaction.notes,
-      hasSplits: transaction.hasSplits,
-    })),
-    nextCursor: page.nextCursor,
-  };
-}
-
 const transactionSelectFields = {
   id: transactions.id,
   date: transactions.date,

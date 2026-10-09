@@ -21,63 +21,6 @@ export async function getAccounts(householdId: string, db: LedgrDb = defaultDb) 
 
 export type AccountRow = Awaited<ReturnType<typeof getAccounts>>[number];
 
-/**
- * Public, read-only account shape for finance tool consumers.
- *
- * Monetary values are signed integer cents, matching Ledgr's canonical
- * representation. Connection identifiers and credentials are deliberately not
- * selected so they cannot accidentally reach the API response.
- */
-export interface ToolAccount {
-  id: string;
-  name: string;
-  type: string;
-  subtype: string | null;
-  institution: string | null;
-  isHidden: boolean;
-  currentBalanceCents: number | null;
-  availableBalanceCents: number | null;
-  currency: string | null;
-}
-
-export async function getToolAccounts(
-  householdId: string,
-  db: LedgrDb = defaultDb,
-): Promise<ToolAccount[]> {
-  const scoped = scopedQuery(householdId, db);
-  const rows = await db
-    .select({
-      id: accounts.id,
-      name: accounts.name,
-      type: accounts.type,
-      subtype: accounts.subtype,
-      institution: bankConnections.institutionName,
-      isHidden: accounts.isHidden,
-      currentBalanceCents: accounts.currentBalance,
-      availableBalanceCents: accounts.availableBalance,
-      currency: accounts.currency,
-    })
-    .from(accounts)
-    .leftJoin(
-      bankConnections,
-      and(
-        eq(accounts.bankConnectionId, bankConnections.id),
-        eq(bankConnections.householdId, householdId),
-      ),
-    )
-    .where(scoped.where(accounts, notDeleted(accounts)));
-
-  return rows
-    .map((row) => ({ ...row, isHidden: row.isHidden ?? false }))
-    .sort((a, b) => {
-      const ai = ACCOUNT_TYPES.indexOf(a.type as (typeof ACCOUNT_TYPES)[number]);
-      const bi = ACCOUNT_TYPES.indexOf(b.type as (typeof ACCOUNT_TYPES)[number]);
-      if (ai !== bi) return ai - bi;
-      const byName = a.name.localeCompare(b.name);
-      return byName !== 0 ? byName : a.id.localeCompare(b.id);
-    });
-}
-
 export interface InstitutionGroup {
   institutionName: string;
   connectionId: string | null;
