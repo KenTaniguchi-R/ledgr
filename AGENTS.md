@@ -144,9 +144,11 @@ provenance:
 
 - **Colocate unit tests** with source (`money.test.ts` next to `money.ts`).
   DB-backed tests go in `tests/integration/`, Playwright in `e2e/`.
-- **Vitest is `environment: "node"` and matches `*.test.ts` only.** There is no
-  jsdom project, so React component tests are not currently possible without a
-  config change. Verify component work by running the app.
+- **Vitest defaults to `environment: "node"`.** It matches `*.test.ts` and
+  `src/**/*.test.tsx`; a `.tsx` component test opts into jsdom with a
+  `@vitest-environment jsdom` docblock (see `src/components/ui/toggle-group.test.tsx`).
+  The global setup starts a Postgres testcontainer for every run, unit tests
+  included, so Docker must be reachable even for `src/` tests.
 - **Test DB factory:** `createTestDb()` from `tests/integration/setup.ts` — async,
   one Postgres schema per test file. Use
   `beforeAll(async () => { ({ db, close } = await createTestDb()); })`.
