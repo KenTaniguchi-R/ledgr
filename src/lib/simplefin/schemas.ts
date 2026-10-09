@@ -59,7 +59,8 @@ export type SimplefinConnection = z.infer<typeof SimplefinConnectionSchema>;
 export const SimplefinAccountSchema = z.object({
   id: z.string(),
   name: z.string(),
-  currency: z.string(),
+  // Some institutions behind SimpleFIN Bridge send "" rather than a code (#170).
+  currency: z.string().transform((currency) => currency.trim() || "USD"),
   balance: z.string(),
   "available-balance": z.string().nullable().optional(),
   "balance-date": z.number(),

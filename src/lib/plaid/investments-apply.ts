@@ -10,6 +10,8 @@ import {
   accounts,
 } from "@/db/schema";
 import type { HoldingRow, InvestmentTxnRow } from "./investments-process";
+import type { PlaidAccountBalances } from "./schemas";
+import { plaidAmountToCents, plaidBalanceToCents } from "@/lib/money";
 
 // ─── Apply (Atomic DB Write) ────────────────────────────────────────────────
 
@@ -18,6 +20,7 @@ export async function applyInvestmentsToDb(
   holdingRows: HoldingRow[],
   txnRows: InvestmentTxnRow[],
   itemId: string,
+  accountBalances: PlaidAccountBalances[] = [],
 ): Promise<{ holdingsUpserted: number; txnsInserted: number }> {
   let holdingsUpserted = 0;
   let txnsInserted = 0;
@@ -25,10 +28,22 @@ export async function applyInvestmentsToDb(
 
   await db.transaction(async (tx) => {
     const itemAccounts = await tx
-      .select({ id: accounts.id })
+      .select({ id: accounts.id, externalAccountId: accounts.externalAccountId, type: accounts.type })
       .from(accounts)
       .where(and(eq(accounts.bankConnectionId, itemId), isNull(accounts.deletedAt)));
     const itemAccountIds = itemAccounts.map((a) => a.id);
+
+    // Keep balances and holdings from the same investment snapshot together.
+    // The transaction-sync balance can be older than the holdings response.
+    for (const balance of accountBalances) {
+      const account = itemAccounts.find((a) => a.externalAccountId === balance.account_id);
+      if (!account) continue;
+      await tx.update(accounts).set({
+        currentBalance: plaidBalanceToCents(balance.balances.current, account.type),
+        availableBalance: plaidAmountToCents(balance.balances.available),
+        updatedAt: new Date(),
+      }).where(eq(accounts.id, account.id));
+    }
 
     if (itemAccountIds.length > 0) {
       await tx.delete(investmentHoldings)

@@ -1,10 +1,20 @@
 import { classifyAccountType } from "./account-utils";
 
 export function centsToDisplay(cents: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-  }).format(cents / 100);
+  return currencyFormat(currency).format(cents / 100);
+}
+
+// Stored currency codes come from upstream providers and are not guaranteed to
+// be ISO 4217: SimpleFIN institutions can send "" (#170), and the SimpleFIN
+// spec allows a URL for a custom currency. Intl throws a RangeError on either,
+// which takes down whatever page is rendering the amount, so fall back to USD.
+function currencyFormat(currency: string): Intl.NumberFormat {
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency });
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  }
 }
 
 /**
