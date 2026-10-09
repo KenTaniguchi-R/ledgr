@@ -39,6 +39,8 @@ export const PlaidAccountBalancesSchema = z.object({
   }),
 });
 
+export type PlaidAccountBalances = z.infer<typeof PlaidAccountBalancesSchema>;
+
 export const PlaidSyncResponseSchema = z.object({
   added: z.array(PlaidTransactionSchema),
   modified: z.array(PlaidTransactionSchema),

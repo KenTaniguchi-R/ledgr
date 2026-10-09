@@ -13,8 +13,13 @@ services:
         -c random_page_cost=1.1
     volumes:
       - pgdata:/var/lib/postgresql
+    # Loopback only. The app reaches Postgres over the compose network, so this
+    # mapping exists for host-side tooling (`pnpm dev:db`, `pnpm reset-password`).
+    # A bare "5433:5432" binds every interface, and Docker's published ports
+    # bypass host firewalls like ufw — that would put the database, with its
+    # default password, on the LAN.
     ports:
-      - "${DB_PORT:-5433}:5432"
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ledgr"]
