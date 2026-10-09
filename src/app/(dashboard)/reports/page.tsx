@@ -67,8 +67,11 @@ export default async function ReportsPage({
     getReportFilterAccounts(householdId),
     getSavedReportsByHousehold(householdId),
     // One spend ranking for the range colours every tab, so a category keeps
-    // its colour from Spending to Cash Flow to Trends.
-    withHousehold(householdId, (tx) => aggregateSpending(householdId, filters, tx)),
+    // its colour from Spending to Cash Flow to Trends. The category filter is
+    // left out so narrowing to a few categories doesn't recolour them.
+    withHousehold(householdId, (tx) =>
+      aggregateSpending(householdId, { ...filters, categoryIds: undefined }, tx),
+    ),
   ]);
 
   const ctx: ReportContext = {
