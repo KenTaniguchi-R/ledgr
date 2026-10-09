@@ -6,6 +6,8 @@ const row = {
   categoryName: null as string | null,
   isTransfer: false,
   isHidden: false,
+  normalizedAmount: -5000,
+  transferSource: null as string | null,
 };
 
 describe("drillDownExitReason", () => {
@@ -28,8 +30,35 @@ describe("drillDownExitReason", () => {
   });
 
   it("puts hidden before excluded before category", () => {
-    const edited = { categoryId: "c2", categoryName: "Travel", isTransfer: true, isHidden: true };
+    const edited = { ...row, categoryId: "c2", categoryName: "Travel", isTransfer: true, isHidden: true };
     expect(drillDownExitReason(edited, null)).toBe("Hidden");
     expect(drillDownExitReason({ ...edited, isHidden: false }, null)).toBe("Excluded from spend");
+  });
+
+  describe("transfers and the spending opt-in", () => {
+    const rent = { ...row, categoryId: "rent", categoryName: "Rent (Zelle)", isTransfer: true };
+    const optedIn = new Set(["rent"]);
+
+    it("excludes a transfer by default", () => {
+      expect(drillDownExitReason(rent, "rent")).toBe("Excluded from spend");
+    });
+
+    it("keeps an outgoing transfer in an opted-in category", () => {
+      expect(drillDownExitReason(rent, "rent", optedIn)).toBeNull();
+    });
+
+    it("still excludes a transfer in a category that has not opted in", () => {
+      expect(drillDownExitReason({ ...rent, categoryId: "other" }, undefined, optedIn)).toBe("Excluded from spend");
+    });
+
+    it("still excludes an incoming transfer in an opted-in category", () => {
+      expect(drillDownExitReason({ ...rent, normalizedAmount: 5000 }, "rent", optedIn)).toBe("Excluded from spend");
+    });
+
+    it("never keeps brokerage activity", () => {
+      expect(
+        drillDownExitReason({ ...rent, transferSource: "investment_account" }, "rent", optedIn),
+      ).toBe("Excluded from spend");
+    });
   });
 });

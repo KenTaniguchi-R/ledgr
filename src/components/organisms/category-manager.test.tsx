@@ -32,7 +32,6 @@ const groups: CategoryGroup[] = [
         icon: null,
         isIncome: false,
         includeTransferInSpending: false,
-        includeTransferInCashFlow: false,
         isSystem: true,
         sortOrder: 0,
       },
@@ -51,7 +50,6 @@ const groups: CategoryGroup[] = [
         icon: null,
         isIncome: false,
         includeTransferInSpending: false,
-        includeTransferInCashFlow: false,
         isSystem: false,
         sortOrder: 0,
       },
@@ -99,26 +97,14 @@ describe("CategoryManager group selection", () => {
     fireEvent.click(renameCategory);
     expect(await screen.findByDisplayValue("Childcare")).not.toBeNull();
   });
-  it("shows both reporting controls for custom categories only", async () => {
+  it("shows the transfer-as-spending control for custom categories only", async () => {
     const { CategoryManager } = await import("./category-manager");
     render(<CategoryManager groups={groups} />);
 
-    expect(screen.getAllByRole("checkbox", { name: /^Count transfers in spending reports/ })).toHaveLength(2);
-    expect(screen.getAllByRole("checkbox", { name: /^Count transfers in cash flow/ })).toHaveLength(2);
-    expect(
-      screen.getByRole("checkbox", {
-        name: /Count transfers in spending reports for Childcare/,
-      }),
-    ).not.toBeNull();
-    expect(
-      screen.getByRole("checkbox", {
-        name: /Count transfers in cash flow for Childcare/,
-      }),
-    ).not.toBeNull();
-    expect(
-      screen.queryByRole("checkbox", {
-        name: /Count transfers in cash flow for Groceries/,
-      }),
-    ).toBeNull();
+    // One in the create form, one on the custom category row (none for the
+    // system Groceries row).
+    expect(screen.getAllByRole("checkbox", { name: /^Count transfers as spending/ })).toHaveLength(2);
+    expect(screen.queryByRole("checkbox", { name: /cash flow/i })).toBeNull();
+    expect(screen.getByText(/credit card payments/i)).not.toBeNull();
   });
 });

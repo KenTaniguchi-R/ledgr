@@ -79,7 +79,6 @@ export function ReportCashFlow({
       categoryId: catId,
       categoryName: resolvedCategoryLabel(node?.name),
       type,
-      reportContext: "cash-flow",
       tabContext: "Cash Flow",
     });
   }
