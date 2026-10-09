@@ -176,6 +176,7 @@ On first connection, Ledgr redirects you through an OAuth flow to authorize acce
 | `get_account_summary` | Balance totals by account type |
 | `get_transactions` | Search and filter transactions |
 | `update_transaction_category` | Recategorize a transaction |
+| `mark_transaction_transfer` | Mark or unmark a transaction as a transfer |
 | `get_budget` | Budget progress for a month |
 | `set_budget_category` | Set a category's budget amount |
 | `list_categories` | Spending categories |
