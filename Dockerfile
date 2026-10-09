@@ -40,6 +40,9 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# The official MCP registry reads this label to confirm the image belongs to
+# the server it is published under. It must sit in the final stage.
+LABEL io.modelcontextprotocol.server.name="io.github.KenTaniguchi-R/ledgr"
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
