@@ -6,9 +6,12 @@ import {
   insertPlaidItem,
   insertInvestmentHolding,
 } from "./helpers";
-import { applyInvestmentsToDb, snapshotHoldings } from "@/lib/plaid/investments";
+import { applyInvestmentsToDb, snapshotHoldings, syncInvestments } from "@/lib/plaid/investments";
+import * as plaidClient from "@/lib/plaid/client";
+import type { PlaidApi } from "plaid";
+import { getPortfolioSummary } from "@/queries/investments";
 import type { HoldingRow, InvestmentTxnRow } from "@/lib/plaid/investments";
-import { investmentHoldings, holdingsHistory, investmentTransactions } from "@/db/schema";
+import { accounts, investmentHoldings, holdingsHistory, investmentTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { LedgrDb } from "@/db";
 import { todayDateString } from "@/lib/date-utils";
@@ -72,7 +75,36 @@ describe("applyInvestmentsToDb", () => {
 
   afterEach(async () => {
     await closeDb?.();
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
+  });
+
+  it("refreshes the portfolio balance from the same response as its holdings", async () => {
+    await db.update(accounts).set({ currentBalance: 250000, availableBalance: 45000 })
+      .where(eq(accounts.id, accountId));
+    vi.spyOn(plaidClient, "getPlaidClient").mockReturnValue({
+      investmentsHoldingsGet: vi.fn().mockResolvedValue({ data: {
+        accounts: [{ account_id: "plaid-acc-ira", balances: {
+          current: 7500.125, available: 500, limit: null, iso_currency_code: "USD",
+        } }],
+        securities: [{ security_id: "sec-1", name: "Example ETF", ticker_symbol: "TST",
+          type: "etf", iso_currency_code: "USD", close_price: 7000.13 }],
+        holdings: [{ account_id: "plaid-acc-ira", security_id: "sec-1", quantity: 1,
+          institution_price: 7000.13, institution_value: 7000.13,
+          cost_basis: 6500, iso_currency_code: "USD" }],
+      } }),
+      investmentsTransactionsGet: vi.fn().mockResolvedValue({ data: {
+        investment_transactions: [], securities: [], total_investment_transactions: 0,
+      } }),
+    } as unknown as PlaidApi);
+
+    expect((await syncInvestments(plaidItemId, householdId, db)).success).toBe(true);
+    const summary = await getPortfolioSummary(householdId, db);
+    expect(summary.holdingsValue).toBe(700013);
+    expect(summary.totalValue).toBe(750013);
+    expect(summary.cashValue).toBe(50000);
+    const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId));
+    expect(account.availableBalance).toBe(50000);
   });
 
   it("inserts holdings and transactions", async () => {
@@ -91,6 +123,22 @@ describe("applyInvestmentsToDb", () => {
     const dbTxns = await db.select().from(investmentTransactions);
     expect(dbTxns).toHaveLength(1);
     expect(dbTxns[0].amount).toBe(75000);
+  });
+
+  it("does not update balances for accounts outside the syncing connection", async () => {
+    const other = await insertAccount(db, householdId, {
+      type: "investment", externalAccountId: "other-plaid-account", currentBalance: 12300,
+    });
+    const balances = { current: 0, available: null, limit: null, iso_currency_code: "USD" };
+    await applyInvestmentsToDb(db, [], [], plaidItemId, [
+      { account_id: "plaid-acc-ira", balances },
+      { account_id: "other-plaid-account", balances },
+    ]);
+    const [own] = await db.select().from(accounts).where(eq(accounts.id, accountId));
+    const [outside] = await db.select().from(accounts).where(eq(accounts.id, other.accountId));
+    expect(own.currentBalance).toBe(0);
+    expect(own.availableBalance).toBeNull();
+    expect(outside.currentBalance).toBe(12300);
   });
 
   it("full-replaces holdings on re-sync", async () => {
