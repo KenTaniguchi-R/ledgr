@@ -94,13 +94,97 @@ export function resolveMerchantLogos(
   return coalesce(`ai-resolve-merchants:${householdId}`, () => runMerchantResolution(householdId, db));
 }
 
+/**
+ * Comparison key for a raw transaction description. Tokens carrying a digit
+ * are dropped so per-charge reference suffixes ("Cloudflare St-t9v3j2d5z7d6",
+ * "Lawson 1234") collapse onto the same key as earlier charges. A name that is
+ * nothing but such tokens ("7-Eleven") keeps its full form instead.
+ */
+export function merchantNameKey(raw: string): string {
+  const tokens = raw.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const stable = tokens.filter((t) => !/\d/.test(t));
+  return (stable.length > 0 ? stable : tokens).join(" ");
+}
+
+/**
+ * Maps every known spelling of each merchant (its display name and every raw
+ * description already linked to it) to that merchant. A key two merchants
+ * both claim maps to null — ambiguous, so it's left for the model to decide.
+ */
+export function buildMerchantNameIndex(
+  known: { id: string; name: string; rawNames: string | null }[],
+): Map<string, string | null> {
+  const index = new Map<string, string | null>();
+  for (const m of known) {
+    const spellings = [m.name, ...(m.rawNames ? (JSON.parse(m.rawNames) as string[]) : [])];
+    for (const spelling of spellings) {
+      const key = merchantNameKey(spelling);
+      if (!key) continue;
+      const claimed = index.get(key);
+      if (claimed === undefined) index.set(key, m.id);
+      else if (claimed !== m.id) index.set(key, null);
+    }
+  }
+  return index;
+}
+
+/**
+ * Links unlinked transactions whose description is a spelling the household
+ * already has a merchant for — no model call needed, so a repeat charge keeps
+ * its logo even while the AI provider is down. Runs over every unlinked row,
+ * including ones the AI pass already gave up on: there is no user action that
+ * unlinks a merchant, so a NULL merchantId never encodes a deliberate choice.
+ */
+async function linkKnownMerchantNames(householdId: string, db: LedgrDb): Promise<number> {
+  return withHousehold(householdId, async (tx) => {
+    const unlinked = await tx
+      .select({ id: transactions.id, name: transactions.name })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.householdId, householdId),
+          isNull(transactions.merchantId),
+          notDeleted(transactions),
+        ),
+      );
+    if (unlinked.length === 0) return 0;
+
+    const known = await tx
+      .select({ id: merchants.id, name: merchants.name, rawNames: merchants.rawNames })
+      .from(merchants)
+      .where(eq(merchants.householdId, householdId));
+    const index = buildMerchantNameIndex(known);
+
+    const txnIdsByMerchantId = new Map<string, string[]>();
+    for (const t of unlinked) {
+      const merchantId = index.get(merchantNameKey(t.name));
+      if (!merchantId) continue;
+      const ids = txnIdsByMerchantId.get(merchantId);
+      if (ids) ids.push(t.id);
+      else txnIdsByMerchantId.set(merchantId, [t.id]);
+    }
+
+    const now = new Date();
+    let linked = 0;
+    for (const [merchantId, ids] of txnIdsByMerchantId) {
+      await tx.update(transactions)
+        .set({ merchantId, updatedAt: now })
+        .where(inArray(transactions.id, ids));
+      linked += ids.length;
+    }
+    return linked;
+  }, db);
+}
+
 async function runMerchantResolution(
   householdId: string,
   db: LedgrDb,
 ): Promise<{ resolved: number; skipped: number }> {
+  const linkedByName = await linkKnownMerchantNames(householdId, db);
+
   const config = getAiConfig();
   const model = createAiModel();
-  if (!config || !model) return { resolved: 0, skipped: 0 };
+  if (!config || !model) return { resolved: linkedByName, skipped: 0 };
 
   // Short-lived transaction — not held open across the batched LLM calls below.
   const candidates = await withHousehold(householdId, (tx) =>
@@ -117,7 +201,7 @@ async function runMerchantResolution(
       ),
   db);
 
-  if (candidates.length === 0) return { resolved: 0, skipped: 0 };
+  if (candidates.length === 0) return { resolved: linkedByName, skipped: 0 };
 
   const batchSize = getBatchSize(config.aiProvider);
   const now = new Date();
@@ -129,6 +213,12 @@ async function runMerchantResolution(
     const rawNameByTxnId = new Map(batch.map((t) => [t.id, t.name]));
 
     let validated: Identifications = [];
+    // Same contract as categorizeWithAi: only a batch the model actually
+    // answered is stamped attempted. A thrown call (provider outage, depleted
+    // credits) or an empty response leaves the rows NULL so the next sync
+    // retries them — stamping them anyway retired a week of rows for good
+    // the last time a provider's credits ran out.
+    let modelAnswered = false;
     try {
       const { output } = await generateText({
         model,
@@ -142,6 +232,11 @@ async function runMerchantResolution(
 
       if (output) {
         validated = validateIdentifications(output.identifications, batchIds);
+        modelAnswered = true;
+      } else {
+        console.error(
+          "AI merchant resolution batch returned no output — leaving rows unstamped for retry",
+        );
       }
     } catch (e) {
       console.error(`AI merchant resolution batch failed:`, e);
@@ -168,20 +263,22 @@ async function runMerchantResolution(
       else txnIdsByMerchantId.set(merchantId, [transactionId]);
     }
 
-    await withHousehold(householdId, async (tx) => {
-      for (const [merchantId, ids] of txnIdsByMerchantId) {
+    if (modelAnswered) {
+      await withHousehold(householdId, async (tx) => {
+        for (const [merchantId, ids] of txnIdsByMerchantId) {
+          await tx.update(transactions)
+            .set({ merchantId, updatedAt: now })
+            .where(inArray(transactions.id, ids));
+        }
         await tx.update(transactions)
-          .set({ merchantId, updatedAt: now })
-          .where(inArray(transactions.id, ids));
-      }
-      await tx.update(transactions)
-        .set({ merchantResolutionAttemptedAt: now })
-        .where(inArray(transactions.id, [...batchIds]));
-    }, db);
+          .set({ merchantResolutionAttemptedAt: now })
+          .where(inArray(transactions.id, [...batchIds]));
+      }, db);
+    }
     resolved += merchantIdByTxnId.size;
   }
 
-  return { resolved, skipped: candidates.length - resolved };
+  return { resolved: linkedByName + resolved, skipped: candidates.length - resolved };
 }
 
 interface MerchantCandidate {
@@ -195,7 +292,9 @@ interface MerchantCandidate {
  * Links each candidate to a merchant row, creating one and fetching its logo
  * (favicon-by-domain) only when the household doesn't already have that
  * merchant — a brand already resolved via Plaid enrichment (or a prior AI
- * guess) is reused as-is rather than re-fetching its logo.
+ * guess) is reused as-is rather than re-fetching its logo. Every raw
+ * description linked here is recorded in the merchant's rawNames, which is
+ * what lets linkKnownMerchantNames match the next charge without the model.
  */
 async function linkOrCreateMerchants(
   db: LedgrDb,
@@ -206,15 +305,24 @@ async function linkOrCreateMerchants(
   if (candidates.length === 0) return merchantIdByTxnId;
 
   const uniqueByName = new Map<string, MerchantCandidate>();
+  const rawNamesByName = new Map<string, Set<string>>();
   for (const c of candidates) {
     if (!uniqueByName.has(c.name)) uniqueByName.set(c.name, c);
+    const raws = rawNamesByName.get(c.name);
+    if (raws) raws.add(c.rawName);
+    else rawNamesByName.set(c.name, new Set([c.rawName]));
   }
 
   // Short-lived — not held open across the per-candidate favicon fetches
   // (network I/O) below.
   const existing = await withHousehold(householdId, (tx) =>
     tx
-      .select({ id: merchants.id, name: merchants.name, logoUrl: merchants.logoUrl })
+      .select({
+        id: merchants.id,
+        name: merchants.name,
+        logoUrl: merchants.logoUrl,
+        rawNames: merchants.rawNames,
+      })
       .from(merchants)
       .where(
         and(
@@ -230,18 +338,23 @@ async function linkOrCreateMerchants(
 
   await Promise.all(
     [...uniqueByName.entries()].map(async ([name, candidate]) => {
+      const newRawNames = rawNamesByName.get(name) ?? new Set([candidate.rawName]);
       const found = existingByName.get(name);
       if (found) {
         merchantIdByName.set(name, found.id);
-        if (!found.logoUrl) {
-          const logo = await fetchFaviconDataUri(candidate.domain);
-          if (logo) {
-            await withHousehold(householdId, (tx) =>
-              tx.update(merchants)
-                .set({ logoUrl: logo, updatedAt: now })
-                .where(eq(merchants.id, found.id)),
-            db);
-          }
+        const knownRaw: string[] = found.rawNames ? JSON.parse(found.rawNames) : [];
+        const mergedRaw = [...new Set([...knownRaw, ...newRawNames])];
+        const logo = found.logoUrl ? null : await fetchFaviconDataUri(candidate.domain);
+        if (logo || mergedRaw.length > knownRaw.length) {
+          await withHousehold(householdId, (tx) =>
+            tx.update(merchants)
+              .set({
+                rawNames: JSON.stringify(mergedRaw),
+                ...(logo ? { logoUrl: logo } : {}),
+                updatedAt: now,
+              })
+              .where(eq(merchants.id, found.id)),
+          db);
         }
         return;
       }
@@ -253,7 +366,7 @@ async function linkOrCreateMerchants(
           id,
           householdId,
           name,
-          rawNames: JSON.stringify([candidate.rawName]),
+          rawNames: JSON.stringify([...newRawNames]),
           logoUrl: logo,
           createdAt: now,
           updatedAt: now,
