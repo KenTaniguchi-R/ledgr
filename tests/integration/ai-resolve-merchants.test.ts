@@ -193,6 +193,7 @@ describe("resolveMerchantLogos", () => {
 
     const allMerchants = await db.select().from(merchants).where(eq(merchants.householdId, HOUSEHOLD_ID));
     expect(allMerchants).toHaveLength(1);
+    expect(JSON.parse(allMerchants[0].rawNames!)).toEqual(["FEDEX*1234", "FedEx Ground"]);
 
     await close();
   });
@@ -235,6 +236,57 @@ describe("resolveMerchantLogos", () => {
     expect(txn.merchantId).toBeNull();
     expect(txn.merchantResolutionAttemptedAt).not.toBeNull();
     expect(fetchFaviconDataUri).not.toHaveBeenCalled();
+
+    await close();
+  });
+
+  it("leaves a batch unstamped when the model call fails, and resolves it on the next run", async () => {
+    await setup();
+    await insertTxn("txn-railway", "Railway");
+
+    vi.mocked(generateText).mockRejectedValueOnce(new Error("Your prepayment credits are depleted."));
+    const failed = await resolveMerchantLogos(HOUSEHOLD_ID, db);
+    expect(failed.resolved).toBe(0);
+
+    const [afterFailure] = await db.select().from(transactions).where(eq(transactions.id, "txn-railway"));
+    expect(afterFailure.merchantResolutionAttemptedAt).toBeNull();
+
+    mockIdentifications([
+      { transactionId: "txn-railway", merchantName: "Railway", merchantDomain: "railway.com" },
+    ]);
+    vi.mocked(fetchFaviconDataUri).mockResolvedValue("data:image/png;base64,cmFpbHdheQ==");
+    const retried = await resolveMerchantLogos(HOUSEHOLD_ID, db);
+    expect(retried.resolved).toBe(1);
+
+    const [afterRetry] = await db.select().from(transactions).where(eq(transactions.id, "txn-railway"));
+    expect(afterRetry.merchantId).not.toBeNull();
+    expect(afterRetry.merchantResolutionAttemptedAt).not.toBeNull();
+
+    await close();
+  });
+
+  it("links a repeat spelling to its known merchant without calling the model, even after a burnt attempt", async () => {
+    await setup();
+    const amazonId = uuid();
+    await db.insert(merchants).values({
+      id: amazonId,
+      householdId: HOUSEHOLD_ID,
+      name: "Amazon Japan",
+      rawNames: JSON.stringify(["Amazon.Co.Jp"]),
+      logoUrl: "data:image/png;base64,YW1hem9u",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    // Stamped by an earlier failed run — the shape of rows left behind by
+    // the outage before this fix.
+    await insertTxn("txn-amazon-new", "Amazon.Co.Jp", { merchantResolutionAttemptedAt: new Date() });
+
+    const result = await resolveMerchantLogos(HOUSEHOLD_ID, db);
+    expect(result.resolved).toBe(1);
+    expect(generateText).not.toHaveBeenCalled();
+
+    const [txn] = await db.select().from(transactions).where(eq(transactions.id, "txn-amazon-new"));
+    expect(txn.merchantId).toBe(amazonId);
 
     await close();
   });

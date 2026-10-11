@@ -39,6 +39,18 @@ describe("createUserModel", () => {
     expect(model).toBeDefined();
   });
 
+  test("creates OpenRouter model with structured outputs on", () => {
+    const model = createUserModel({
+      aiProvider: "openrouter",
+      aiModel: "deepseek/deepseek-v4-flash",
+      aiApiKey: "sk-or-test",
+      confidenceThreshold: 0.7,
+      toolCalling: true,
+    });
+    expect((model as { modelId: string }).modelId).toBe("deepseek/deepseek-v4-flash");
+    expect((model as unknown as { supportsStructuredOutputs: boolean }).supportsStructuredOutputs).toBe(true);
+  });
+
   test("creates custom OpenAI-compatible model", () => {
     const model = createUserModel({
       aiProvider: "custom",

@@ -1,7 +1,7 @@
 import type { LanguageModel } from "ai";
 import { createUserModel, type AiProvider, type ProviderConfig } from "./provider";
 
-const VALID_PROVIDERS: AiProvider[] = ["openai", "anthropic", "google", "custom"];
+const VALID_PROVIDERS: AiProvider[] = ["openai", "anthropic", "google", "openrouter", "custom"];
 
 export function getAiConfig(): ProviderConfig | null {
   const provider = process.env.AI_PROVIDER;
