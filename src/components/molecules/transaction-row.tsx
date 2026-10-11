@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
+import type { TransactionPatch } from "@/hooks/use-transaction-rows";
 import { cn } from "@/lib/utils";
 
 // Account is a column only at lg and up. The breakpoint is on the viewport but
@@ -38,19 +39,26 @@ interface TransactionRowProps {
   isSelected: boolean;
   isActive?: boolean;
   onSelect: (id: string, checked: boolean) => void;
-  onClick?: () => void;
+  /** Opens the detail panel. Takes the id so the parent can pass one stable
+   * callback to every row — an inline closure would defeat `memo`. */
+  onOpen?: (id: string) => void;
   /** Hides the row without opening the detail panel — a quick declutter action. */
-  onVisibilityChange?: (id: string, hidden: boolean) => void;
-  /** CategoryPill saves itself; this just mirrors the result into list state
-   * so the detail panel doesn't reopen this row on the pre-edit category. */
-  onCategoryUpdated?: (id: string, categoryId: string | null, categoryName: string | null) => void;
-  /** Same mirroring, for the reviewed toggle. */
-  onReviewedUpdated?: (id: string, reviewed: boolean) => void;
+  onHiddenChange?: (id: string, hidden: boolean) => void;
+  /** CategoryPill and ReviewedDot save themselves; this mirrors what they
+   * saved into list state, so the detail panel doesn't reopen this row on the
+   * pre-edit value. */
+  onPatch?: (id: string, patch: TransactionPatch) => void;
   /** Sheet layout: no account column at any width. */
   compact?: boolean;
   /** Set when an edit moved this row out of the list it is shown in (see
    * drillDownExitReason); the row stays, dimmed, with this as its caption. */
   exitReason?: string | null;
+}
+
+// The reviewed dot, checkbox and category pill are controls inside a row that
+// is itself a button; a click on them must not also open the panel.
+function stopRowClick(e: React.MouseEvent) {
+  e.stopPropagation();
 }
 
 export const TransactionRow = memo(function TransactionRow({
@@ -59,63 +67,57 @@ export const TransactionRow = memo(function TransactionRow({
   isSelected,
   isActive = false,
   onSelect,
-  onClick,
-  onVisibilityChange,
-  onCategoryUpdated,
-  onReviewedUpdated,
+  onOpen,
+  onHiddenChange,
+  onPatch,
   compact = false,
   exitReason = null,
 }: TransactionRowProps) {
+  const id = txn.id;
+
+  const handleOpen = useCallback(() => onOpen?.(id), [id, onOpen]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        onClick?.();
+        onOpen?.(id);
       }
     },
-    [onClick],
+    [id, onOpen],
   );
 
   const handleCheckboxChange = useCallback(
-    (checked: boolean) => {
-      onSelect(txn.id, checked);
-    },
-    [txn.id, onSelect],
+    (checked: boolean) => onSelect(id, checked),
+    [id, onSelect],
   );
 
-  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-  }, []);
-
-  const handleVisibilityClick = useCallback(
+  const handleHiddenClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onVisibilityChange?.(txn.id, !txn.isHidden);
+      onHiddenChange?.(id, !txn.isHidden);
     },
-    [txn.id, txn.isHidden, onVisibilityChange],
+    [id, txn.isHidden, onHiddenChange],
   );
 
   const handleCategorySaved = useCallback(
-    (categoryId: string | null, categoryName: string | null) => {
-      onCategoryUpdated?.(txn.id, categoryId, categoryName);
-    },
-    [txn.id, onCategoryUpdated],
+    (categoryId: string | null, categoryName: string | null) =>
+      onPatch?.(id, { categoryId, categoryName }),
+    [id, onPatch],
   );
 
   const handleReviewedSaved = useCallback(
-    (reviewed: boolean) => {
-      onReviewedUpdated?.(txn.id, reviewed);
-    },
-    [txn.id, onReviewedUpdated],
+    (reviewed: boolean) => onPatch?.(id, { reviewed }),
+    [id, onPatch],
   );
 
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={onClick}
+      onClick={handleOpen}
       onKeyDown={handleKeyDown}
-      data-txn-row={txn.id}
+      data-txn-row={id}
       className={cn(
         "group/row relative grid items-center h-11 sm:h-9 px-2 border-b border-border/50 text-sm hover:bg-muted/30 transition-colors cursor-pointer",
         compact ? COMPACT_GRID_COLS : TRANSACTION_GRID_COLS,
@@ -123,10 +125,10 @@ export const TransactionRow = memo(function TransactionRow({
         isActive && "bg-muted",
       )}
     >
-      {onVisibilityChange && (
+      {onHiddenChange && (
         <button
           type="button"
-          onClick={handleVisibilityClick}
+          onClick={handleHiddenClick}
           title={txn.isHidden ? "Unhide transaction" : "Hide transaction"}
           aria-label={txn.isHidden ? "Unhide transaction" : "Hide transaction"}
           className={cn(
@@ -141,62 +143,23 @@ export const TransactionRow = memo(function TransactionRow({
         </button>
       )}
 
-      <div onClick={handleCheckboxClick}>
+      <div onClick={stopRowClick}>
         <ReviewedDot
-          key={`${txn.id}-reviewed-${txn.reviewed}`}
-          transactionId={txn.id}
+          key={`${id}-reviewed-${txn.reviewed}`}
+          transactionId={id}
           reviewed={txn.reviewed}
           onSaved={handleReviewedSaved}
         />
       </div>
 
-      <div className="hidden sm:flex items-center justify-center" onClick={handleCheckboxClick}>
+      <div className="hidden sm:flex items-center justify-center" onClick={stopRowClick}>
         <Checkbox
           checked={isSelected}
           onCheckedChange={handleCheckboxChange}
         />
       </div>
 
-      <div className="flex items-center gap-1.5 pr-2 min-w-0">
-        <EntityAvatar
-          logoUrl={txn.merchantLogoUrl}
-          name={txn.merchantName ?? txn.name}
-          pfcPrimary={txn.pfcPrimary}
-          size="sm"
-          className={cn(txn.isTransfer && "opacity-60")}
-        />
-        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-          {txn.pending && <Clock className="size-3 text-muted-foreground shrink-0" />}
-          <span
-            className={cn(
-              "truncate",
-              txn.isTransfer ? "font-normal text-muted-foreground" : "font-medium",
-            )}
-          >
-            {txn.name}
-          </span>
-          {txn.isHidden && (
-            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Hidden</Badge>
-          )}
-          {txn.originalName !== txn.name && (
-            <span className="text-xs text-muted-foreground hidden group-hover/row:inline truncate">
-              ({txn.originalName})
-            </span>
-          )}
-          {exitReason ? (
-            <span className="text-[11px] font-medium text-positive shrink-0">{exitReason}</span>
-          ) : (
-            <span
-              className={cn(
-                "hidden sm:inline text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate",
-                !compact && "lg:hidden",
-              )}
-            >
-              {txn.accountName && accountDisplayName(txn.accountName)}
-            </span>
-          )}
-        </div>
-      </div>
+      <TransactionDescription txn={txn} compact={compact} exitReason={exitReason} />
 
       <div className={cn("hidden min-w-0 pr-2 text-xs text-muted-foreground", !compact && "lg:block")}>
         <span className="block truncate">
@@ -204,10 +167,10 @@ export const TransactionRow = memo(function TransactionRow({
         </span>
       </div>
 
-      <div className="min-w-0" onClick={handleCheckboxClick}>
+      <div className="min-w-0" onClick={stopRowClick}>
         <CategoryPill
-          key={`${txn.id}-cat-${txn.categoryId}`}
-          transactionId={txn.id}
+          key={`${id}-cat-${txn.categoryId}`}
+          transactionId={id}
           currentCategoryId={txn.categoryId}
           currentCategoryName={txn.categoryName}
           categories={categories}
@@ -235,3 +198,58 @@ export const TransactionRow = memo(function TransactionRow({
     </div>
   );
 });
+
+/** The description cell: avatar, name, and the status marks that ride along
+ * with the name rather than taking a column of their own. */
+function TransactionDescription({
+  txn,
+  compact,
+  exitReason,
+}: {
+  txn: TxnRow;
+  compact: boolean;
+  exitReason: string | null;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 pr-2 min-w-0">
+      <EntityAvatar
+        logoUrl={txn.merchantLogoUrl}
+        name={txn.merchantName ?? txn.name}
+        pfcPrimary={txn.pfcPrimary}
+        size="sm"
+        className={cn(txn.isTransfer && "opacity-60")}
+      />
+      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+        {txn.pending && <Clock className="size-3 text-muted-foreground shrink-0" />}
+        <span
+          className={cn(
+            "truncate",
+            txn.isTransfer ? "font-normal text-muted-foreground" : "font-medium",
+          )}
+        >
+          {txn.name}
+        </span>
+        {txn.isHidden && (
+          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Hidden</Badge>
+        )}
+        {txn.originalName !== txn.name && (
+          <span className="text-xs text-muted-foreground hidden group-hover/row:inline truncate">
+            ({txn.originalName})
+          </span>
+        )}
+        {exitReason ? (
+          <span className="text-[11px] font-medium text-positive shrink-0">{exitReason}</span>
+        ) : (
+          <span
+            className={cn(
+              "hidden sm:inline text-[10px] text-muted-foreground shrink-0 max-w-[100px] truncate",
+              !compact && "lg:hidden",
+            )}
+          >
+            {txn.accountName && accountDisplayName(txn.accountName)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
