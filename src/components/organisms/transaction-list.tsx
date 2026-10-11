@@ -11,10 +11,10 @@ import { TransactionDateHeader } from "@/components/molecules/transaction-date-h
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
 import { TransactionDetailPanel } from "@/components/organisms/transaction-detail-panel";
 import { loadMoreTransactions } from "@/actions/transactions";
-import { updateTransactionFields } from "@/actions/transaction-detail";
 import { groupByDate } from "@/lib/transactions";
 import { summarizeDay } from "@/lib/transaction-day-summary";
 import { useSelectedTransaction } from "@/hooks/use-selected-transaction";
+import { useTransactionRows } from "@/hooks/use-transaction-rows";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import type { TransactionRow as TxnRow, TransactionFilters } from "@/queries/transactions";
@@ -37,7 +37,7 @@ export function TransactionList({
 }: TransactionListProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
-  const [rows, setRows] = useState(initialRows);
+  const { rows: allRows, setRows, patchRow, appendRows, setHidden } = useTransactionRows(initialRows);
   const [cursor, setCursor] = useState(nextCursor);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -63,11 +63,21 @@ export function TransactionList({
   const isTransferReviewMode = mode === "review-transfers";
   const showingHidden = filters.hidden === true;
 
+  // The ledger shows either the hidden rows or everything else, never both.
+  // Hiding a row only flips its flag; it drops out here, and comes back on its
+  // own if the save fails and the flag flips back.
+  const rows = useMemo(
+    () => allRows.filter((r) => r.isHidden === showingHidden),
+    [allRows, showingHidden],
+  );
+
   const groups = useMemo(() => groupByDate(rows), [rows]);
 
+  // From every row, not just the shown ones: hiding the open transaction from
+  // the panel's own switch keeps the panel on it.
   const selectedRow = useMemo(
-    () => (selectedId ? rows.find((r) => r.id === selectedId) ?? null : null),
-    [selectedId, rows],
+    () => (selectedId ? allRows.find((r) => r.id === selectedId) ?? null : null),
+    [selectedId, allRows],
   );
 
   const isPanelOpen = selectedId !== null;
@@ -125,7 +135,7 @@ export function TransactionList({
     setLoadingMore(true);
     try {
       const page = await loadMoreTransactions(filters, cursor);
-      setRows((prev) => [...prev, ...page.rows]);
+      appendRows(page.rows);
       setCursor(page.nextCursor);
     } finally {
       setLoadingMore(false);
@@ -137,41 +147,14 @@ export function TransactionList({
     router.refresh();
   }
 
-  const handleTransactionUpdated = useCallback((updated: TxnRow) => {
-    setRows((prev) => {
-      if (updated.isHidden !== showingHidden) {
-        return prev.filter((r) => r.id !== updated.id);
-      }
-      return prev.map((r) => (r.id === updated.id ? updated : r));
-    });
-  }, [showingHidden]);
-
-  const handleCategoryUpdated = useCallback(
-    (id: string, categoryId: string | null, categoryName: string | null) => {
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, categoryId, categoryName } : r)));
-    },
-    [],
-  );
-
-  const handleReviewedUpdated = useCallback((id: string, reviewed: boolean) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, reviewed } : r)));
-  }, []);
-
-  // Quick-hide from the row itself: since the default ledger view excludes
-  // hidden rows, hiding one has to drop it from `rows` immediately rather
-  // than wait for a refetch — the same reason the panel below closes when
-  // it was showing the row being hidden.
-  const handleVisibilityChange = useCallback(
+  // Quick-hide from the row itself closes the panel if it was showing that
+  // row; the row has left the list it was opened from.
+  const handleHiddenChange = useCallback(
     (id: string, hidden: boolean) => {
-      const prevRows = rows;
-      setRows((prev) => prev.filter((r) => r.id !== id));
+      setHidden(id, hidden);
       if (selectedId === id) clear();
-
-      updateTransactionFields(id, { isHidden: hidden }).then((result) => {
-        if ("error" in result) setRows(prevRows);
-      });
     },
-    [rows, selectedId, clear],
+    [setHidden, selectedId, clear],
   );
 
   const handlePanelClose = useCallback(() => {
@@ -234,10 +217,9 @@ export function TransactionList({
                   isSelected={selected.has(txn.id)}
                   isActive={txn.id === selectedId}
                   onSelect={handleSelect}
-                  onClick={() => select(txn.id)}
-                  onVisibilityChange={handleVisibilityChange}
-                  onCategoryUpdated={handleCategoryUpdated}
-                  onReviewedUpdated={handleReviewedUpdated}
+                  onOpen={select}
+                  onHiddenChange={handleHiddenChange}
+                  onPatch={patchRow}
                 />
               ))}
             </div>
@@ -285,7 +267,7 @@ export function TransactionList({
               initialData={selectedRow}
               categories={categories}
               onClose={handlePanelClose}
-              onTransactionUpdated={handleTransactionUpdated}
+              onPatch={patchRow}
               onSelectTransaction={select}
               onStepPrev={stepPrev}
               onStepNext={stepNext}

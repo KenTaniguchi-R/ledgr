@@ -16,13 +16,12 @@ import { TransactionRow } from "@/components/molecules/transaction-row";
 import { BulkActionBar } from "@/components/molecules/bulk-action-bar";
 import { TransactionDetailPanel } from "@/components/organisms/transaction-detail-panel";
 import { getDrillDownTransactions } from "@/actions/reports";
-import { updateTransactionFields } from "@/actions/transaction-detail";
 import { drillDownTransactionsUrl } from "@/lib/drill-down-url";
 import { drillDownExitReason } from "@/lib/drill-down-exit";
 import { groupByDate } from "@/lib/transactions";
 import { formatDateShort } from "@/lib/date-utils";
 import { centsToDisplay } from "@/lib/money";
-import type { TransactionRow as TxnRow } from "@/queries/transactions";
+import { useTransactionRows, type TransactionPatch } from "@/hooks/use-transaction-rows";
 import type { CategoryGroup } from "@/queries/categories";
 
 export interface DrillDownFilter {
@@ -59,7 +58,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
   // every drill-down open and would otherwise hand us a fresh array each time.
   const accountKey = accountIds?.join(",") ?? "";
   const [isPending, startTransition] = useTransition();
-  const [rows, setRows] = useState<TxnRow[]>([]);
+  const { rows, setRows, patchRow: patchListRow, setHidden: setListHidden } = useTransactionRows();
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
@@ -95,7 +94,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
   // drill-down carries `categoryId: null` alongside undefined month/type, which
   // is field-for-field identical to the closed (null filter) state, so a field
   // dependency list would never fire and the sheet would open empty.
-  }, [filter, effectiveDateFrom, effectiveDateTo, accountKey, reloadKey]);
+  }, [filter, effectiveDateFrom, effectiveDateTo, accountKey, reloadKey, setRows]);
 
   // A new drill-down starts clean.
   const [filterFor, setFilterFor] = useState(filter);
@@ -147,34 +146,23 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
     [openIndex, rows],
   );
 
-  const patchRow = useCallback((id: string, patch: Partial<TxnRow>) => {
-    dirty.current = true;
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  }, []);
-
-  const handleTransactionUpdated = useCallback((updated: TxnRow) => {
-    dirty.current = true;
-    setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-  }, []);
-
-  const handleCategoryUpdated = useCallback(
-    (id: string, categoryId: string | null, categoryName: string | null) => patchRow(id, { categoryId, categoryName }),
-    [patchRow],
-  );
-
-  const handleReviewedUpdated = useCallback(
-    (id: string, reviewed: boolean) => patchRow(id, { reviewed }),
-    [patchRow],
-  );
-
-  const handleVisibilityChange = useCallback(
-    (id: string, hidden: boolean) => {
-      patchRow(id, { isHidden: hidden });
-      updateTransactionFields(id, { isHidden: hidden }).then((result) => {
-        if ("error" in result) patchRow(id, { isHidden: !hidden });
-      });
+  const patchRow = useCallback(
+    (id: string, patch: TransactionPatch) => {
+      dirty.current = true;
+      patchListRow(id, patch);
     },
-    [patchRow],
+    [patchListRow],
+  );
+
+  // Unlike the ledger, the sheet keeps a hidden row in place: hiding is one of
+  // the ways a row leaves the drill-down, so it stays as a dimmed "done" row
+  // (see exitReasons) until the sheet closes.
+  const handleHiddenChange = useCallback(
+    (id: string, hidden: boolean) => {
+      dirty.current = true;
+      setListHidden(id, hidden);
+    },
+    [setListHidden],
   );
 
   const handleSelect = useCallback((id: string, checked: boolean) => {
@@ -256,7 +244,7 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
               initialData={openRow}
               categories={categories}
               onClose={closeDetail}
-              onTransactionUpdated={handleTransactionUpdated}
+              onPatch={patchRow}
               onSelectTransaction={setOpenId}
               onStepPrev={stepPrev}
               onStepNext={stepNext}
@@ -301,10 +289,9 @@ export function DrillDownSheet({ filter, dateFrom, dateTo, accountIds, categorie
                         categories={categories}
                         isSelected={selected.has(txn.id)}
                         onSelect={handleSelect}
-                        onClick={() => setOpenId(txn.id)}
-                        onVisibilityChange={exitReasons.has(txn.id) ? undefined : handleVisibilityChange}
-                        onCategoryUpdated={handleCategoryUpdated}
-                        onReviewedUpdated={handleReviewedUpdated}
+                        onOpen={setOpenId}
+                        onHiddenChange={exitReasons.has(txn.id) ? undefined : handleHiddenChange}
+                        onPatch={patchRow}
                         compact
                         exitReason={exitReasons.get(txn.id) ?? null}
                       />
