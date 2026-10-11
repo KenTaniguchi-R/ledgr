@@ -1,7 +1,7 @@
 "use client";
 
 import { accountDisplayName } from "@/lib/account-name";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { Clock, Eye, EyeOff } from "lucide-react";
 import { AmountDisplay } from "@/components/atoms/amount-display";
 import { EntityAvatar } from "@/components/molecules/entity-avatar";
@@ -9,6 +9,7 @@ import { CategoryPill } from "@/components/molecules/category-pill";
 import { ReviewedDot } from "@/components/molecules/reviewed-dot";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TransactionRow as TxnRow } from "@/queries/transactions";
 import type { CategoryGroup } from "@/queries/categories";
 import type { TransactionPatch } from "@/hooks/use-transaction-rows";
@@ -210,6 +211,7 @@ function TransactionDescription({
   compact: boolean;
   exitReason: string | null;
 }) {
+  const note = txn.notes?.trim();
   return (
     <div className="flex items-center gap-1.5 pr-2 min-w-0">
       <EntityAvatar
@@ -224,16 +226,24 @@ function TransactionDescription({
         <span
           className={cn(
             "truncate",
+            // Flex shrink is weighted by content width, so a long note would
+            // still take a few pixels off the name; with a note, the name
+            // holds its width and only the note gives way.
+            note && "shrink-0 max-w-full",
             txn.isTransfer ? "font-normal text-muted-foreground" : "font-medium",
           )}
         >
           {txn.name}
         </span>
+        {note && <RowNote note={note} />}
         {txn.isHidden && (
           <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Hidden</Badge>
         )}
         {txn.originalName !== txn.name && (
-          <span className="text-xs text-muted-foreground hidden group-hover/row:inline truncate">
+          // Shrinks first, so revealing it on hover never squeezes the note
+          // under the cursor — someone reading their own note outranks the
+          // bank's wording, which the detail panel also shows.
+          <span className="text-xs text-muted-foreground hidden group-hover/row:inline truncate shrink-[1000]">
             ({txn.originalName})
           </span>
         )}
@@ -251,5 +261,31 @@ function TransactionDescription({
         )}
       </div>
     </div>
+  );
+}
+
+function isTruncated(el: HTMLElement | null) {
+  return el !== null && el.scrollWidth > el.clientWidth;
+}
+
+/** The note rides after the name in whatever width the name leaves it, giving
+ * way before the name does. When that cuts it off, hovering it shows the
+ * whole note; when it fits, there is nothing more to show. Below sm the row
+ * has no room for it, and tapping the row opens the panel with the note. */
+function RowNote({ note }: { note: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Tooltip open={open} onOpenChange={(next) => setOpen(next && isTruncated(ref.current))}>
+      <TooltipTrigger
+        delay={300}
+        render={<span ref={ref} />}
+        className="hidden sm:inline min-w-0 truncate shrink-[100] text-muted-foreground before:mr-1.5 before:content-['·']"
+      >
+        {note}
+      </TooltipTrigger>
+      <TooltipContent className="whitespace-pre-wrap break-words">{note}</TooltipContent>
+    </Tooltip>
   );
 }
