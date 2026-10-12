@@ -17,8 +17,28 @@ export async function createTestDb() {
   // on those qualified references. A throwaway database per file gives every test
   // its own public schema, keeps the concurrent suite isolated, and is robust to
   // future migrations regardless of how they qualify identifiers.
+  //
+  // CI フレーク対策: DB 作成はマイグレーション済みテンプレートのクローン
+  // (CREATE DATABASE ... TEMPLATE "test_template") で行う。
+  // テンプレートは tests/global-setup.ts で実行ごとに1回だけ作成され、
+  // クローンはファイルシステムレベルのコピーなので ms オーダー。
+  // テンプレートへの接続が残っているとクローンできないため、globalSetup 側の
+  // pool は必ず閉じておくこと。
   const admin = new Pool({ connectionString });
-  await admin.query(`CREATE DATABASE "${dbName}"`);
+  try {
+    await admin.query(`CREATE DATABASE "${dbName}" TEMPLATE "test_template"`);
+  } catch {
+    // テンプレートが無い場合 (globalSetup を経由しない単体実行など) は
+    // 従来通り CREATE + マイグレーションリプレイにフォールバック。
+    await admin.query(`CREATE DATABASE "${dbName}"`);
+    const fallbackUrl = new URL(connectionString);
+    fallbackUrl.pathname = `/${dbName}`;
+    const fallbackPool = new Pool({ connectionString: fallbackUrl.toString() });
+    await migrate(drizzle({ client: fallbackPool, schema }), {
+      migrationsFolder: path.join(process.cwd(), "src/db/migrations"),
+    });
+    await fallbackPool.end();
+  }
   await admin.end();
 
   const url = new URL(connectionString);
@@ -26,9 +46,6 @@ export async function createTestDb() {
 
   const pool = new Pool({ connectionString: url.toString() });
   const db = drizzle({ client: pool, schema });
-  await migrate(db, {
-    migrationsFolder: path.join(process.cwd(), "src/db/migrations"),
-  });
 
   return {
     db,
